@@ -1,0 +1,121 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import styled from 'styled-components'
+
+import { endorsementsSummary, monthGroups } from '@/data/endorsements'
+import { flexDeal } from '@/data/flexDeal'
+import { DeadlineBanner } from '@/pages/Endorsements/DeadlineBanner'
+import {
+  LivesActionModal,
+  type LifeAction,
+} from '@/pages/Endorsements/LivesActionModal'
+import { MonthAccordion } from '@/pages/Endorsements/MonthAccordion'
+import { SummaryCards } from '@/pages/Endorsements/SummaryCards'
+import type { LifeMethod } from '@/pages/LivesWizard/WizardContext'
+
+export function EndorsementsPage() {
+  const navigate = useNavigate()
+  const [expandedIds, setExpandedIds] = useState<string[]>(() =>
+    monthGroups.map((g) => g.id),
+  )
+  const [modalOpen, setModalOpen] = useState(false)
+
+  const handleConfirm = (action: LifeAction, method: LifeMethod) => {
+    setModalOpen(false)
+    navigate(`/endorsements/lives/${action}?method=${method}`)
+  }
+
+  return (
+    <Page>
+      <DeadlineBanner
+        monthLabel={endorsementsSummary.deadlineMonth}
+        deadline={endorsementsSummary.deadlineDate}
+        onAddLives={() => setModalOpen(true)}
+      />
+
+      <Content>
+        <Intro>
+          <Title>Endorsements</Title>
+          <Description>
+            {flexDeal.isFlexCompany
+              ? 'Add, edit, or delete lives, assign Flex plans and benefits, and launch enrolments — then track endorsement status.'
+              : 'Add, Edit, Delete lives from policies and track status for ongoing requests!'}
+          </Description>
+        </Intro>
+
+        <SummaryCards
+          ongoing={endorsementsSummary.ongoing}
+          completed={endorsementsSummary.completed}
+        />
+
+        <List>
+          {monthGroups.map((group) => (
+            <MonthAccordion
+              key={group.id}
+              group={group}
+              expanded={expandedIds.includes(group.id)}
+              onToggle={() =>
+                setExpandedIds((current) =>
+                  current.includes(group.id)
+                    ? current.filter((id) => id !== group.id)
+                    : [...current, group.id],
+                )
+              }
+            />
+          ))}
+        </List>
+      </Content>
+
+      <LivesActionModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onConfirm={handleConfirm}
+      />
+    </Page>
+  )
+}
+
+const Page = styled.div`
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+`
+
+const Content = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  padding: 40px 0 64px;
+  width: 100%;
+`
+
+const Intro = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 ${({ theme }) => theme.layout.contentPadX};
+`
+
+const Title = styled.h1`
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 24px;
+  color: ${({ theme }) => theme.colors.textPrimary};
+`
+
+const Description = styled.p`
+  margin: 0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+`
+
+const List = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+  width: 100%;
+`

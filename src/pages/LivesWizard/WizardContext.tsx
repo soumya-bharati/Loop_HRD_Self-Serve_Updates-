@@ -1,0 +1,1016 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
+
+import {
+  emptyDependantForm,
+  emptyEmployeeForm,
+  sampleEmployees,
+  type DependantFormData,
+  type EmployeeFormData,
+} from '@/data/employees'
+import {
+  buildCostEstimate,
+  buildMembersCostEstimate,
+  buildRefundEstimate,
+  buildSingleCostEstimate,
+  emptyEnrolmentSettings,
+  flexDeal,
+  getPlanById,
+  resolveSelectionBenefitIds,
+  sampleBulkDeleteRows,
+  sampleBulkRows,
+  type BulkMemberRow,
+  type CostEstimate,
+  type EnrolmentSettingsState,
+  type RefundEstimate,
+} from '@/data/flexDeal'
+import {
+  emptyAddEmployeeMember,
+  flattenMembers,
+  nextDependantId,
+  nextMemberId,
+  type AddEmployeeMember,
+  type IntakeMode,
+} from '@/pages/LivesWizard/addEmployees'
+
+export type LifeAction = 'add' | 'edit' | 'delete'
+export type LifeMethod = 'bulk' | 'single' | 'single-dependant'
+
+export type WizardStep =
+  | 'selection'
+  | 'employee-details'
+  | 'user-details'
+  | 'search-employee'
+  | 'dependant-details'
+  | 'dependant-plan'
+  | 'benefits'
+  | 'verify'
+  | 'endo-costs'
+  | 'enrolment'
+  | 'upload'
+  | 'bulk-validate'
+  | 'midterm-proof'
+  | 'bulk-review'
+  | 'processing'
+  | 'date-of-leaving'
+  | 'delete-summary'
+  | 'edit-form'
+  | 'edit-proof'
+  | 'success'
+
+export type BulkAssignMode = 'rules' | 'sheet' | null
+export type BenefitsAssignMode = 'common' | 'individual'
+
+export type BulkDeleteRow = (typeof sampleBulkDeleteRows)[number]
+
+interface LivesWizardContextValue {
+  action: LifeAction
+  step: WizardStep
+  setStep: (step: WizardStep) => void
+  method: LifeMethod
+  setMethod: (method: LifeMethod) => void
+
+  employee: EmployeeFormData
+  setEmployee: (value: EmployeeFormData) => void
+  updateEmployee: (patch: Partial<EmployeeFormData>) => void
+  updateCustomAttribute: (id: string, value: string) => void
+
+  addDependants: boolean | null
+  setAddDependants: (value: boolean | null) => void
+  dependants: DependantFormData[]
+  setDependants: (value: DependantFormData[]) => void
+  updateDependant: (id: string, patch: Partial<DependantFormData>) => void
+  addDependant: () => void
+  removeDependant: (id: string) => void
+  maxDependants: number
+
+  selectedEmployeeId: string | null
+  setSelectedEmployeeId: (id: string | null) => void
+  selectedDependantId: string | null
+  setSelectedDependantId: (id: string | null) => void
+  selectedDependantPlanId: string | null
+  setSelectedDependantPlanId: (id: string | null) => void
+
+  selectedPolicyIds: string[]
+  togglePolicy: (policyId: string) => void
+  selectedPolicyTiers: Record<string, string>
+  setPolicyTier: (policyId: string, tierId: string) => void
+  selectedPolicyFamilyStructures: Record<string, string>
+  setPolicyFamilyStructure: (policyId: string, structureId: string) => void
+  purchaseGroupChoices: Record<string, string[]>
+  togglePurchaseGroupOption: (
+    dealId: string,
+    groupId: string,
+    optionId: string,
+    mode: 'single' | 'multi',
+  ) => void
+  setPurchaseGroupChoice: (
+    dealId: string,
+    groupId: string,
+    optionId: string | null,
+  ) => void
+  activeDealId: string | null
+  pruneIneligibleSelections: (eligibility: {
+    policies: Record<string, { eligible: boolean }>
+    options: Record<string, { eligible: boolean }>
+  }) => void
+
+  /** Add employee(s) 3-step flow */
+  intakeMode: IntakeMode
+  setIntakeMode: (mode: IntakeMode) => void
+  addEmployees: AddEmployeeMember[]
+  setAddEmployees: (members: AddEmployeeMember[]) => void
+  updateAddEmployee: (
+    memberId: string,
+    patch: Partial<Omit<AddEmployeeMember, 'id'>>,
+  ) => void
+  updateAddEmployeeFields: (
+    memberId: string,
+    patch: Partial<EmployeeFormData>,
+  ) => void
+  updateAddEmployeeCustomAttribute: (
+    memberId: string,
+    attrId: string,
+    value: string,
+  ) => void
+  addAddEmployee: () => void
+  removeAddEmployee: (memberId: string) => void
+  addAddEmployeeDependant: (memberId: string) => void
+  updateAddEmployeeDependant: (
+    memberId: string,
+    dependantId: string,
+    patch: Partial<DependantFormData>,
+  ) => void
+  removeAddEmployeeDependant: (memberId: string, dependantId: string) => void
+  toggleCoverForEligibleLives: (
+    coverId: string,
+    enabled: boolean,
+    lifeIds: string[],
+  ) => void
+  setLifeCoverIds: (lifeId: string, coverIds: string[]) => void
+  benefitsAssignMode: BenefitsAssignMode
+  setBenefitsAssignMode: (mode: BenefitsAssignMode) => void
+
+  fileName: string | null
+  setFileName: (name: string | null) => void
+  templateDownloaded: boolean
+  setTemplateDownloaded: (value: boolean) => void
+  deleteConfirmed: boolean
+  setDeleteConfirmed: (value: boolean) => void
+
+  rows: BulkMemberRow[]
+  updateRowPlan: (rowId: string, planId: string) => void
+  bulkAssignMode: BulkAssignMode
+  setBulkAssignMode: (mode: BulkAssignMode) => void
+  bulkFilter: string
+  setBulkFilter: (value: string) => void
+  midtermProofUploaded: boolean
+  setMidtermProofUploaded: (value: boolean) => void
+  processingProgress: number
+  startProcessing: () => void
+
+  dateOfLeaving: string
+  setDateOfLeaving: (value: string) => void
+  bulkDeleteRows: BulkDeleteRow[]
+
+  editProofFileName: string | null
+  setEditProofFileName: (name: string | null) => void
+  editBlocked: boolean
+  setEditBlocked: (value: boolean) => void
+  simulateEditSaveFailure: boolean
+  setSimulateEditSaveFailure: (value: boolean) => void
+
+  enrolment: EnrolmentSettingsState
+  setEnrolment: (value: EnrolmentSettingsState) => void
+
+  costEstimate: CostEstimate
+  refundEstimate: RefundEstimate | null
+  resolvedAssignment: ReturnType<typeof resolveSelectionBenefitIds>
+
+  completeFlow: () => void
+  /** @deprecated use completeFlow */
+  completeAddition: () => void
+  resetWizard: () => void
+}
+
+const LivesWizardContext = createContext<LivesWizardContextValue | null>(null)
+
+function initialStepFor(action: LifeAction, method: LifeMethod): WizardStep {
+  if (action === 'add') {
+    if (method === 'single') return 'user-details'
+    if (method === 'single-dependant') return 'search-employee'
+    return 'upload'
+  }
+  if (action === 'delete') {
+    if (method === 'bulk') return 'upload'
+    return 'search-employee'
+  }
+  // edit
+  return 'search-employee'
+}
+
+function applyPlanToRow(row: BulkMemberRow, planId: string): BulkMemberRow {
+  const planBenefits =
+    planId === 'plan-parental'
+      ? row.relationship === 'Parent'
+        ? ['ben-gmc-parental']
+        : ['ben-gmc', 'ben-gpa', 'ben-gmc-parental']
+      : ['ben-gmc', 'ben-gpa']
+
+  const payroll =
+    planId === 'plan-parental'
+      ? row.relationship === 'Parent'
+        ? 1600
+        : 2100
+      : row.relationship === 'Spouse'
+        ? 980
+        : 1250
+
+  return {
+    ...row,
+    assignedPlanId: planId,
+    benefitIds: planBenefits,
+    purchaseGroupSelections: {
+      ...row.purchaseGroupSelections,
+      'pg-core': [
+        planId === 'plan-parental' ? 'opt-parental' : 'opt-standard',
+      ],
+    },
+    assignmentSource: 'manual',
+    needsManualAssignment: false,
+    validationError: undefined,
+    validationField: undefined,
+    status: 'pass',
+    payrollDelta: payroll,
+  }
+}
+
+let dependantSeq = 1
+
+export function LivesWizardProvider({
+  action,
+  initialMethod,
+  children,
+}: {
+  action: LifeAction
+  initialMethod: LifeMethod
+  children: ReactNode
+}) {
+  const initialStep = initialStepFor(action, initialMethod)
+
+  const [step, setStep] = useState<WizardStep>(initialStep)
+  const [method, setMethod] = useState<LifeMethod>(initialMethod)
+  const [employee, setEmployee] = useState<EmployeeFormData>(emptyEmployeeForm)
+  const [addDependants, setAddDependants] = useState<boolean | null>(null)
+  const [dependants, setDependants] = useState<DependantFormData[]>([])
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(
+    null,
+  )
+  const [selectedDependantId, setSelectedDependantId] = useState<string | null>(
+    null,
+  )
+  const [selectedDependantPlanId, setSelectedDependantPlanId] = useState<
+    string | null
+  >(null)
+  const [selectedPolicyIds, setSelectedPolicyIds] = useState<string[]>([])
+  const [selectedPolicyTiers, setSelectedPolicyTiers] = useState<
+    Record<string, string>
+  >({})
+  const [selectedPolicyFamilyStructures, setSelectedPolicyFamilyStructures] =
+    useState<Record<string, string>>({})
+  const [purchaseGroupChoices, setPurchaseGroupChoices] = useState<
+    Record<string, string[]>
+  >({})
+  const [activeDealId, setActiveDealId] = useState<string | null>(null)
+  const [fileName, setFileName] = useState<string | null>(null)
+  const [templateDownloaded, setTemplateDownloaded] = useState(false)
+  const [deleteConfirmed, setDeleteConfirmed] = useState(false)
+  const [rows, setRows] = useState<BulkMemberRow[]>(() =>
+    sampleBulkRows.map((r) => ({ ...r })),
+  )
+  const [bulkAssignMode, setBulkAssignMode] = useState<BulkAssignMode>(null)
+  const [bulkFilter, setBulkFilter] = useState('all')
+  const [midtermProofUploaded, setMidtermProofUploaded] = useState(false)
+  const [processingProgress, setProcessingProgress] = useState(0)
+  const [dateOfLeaving, setDateOfLeaving] = useState('')
+  const [bulkDeleteRows] = useState(() =>
+    sampleBulkDeleteRows.map((r) => ({ ...r })),
+  )
+  const [editProofFileName, setEditProofFileName] = useState<string | null>(
+    null,
+  )
+  const [editBlocked, setEditBlocked] = useState(false)
+  const [simulateEditSaveFailure, setSimulateEditSaveFailure] = useState(false)
+  const [enrolment, setEnrolment] = useState<EnrolmentSettingsState>(
+    emptyEnrolmentSettings,
+  )
+  const [intakeMode, setIntakeMode] = useState<IntakeMode>('form')
+  const [addEmployees, setAddEmployees] = useState<AddEmployeeMember[]>(() => [
+    emptyAddEmployeeMember(),
+  ])
+  const [benefitsAssignMode, setBenefitsAssignMode] =
+    useState<BenefitsAssignMode>('common')
+
+  const updateEmployee = useCallback((patch: Partial<EmployeeFormData>) => {
+    setEmployee((current) => ({ ...current, ...patch }))
+  }, [])
+
+  const updateCustomAttribute = useCallback((id: string, value: string) => {
+    setEmployee((current) => ({
+      ...current,
+      customAttributes: { ...current.customAttributes, [id]: value },
+    }))
+  }, [])
+
+  const updateDependant = useCallback(
+    (id: string, patch: Partial<DependantFormData>) => {
+      setDependants((current) =>
+        current.map((d) => (d.id === id ? { ...d, ...patch } : d)),
+      )
+    },
+    [],
+  )
+
+  const addDependant = useCallback(() => {
+    const id = `dep-${dependantSeq++}`
+    setDependants((current) => [...current, emptyDependantForm(id)])
+  }, [])
+
+  const removeDependant = useCallback((id: string) => {
+    setDependants((current) => current.filter((d) => d.id !== id))
+  }, [])
+
+  const updateAddEmployee = useCallback(
+    (memberId: string, patch: Partial<Omit<AddEmployeeMember, 'id'>>) => {
+      setAddEmployees((current) =>
+        current.map((m) => (m.id === memberId ? { ...m, ...patch } : m)),
+      )
+    },
+    [],
+  )
+
+  const updateAddEmployeeFields = useCallback(
+    (memberId: string, patch: Partial<EmployeeFormData>) => {
+      setAddEmployees((current) =>
+        current.map((m) =>
+          m.id === memberId
+            ? { ...m, employee: { ...m.employee, ...patch } }
+            : m,
+        ),
+      )
+    },
+    [],
+  )
+
+  const updateAddEmployeeCustomAttribute = useCallback(
+    (memberId: string, attrId: string, value: string) => {
+      setAddEmployees((current) =>
+        current.map((m) =>
+          m.id === memberId
+            ? {
+                ...m,
+                employee: {
+                  ...m.employee,
+                  customAttributes: {
+                    ...m.employee.customAttributes,
+                    [attrId]: value,
+                  },
+                },
+              }
+            : m,
+        ),
+      )
+    },
+    [],
+  )
+
+  const addAddEmployee = useCallback(() => {
+    setAddEmployees((current) => [
+      ...current,
+      emptyAddEmployeeMember(nextMemberId()),
+    ])
+  }, [])
+
+  const removeAddEmployee = useCallback((memberId: string) => {
+    setAddEmployees((current) => {
+      const next = current.filter((m) => m.id !== memberId)
+      return next.length > 0 ? next : [emptyAddEmployeeMember()]
+    })
+  }, [])
+
+  const addAddEmployeeDependant = useCallback((memberId: string) => {
+    const dep = emptyDependantForm(nextDependantId())
+    setAddEmployees((current) =>
+      current.map((m) =>
+        m.id === memberId
+          ? { ...m, dependants: [...m.dependants, dep] }
+          : m,
+      ),
+    )
+  }, [])
+
+  const updateAddEmployeeDependant = useCallback(
+    (
+      memberId: string,
+      dependantId: string,
+      patch: Partial<DependantFormData>,
+    ) => {
+      setAddEmployees((current) =>
+        current.map((m) =>
+          m.id === memberId
+            ? {
+                ...m,
+                dependants: m.dependants.map((d) =>
+                  d.id === dependantId ? { ...d, ...patch } : d,
+                ),
+              }
+            : m,
+        ),
+      )
+    },
+    [],
+  )
+
+  const removeAddEmployeeDependant = useCallback(
+    (memberId: string, dependantId: string) => {
+      setAddEmployees((current) =>
+        current.map((m) =>
+          m.id === memberId
+            ? {
+                ...m,
+                dependants: m.dependants.filter((d) => d.id !== dependantId),
+              }
+            : m,
+        ),
+      )
+    },
+    [],
+  )
+
+  const setLifeCoverIds = useCallback((lifeId: string, coverIds: string[]) => {
+    setAddEmployees((current) =>
+      current.map((m) => {
+        if (m.id === lifeId) {
+          return { ...m, selectedBenefitIds: coverIds }
+        }
+        const dep = m.dependants.find((d) => d.id === lifeId)
+        if (!dep) return m
+        return {
+          ...m,
+          dependants: m.dependants.map((d) =>
+            d.id === lifeId ? { ...d, selectedBenefitIds: coverIds } : d,
+          ),
+        }
+      }),
+    )
+  }, [])
+
+  const toggleCoverForEligibleLives = useCallback(
+    (coverId: string, enabled: boolean, lifeIds: string[]) => {
+      const lifeSet = new Set(lifeIds)
+      setAddEmployees((current) => {
+        const next = current.map((m) => {
+          const touchEmp = lifeSet.has(m.id)
+          const empIds = !touchEmp
+            ? m.selectedBenefitIds
+            : enabled
+              ? m.selectedBenefitIds.includes(coverId)
+                ? m.selectedBenefitIds
+                : [...m.selectedBenefitIds, coverId]
+              : m.selectedBenefitIds.filter((id) => id !== coverId)
+          return {
+            ...m,
+            selectedBenefitIds: empIds,
+            dependants: m.dependants.map((d) => {
+              if (!lifeSet.has(d.id)) return d
+              return {
+                ...d,
+                selectedBenefitIds: enabled
+                  ? d.selectedBenefitIds.includes(coverId)
+                    ? d.selectedBenefitIds
+                    : [...d.selectedBenefitIds, coverId]
+                  : d.selectedBenefitIds.filter((id) => id !== coverId),
+              }
+            }),
+          }
+        })
+        const stillAssigned = next.some(
+          (m) =>
+            m.selectedBenefitIds.includes(coverId) ||
+            m.dependants.some((d) => d.selectedBenefitIds.includes(coverId)),
+        )
+        setSelectedPolicyIds((ids) => {
+          if (enabled || stillAssigned) {
+            return ids.includes(coverId) ? ids : [...ids, coverId]
+          }
+          return ids.filter((id) => id !== coverId)
+        })
+        if (!enabled && !stillAssigned) {
+          setSelectedPolicyTiers((tiers) => {
+            const nextTiers = { ...tiers }
+            delete nextTiers[coverId]
+            return nextTiers
+          })
+          setSelectedPolicyFamilyStructures((structures) => {
+            const nextStructures = { ...structures }
+            delete nextStructures[coverId]
+            return nextStructures
+          })
+        }
+        return next
+      })
+    },
+    [],
+  )
+
+  const togglePolicy = useCallback((policyId: string) => {
+    setSelectedPolicyIds((current) => {
+      if (current.includes(policyId)) {
+        setSelectedPolicyTiers((tiers) => {
+          const next = { ...tiers }
+          delete next[policyId]
+          return next
+        })
+        setSelectedPolicyFamilyStructures((structures) => {
+          const next = { ...structures }
+          delete next[policyId]
+          return next
+        })
+        return current.filter((id) => id !== policyId)
+      }
+      return [...current, policyId]
+    })
+  }, [])
+
+  const setPolicyTier = useCallback((policyId: string, tierId: string) => {
+    setSelectedPolicyTiers((current) => ({ ...current, [policyId]: tierId }))
+    setSelectedPolicyIds((current) =>
+      current.includes(policyId) ? current : [...current, policyId],
+    )
+  }, [])
+
+  const setPolicyFamilyStructure = useCallback(
+    (policyId: string, structureId: string) => {
+      setSelectedPolicyFamilyStructures((current) => ({
+        ...current,
+        [policyId]: structureId,
+      }))
+      setSelectedPolicyIds((current) =>
+        current.includes(policyId) ? current : [...current, policyId],
+      )
+    },
+    [],
+  )
+
+  const pruneIneligibleSelections = useCallback(
+    (eligibility: {
+      policies: Record<string, { eligible: boolean }>
+      options: Record<string, { eligible: boolean }>
+    }) => {
+      setSelectedPolicyIds((current) =>
+        current.filter((id) => eligibility.policies[id]?.eligible !== false),
+      )
+      setSelectedPolicyTiers((current) => {
+        const next: Record<string, string> = {}
+        for (const [policyId, tierId] of Object.entries(current)) {
+          if (eligibility.policies[policyId]?.eligible !== false) {
+            next[policyId] = tierId
+          }
+        }
+        return next
+      })
+      setSelectedPolicyFamilyStructures((current) => {
+        const next: Record<string, string> = {}
+        for (const [policyId, structureId] of Object.entries(current)) {
+          if (eligibility.policies[policyId]?.eligible !== false) {
+            next[policyId] = structureId
+          }
+        }
+        return next
+      })
+      setPurchaseGroupChoices((current) => {
+        const next: Record<string, string[]> = {}
+        let anySelected = false
+        for (const [groupId, optionIds] of Object.entries(current)) {
+          const kept = optionIds.filter(
+            (id) => eligibility.options[id]?.eligible !== false,
+          )
+          next[groupId] = kept
+          if (kept.length > 0) anySelected = true
+        }
+        if (!anySelected) setActiveDealId(null)
+        return next
+      })
+    },
+    [],
+  )
+
+  const togglePurchaseGroupOption = useCallback(
+    (
+      dealId: string,
+      groupId: string,
+      optionId: string,
+      mode: 'single' | 'multi',
+    ) => {
+      setActiveDealId((current) => {
+        if (current && current !== dealId) return current
+        return dealId
+      })
+      setPurchaseGroupChoices((current) => {
+        if (activeDealId && activeDealId !== dealId) return current
+        const existing = current[groupId] ?? []
+        let next: string[]
+        if (mode === 'single') {
+          next = existing.includes(optionId) ? [] : [optionId]
+        } else {
+          next = existing.includes(optionId)
+            ? existing.filter((id) => id !== optionId)
+            : [...existing, optionId]
+        }
+        const updated = { ...current, [groupId]: next }
+        const anySelected = Object.values(updated).some((v) => v.length > 0)
+        if (!anySelected) setActiveDealId(null)
+        else setActiveDealId(dealId)
+        return updated
+      })
+    },
+    [activeDealId],
+  )
+
+  const setPurchaseGroupChoice = useCallback(
+    (dealId: string, groupId: string, optionId: string | null) => {
+      setActiveDealId((current) => {
+        if (current && current !== dealId) return current
+        return optionId ? dealId : current
+      })
+      setPurchaseGroupChoices((current) => {
+        if (activeDealId && activeDealId !== dealId) return current
+        const updated = {
+          ...current,
+          [groupId]: optionId ? [optionId] : [],
+        }
+        const anySelected = Object.values(updated).some((v) => v.length > 0)
+        if (!anySelected) setActiveDealId(null)
+        else setActiveDealId(dealId)
+        return updated
+      })
+    },
+    [activeDealId],
+  )
+
+  const updateRowPlan = useCallback((rowId: string, planId: string) => {
+    setRows((current) =>
+      current.map((row) =>
+        row.id === rowId ? applyPlanToRow(row, planId) : row,
+      ),
+    )
+  }, [])
+
+  const startProcessing = useCallback(() => {
+    setProcessingProgress(0)
+    setStep('processing')
+    let progress = 0
+    const timer = window.setInterval(() => {
+      progress += 20
+      setProcessingProgress(progress)
+      if (progress >= 100) {
+        window.clearInterval(timer)
+        setStep('success')
+      }
+    }, 350)
+  }, [])
+
+  const resolvedAssignment = useMemo(
+    () =>
+      resolveSelectionBenefitIds(
+        selectedPolicyIds,
+        purchaseGroupChoices,
+        activeDealId,
+      ),
+    [selectedPolicyIds, purchaseGroupChoices, activeDealId],
+  )
+
+  const maxDependants = useMemo(() => {
+    const fromPlans = resolvedAssignment.planIds
+      .map((id) => getPlanById(id)?.maxDependants ?? 0)
+      .filter(Boolean)
+    if (fromPlans.length === 0) return flexDeal.maxDependantsUnion
+    return Math.max(...fromPlans, flexDeal.maxDependantsUnion)
+  }, [resolvedAssignment.planIds])
+
+  const selectedEmployee = sampleEmployees.find(
+    (e) => e.id === selectedEmployeeId,
+  )
+
+  const costEstimate = useMemo(() => {
+    if (action === 'delete') {
+      return buildSingleCostEstimate({
+        selectedPolicyIds: [],
+        purchaseGroupChoices: {},
+        activeDealId: null,
+        lifeCount: 0,
+      })
+    }
+
+    if (method === 'bulk' && action === 'add') {
+      return buildCostEstimate(rows, { cdShortfall: true })
+    }
+
+    if (method === 'single' && action === 'add') {
+      const lives = flattenMembers(addEmployees)
+      return buildMembersCostEstimate(
+        lives,
+        selectedPolicyTiers,
+        selectedPolicyFamilyStructures,
+      )
+    }
+
+    const lifeCount =
+      method === 'single-dependant'
+        ? Math.max(dependants.length, 1)
+        : 1 + (addDependants === true ? dependants.length : 0)
+
+    return buildSingleCostEstimate({
+      selectedPolicyIds,
+      purchaseGroupChoices,
+      activeDealId:
+        method === 'single-dependant'
+          ? flexDeal.id
+          : activeDealId,
+      lifeCount,
+      forceCdShortfall:
+        selectedPolicyIds.includes('pol-gtl') ||
+        resolvedAssignment.benefitIds.includes('ben-gmc-parental'),
+    })
+  }, [
+    action,
+    method,
+    rows,
+    selectedPolicyIds,
+    purchaseGroupChoices,
+    activeDealId,
+    dependants,
+    addDependants,
+    resolvedAssignment.benefitIds,
+    addEmployees,
+    selectedPolicyTiers,
+    selectedPolicyFamilyStructures,
+  ])
+
+  const refundEstimate = useMemo(() => {
+    if (action !== 'delete' || method === 'bulk') {
+      if (action === 'delete' && method === 'bulk') {
+        const pass = bulkDeleteRows.filter((r) => r.status === 'pass')
+        return {
+          totalLivesDeleted: pass.length,
+          totalInsurerRefund: pass.reduce((s, r) => s + r.insurerRefund, 0),
+          totalEmployeeRefund: pass.reduce((s, r) => s + r.payrollRefund, 0),
+          lines: pass.map((r) => ({
+            id: r.id,
+            label: r.name,
+            kind: 'policy' as const,
+            lives: 1,
+            insurerRefund: r.insurerRefund,
+            employeeRefund: r.payrollRefund,
+            zeroReason: r.hasClaim ? ('claim' as const) : undefined,
+          })),
+          policiesByCd: [
+            {
+              cdAccountId: 'cd-main',
+              cdAccountName: 'Symphony Main CD',
+              cdBalance: 238456,
+              policies: pass.map((r) => ({
+                policyName: r.name,
+                lives: 1,
+                refund: r.insurerRefund,
+              })),
+            },
+          ],
+        } satisfies RefundEstimate
+      }
+      return null
+    }
+    if (!selectedEmployee) return null
+    return buildRefundEstimate({
+      employeeName: `${selectedEmployee.firstName} ${selectedEmployee.lastName}`,
+      dependantCount: selectedEmployee.dependants.length,
+      hasClaimOnGmc: selectedEmployee.hasClaimOnGmc,
+      includeFlatWellness: selectedEmployee.hasFlatWellness,
+    })
+  }, [action, method, selectedEmployee, bulkDeleteRows])
+
+  const completeFlow = useCallback(() => {
+    if (action === 'edit' && simulateEditSaveFailure && editProofFileName) {
+      setEditProofFileName(null)
+      setSimulateEditSaveFailure(false)
+      window.alert(
+        'Save failed. Uploaded proof was removed and is not attached to the record.',
+      )
+      setStep('edit-proof')
+      return
+    }
+    setStep('success')
+  }, [action, simulateEditSaveFailure, editProofFileName])
+
+  const resetWizard = useCallback(() => {
+    setStep(initialStep)
+    setMethod(initialMethod)
+    setEmployee(emptyEmployeeForm())
+    setAddDependants(null)
+    setDependants([])
+    setSelectedEmployeeId(null)
+    setSelectedDependantId(null)
+    setSelectedDependantPlanId(null)
+    setSelectedPolicyIds([])
+    setSelectedPolicyTiers({})
+    setSelectedPolicyFamilyStructures({})
+    setPurchaseGroupChoices({})
+    setActiveDealId(null)
+    setFileName(null)
+    setTemplateDownloaded(false)
+    setDeleteConfirmed(false)
+    setRows(sampleBulkRows.map((r) => ({ ...r })))
+    setBulkAssignMode(null)
+    setBulkFilter('all')
+    setMidtermProofUploaded(false)
+    setProcessingProgress(0)
+    setDateOfLeaving('')
+    setEditProofFileName(null)
+    setEditBlocked(false)
+    setSimulateEditSaveFailure(false)
+    setEnrolment(emptyEnrolmentSettings())
+    setIntakeMode('form')
+    setAddEmployees([emptyAddEmployeeMember()])
+    setBenefitsAssignMode('common')
+  }, [initialMethod, initialStep])
+
+  const value = useMemo(
+    () => ({
+      action,
+      step,
+      setStep,
+      method,
+      setMethod,
+      employee,
+      setEmployee,
+      updateEmployee,
+      updateCustomAttribute,
+      addDependants,
+      setAddDependants,
+      dependants,
+      setDependants,
+      updateDependant,
+      addDependant,
+      removeDependant,
+      maxDependants,
+      selectedEmployeeId,
+      setSelectedEmployeeId,
+      selectedDependantId,
+      setSelectedDependantId,
+      selectedDependantPlanId,
+      setSelectedDependantPlanId,
+      selectedPolicyIds,
+      togglePolicy,
+      selectedPolicyTiers,
+      setPolicyTier,
+      selectedPolicyFamilyStructures,
+      setPolicyFamilyStructure,
+      purchaseGroupChoices,
+      togglePurchaseGroupOption,
+      setPurchaseGroupChoice,
+      activeDealId,
+      pruneIneligibleSelections,
+      intakeMode,
+      setIntakeMode,
+      addEmployees,
+      setAddEmployees,
+      updateAddEmployee,
+      updateAddEmployeeFields,
+      updateAddEmployeeCustomAttribute,
+      addAddEmployee,
+      removeAddEmployee,
+      addAddEmployeeDependant,
+      updateAddEmployeeDependant,
+      removeAddEmployeeDependant,
+      toggleCoverForEligibleLives,
+      setLifeCoverIds,
+      benefitsAssignMode,
+      setBenefitsAssignMode,
+      fileName,
+      setFileName,
+      templateDownloaded,
+      setTemplateDownloaded,
+      deleteConfirmed,
+      setDeleteConfirmed,
+      rows,
+      updateRowPlan,
+      bulkAssignMode,
+      setBulkAssignMode,
+      bulkFilter,
+      setBulkFilter,
+      midtermProofUploaded,
+      setMidtermProofUploaded,
+      processingProgress,
+      startProcessing,
+      dateOfLeaving,
+      setDateOfLeaving,
+      bulkDeleteRows,
+      editProofFileName,
+      setEditProofFileName,
+      editBlocked,
+      setEditBlocked,
+      simulateEditSaveFailure,
+      setSimulateEditSaveFailure,
+      enrolment,
+      setEnrolment,
+      costEstimate,
+      refundEstimate,
+      resolvedAssignment,
+      completeFlow,
+      completeAddition: completeFlow,
+      resetWizard,
+    }),
+    [
+      action,
+      step,
+      method,
+      employee,
+      updateEmployee,
+      updateCustomAttribute,
+      addDependants,
+      dependants,
+      updateDependant,
+      addDependant,
+      removeDependant,
+      maxDependants,
+      selectedEmployeeId,
+      selectedDependantId,
+      selectedDependantPlanId,
+      selectedPolicyIds,
+      togglePolicy,
+      selectedPolicyTiers,
+      setPolicyTier,
+      selectedPolicyFamilyStructures,
+      setPolicyFamilyStructure,
+      purchaseGroupChoices,
+      togglePurchaseGroupOption,
+      setPurchaseGroupChoice,
+      activeDealId,
+      pruneIneligibleSelections,
+      intakeMode,
+      addEmployees,
+      updateAddEmployee,
+      updateAddEmployeeFields,
+      updateAddEmployeeCustomAttribute,
+      addAddEmployee,
+      removeAddEmployee,
+      addAddEmployeeDependant,
+      updateAddEmployeeDependant,
+      removeAddEmployeeDependant,
+      toggleCoverForEligibleLives,
+      setLifeCoverIds,
+      benefitsAssignMode,
+      fileName,
+      templateDownloaded,
+      deleteConfirmed,
+      rows,
+      updateRowPlan,
+      bulkAssignMode,
+      bulkFilter,
+      midtermProofUploaded,
+      processingProgress,
+      startProcessing,
+      dateOfLeaving,
+      bulkDeleteRows,
+      editProofFileName,
+      editBlocked,
+      simulateEditSaveFailure,
+      enrolment,
+      costEstimate,
+      refundEstimate,
+      resolvedAssignment,
+      completeFlow,
+      resetWizard,
+    ],
+  )
+
+  return (
+    <LivesWizardContext.Provider value={value}>
+      {children}
+    </LivesWizardContext.Provider>
+  )
+}
+
+export function useLivesWizard() {
+  const ctx = useContext(LivesWizardContext)
+  if (!ctx) {
+    throw new Error('useLivesWizard must be used within LivesWizardProvider')
+  }
+  return ctx
+}

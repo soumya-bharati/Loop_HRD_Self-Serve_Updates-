@@ -1,0 +1,37 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="24" height="24" fill="#1E1E1E"/>
+<g id="Endo tracking">
+<path d="M-756 -2164C-756 -2165.1 -755.105 -2166 -754 -2166H10381C10382.1 -2166 10383 -2165.1 10383 -2164V2357C10383 2358.1 10382.1 2359 10381 2359H-754C-755.105 2359 -756 2358.1 -756 2357V-2164Z" fill="#444444"/>
+<path d="M-754 -2165H10381V-2167H-754V-2165ZM10382 -2164V2357H10384V-2164H10382ZM10381 2358H-754V2360H10381V2358ZM-755 2357V-2164H-757V2357H-755ZM-754 2358C-754.552 2358 -755 2357.55 -755 2357H-757C-757 2358.66 -755.657 2360 -754 2360V2358ZM10382 2357C10382 2357.55 10381.6 2358 10381 2358V2360C10382.7 2360 10384 2358.66 10384 2357H10382ZM10381 -2165C10381.6 -2165 10382 -2164.55 10382 -2164H10384C10384 -2165.66 10382.7 -2167 10381 -2167V-2165ZM-754 -2167C-755.657 -2167 -757 -2165.66 -757 -2164H-755C-755 -2164.55 -754.552 -2165 -754 -2165V-2167Z" fill="white" fill-opacity="0.1"/>
+<g id="Endo List Page" clip-path="url(#clip0_889_72327)">
+<rect width="1440" height="1102" transform="translate(-246 -476)" fill="#F8F9FA"/>
+<g id="Frame 1000003465">
+<g id="Frame 1000004072">
+<g id="Frame 1000004080">
+<g id="Frame 1000004070">
+<g id="Month">
+<g id="Header for month">
+<rect width="1250" height="80" transform="translate(-56 -28)" fill="white"/>
+<g id="Frame 1000004079">
+<g id="Calendar">
+<path id="Vector 184" d="M21 8.5V7C21 5.34315 19.6569 4 18 4H6C4.34315 4 3 5.34315 3 7L3 8.5M21 8.5V18C21 19.6569 19.6569 21 18 21H6C4.34315 21 3 19.6569 3 18L3 8.5M21 8.5H3" stroke="#595959" stroke-width="1.5"/>
+<path id="Vector 189" d="M7 13H8.42857M15.5714 13H17M11.2857 13H12.7143" stroke="#595959" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="Vector 190" d="M7 17H8.42857M15.5714 17H17M11.2857 17H12.7143" stroke="#595959" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="Union" fill-rule="evenodd" clip-rule="evenodd" d="M7.75 2.75C7.75 2.33579 7.41421 2 7 2C6.58579 2 6.25 2.33579 6.25 2.75V4.75V6.75C6.25 7.16421 6.58579 7.5 7 7.5C7.41421 7.5 7.75 7.16421 7.75 6.75L7.75 4.75V2.75Z" fill="#595959"/>
+<path id="Union_2" fill-rule="evenodd" clip-rule="evenodd" d="M17.75 2.75C17.75 2.33579 17.4142 2 17 2C16.5858 2 16.25 2.33579 16.25 2.75V4.75V6.75C16.25 7.16421 16.5858 7.5 17 7.5C17.4142 7.5 17.75 7.16421 17.75 6.75L17.75 4.75V2.75Z" fill="#595959"/>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+<defs>
+<clipPath id="clip0_889_72327">
+<rect width="1440" height="1102" fill="white" transform="translate(-246 -476)"/>
+</clipPath>
+</defs>
+</svg>
