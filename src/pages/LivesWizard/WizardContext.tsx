@@ -31,6 +31,14 @@ import {
   type RefundEstimate,
 } from '@/data/flexDeal'
 import {
+  buildRefundEstimate as buildConfiguredRefundEstimate,
+  buildPolicyImpact,
+  getDealConfig,
+  resolveInitialDealId,
+  type FlexDealConfig,
+  type MemberCorrection,
+} from '@/domain/flex'
+import {
   emptyAddEmployeeMember,
   flattenMembers,
   nextDependantId,
@@ -50,6 +58,7 @@ export type WizardStep =
   | 'dependant-details'
   | 'dependant-plan'
   | 'benefits'
+  | 'family'
   | 'verify'
   | 'endo-costs'
   | 'enrolment'
@@ -59,9 +68,11 @@ export type WizardStep =
   | 'bulk-review'
   | 'processing'
   | 'date-of-leaving'
+  | 'offboard-coverage'
   | 'delete-summary'
   | 'edit-form'
   | 'edit-proof'
+  | 'correction-batch'
   | 'success'
 
 export type BulkAssignMode = 'rules' | 'sheet' | null
@@ -116,12 +127,14 @@ interface LivesWizardContextValue {
     optionId: string | null,
   ) => void
   activeDealId: string | null
+  activeDeal: FlexDealConfig | null
+  selectDeal: (dealId: string) => void
   pruneIneligibleSelections: (eligibility: {
     policies: Record<string, { eligible: boolean }>
     options: Record<string, { eligible: boolean }>
   }) => void
 
-  /** Add employee(s) 3-step flow */
+  /** Add employee(s) employee → benefits → dependants → review flow */
   intakeMode: IntakeMode
   setIntakeMode: (mode: IntakeMode) => void
   addEmployees: AddEmployeeMember[]
@@ -185,6 +198,12 @@ interface LivesWizardContextValue {
   setEditBlocked: (value: boolean) => void
   simulateEditSaveFailure: boolean
   setSimulateEditSaveFailure: (value: boolean) => void
+  pendingCorrection: MemberCorrection | null
+  setPendingCorrection: (value: MemberCorrection | null) => void
+  correctionBatch: MemberCorrection[]
+  addCorrection: (value: MemberCorrection) => void
+  addPendingCorrection: () => void
+  removeCorrection: (memberId: string) => void
 
   enrolment: EnrolmentSettingsState
   setEnrolment: (value: EnrolmentSettingsState) => void
@@ -287,7 +306,9 @@ export function LivesWizardProvider({
   const [purchaseGroupChoices, setPurchaseGroupChoices] = useState<
     Record<string, string[]>
   >({})
-  const [activeDealId, setActiveDealId] = useState<string | null>(null)
+  const [activeDealId, setActiveDealId] = useState<string | null>(
+    resolveInitialDealId,
+  )
   const [fileName, setFileName] = useState<string | null>(null)
   const [templateDownloaded, setTemplateDownloaded] = useState(false)
   const [deleteConfirmed, setDeleteConfirmed] = useState(false)
@@ -307,6 +328,9 @@ export function LivesWizardProvider({
   )
   const [editBlocked, setEditBlocked] = useState(false)
   const [simulateEditSaveFailure, setSimulateEditSaveFailure] = useState(false)
+  const [pendingCorrection, setPendingCorrection] =
+    useState<MemberCorrection | null>(null)
+  const [correctionBatch, setCorrectionBatch] = useState<MemberCorrection[]>([])
   const [enrolment, setEnrolment] = useState<EnrolmentSettingsState>(
     emptyEnrolmentSettings,
   )
@@ -316,6 +340,62 @@ export function LivesWizardProvider({
   ])
   const [benefitsAssignMode, setBenefitsAssignMode] =
     useState<BenefitsAssignMode>('common')
+
+  const activeDeal = useMemo(
+    () => (activeDealId ? getDealConfig(activeDealId) ?? null : null),
+    [activeDealId],
+  )
+
+  const selectDeal = useCallback((dealId: string) => {
+    setActiveDealId((current) => {
+      if (current === dealId) return current
+      setSelectedPolicyIds([])
+      setSelectedPolicyTiers({})
+      setSelectedPolicyFamilyStructures({})
+      setPurchaseGroupChoices({})
+      setDependants((items) =>
+        items.map((item) => ({ ...item, selectedBenefitIds: [] })),
+      )
+      setAddEmployees((members) =>
+        members.map((member) => ({
+          ...member,
+          selectedBenefitIds: [],
+          employee: {
+            ...member.employee,
+            customAttributes: {},
+          },
+          dependants: member.dependants.map((dependant) => ({
+            ...dependant,
+            selectedBenefitIds: [],
+            customAttributes: {},
+          })),
+        })),
+      )
+      return dealId
+    })
+  }, [])
+
+  const addCorrection = useCallback((correction: MemberCorrection) => {
+    if (!correction.accepted) return
+    setCorrectionBatch((current) => [
+      ...current.filter((item) => item.memberId !== correction.memberId),
+      correction,
+    ])
+  }, [])
+
+  const addPendingCorrection = useCallback(() => {
+    setPendingCorrection((pending) => {
+      if (!pending?.accepted) return pending
+      addCorrection(pending)
+      return null
+    })
+  }, [addCorrection])
+
+  const removeCorrection = useCallback((memberId: string) => {
+    setCorrectionBatch((current) =>
+      current.filter((item) => item.memberId !== memberId),
+    )
+  }, [])
 
   const updateEmployee = useCallback((patch: Partial<EmployeeFormData>) => {
     setEmployee((current) => ({ ...current, ...patch }))
@@ -724,11 +804,34 @@ export function LivesWizardProvider({
 
     if (method === 'single' && action === 'add') {
       const lives = flattenMembers(addEmployees)
+      if (activeDeal) {
+        return buildPolicyImpact({
+          deal: activeDeal,
+          lives: lives.map((life) => ({
+            benefitIds: life.selectedBenefitIds,
+          })),
+        })
+      }
       return buildMembersCostEstimate(
         lives,
         selectedPolicyTiers,
         selectedPolicyFamilyStructures,
       )
+    }
+
+    if (
+      method === 'single-dependant' &&
+      action === 'add' &&
+      activeDeal
+    ) {
+      return buildPolicyImpact({
+        deal: activeDeal,
+        lives: dependants.map((dependant) => ({
+          benefitIds: dependant.selectedBenefitIds,
+        })),
+        currentPayrollDeduction:
+          selectedEmployee?.currentPayrollDeduction ?? 0,
+      })
     }
 
     const lifeCount =
@@ -761,6 +864,8 @@ export function LivesWizardProvider({
     addEmployees,
     selectedPolicyTiers,
     selectedPolicyFamilyStructures,
+    activeDeal,
+    selectedEmployee,
   ])
 
   const refundEstimate = useMemo(() => {
@@ -797,22 +902,44 @@ export function LivesWizardProvider({
       return null
     }
     if (!selectedEmployee) return null
+    if (activeDeal) {
+      const endingBenefitIds = selectedEmployee.coverages
+        .filter(
+          (coverage) =>
+            coverage.kind === 'benefit' &&
+            activeDeal.benefits.some(
+              (benefit) => benefit.id === coverage.id,
+            ),
+        )
+        .map((coverage) => coverage.id)
+      return buildConfiguredRefundEstimate({
+        deal: activeDeal,
+        endingBenefitIds,
+        dependantCount: selectedEmployee.dependants.length,
+        claimedBenefitIds: selectedEmployee.hasClaimOnGmc
+          ? activeDeal.benefits
+              .filter((benefit) => benefit.category === 'gmc')
+              .map((benefit) => benefit.id)
+          : [],
+        planId: selectedEmployee.plans[0]?.id,
+      })
+    }
     return buildRefundEstimate({
       employeeName: `${selectedEmployee.firstName} ${selectedEmployee.lastName}`,
       dependantCount: selectedEmployee.dependants.length,
       hasClaimOnGmc: selectedEmployee.hasClaimOnGmc,
       includeFlatWellness: selectedEmployee.hasFlatWellness,
     })
-  }, [action, method, selectedEmployee, bulkDeleteRows])
+  }, [action, method, selectedEmployee, bulkDeleteRows, activeDeal])
 
   const completeFlow = useCallback(() => {
     if (action === 'edit' && simulateEditSaveFailure && editProofFileName) {
       setEditProofFileName(null)
       setSimulateEditSaveFailure(false)
       window.alert(
-        'Save failed. Uploaded proof was removed and is not attached to the record.',
+        'Submission failed. Uploaded proof was removed; review the correction batch and upload it again before retrying.',
       )
-      setStep('edit-proof')
+      setStep('correction-batch')
       return
     }
     setStep('success')
@@ -831,7 +958,7 @@ export function LivesWizardProvider({
     setSelectedPolicyTiers({})
     setSelectedPolicyFamilyStructures({})
     setPurchaseGroupChoices({})
-    setActiveDealId(null)
+    setActiveDealId(resolveInitialDealId())
     setFileName(null)
     setTemplateDownloaded(false)
     setDeleteConfirmed(false)
@@ -844,6 +971,8 @@ export function LivesWizardProvider({
     setEditProofFileName(null)
     setEditBlocked(false)
     setSimulateEditSaveFailure(false)
+    setPendingCorrection(null)
+    setCorrectionBatch([])
     setEnrolment(emptyEnrolmentSettings())
     setIntakeMode('form')
     setAddEmployees([emptyAddEmployeeMember()])
@@ -885,6 +1014,8 @@ export function LivesWizardProvider({
       togglePurchaseGroupOption,
       setPurchaseGroupChoice,
       activeDealId,
+      activeDeal,
+      selectDeal,
       pruneIneligibleSelections,
       intakeMode,
       setIntakeMode,
@@ -927,6 +1058,12 @@ export function LivesWizardProvider({
       setEditBlocked,
       simulateEditSaveFailure,
       setSimulateEditSaveFailure,
+      pendingCorrection,
+      setPendingCorrection,
+      correctionBatch,
+      addCorrection,
+      addPendingCorrection,
+      removeCorrection,
       enrolment,
       setEnrolment,
       costEstimate,
@@ -962,6 +1099,8 @@ export function LivesWizardProvider({
       togglePurchaseGroupOption,
       setPurchaseGroupChoice,
       activeDealId,
+      activeDeal,
+      selectDeal,
       pruneIneligibleSelections,
       intakeMode,
       addEmployees,
@@ -991,6 +1130,11 @@ export function LivesWizardProvider({
       editProofFileName,
       editBlocked,
       simulateEditSaveFailure,
+      pendingCorrection,
+      correctionBatch,
+      addCorrection,
+      addPendingCorrection,
+      removeCorrection,
       enrolment,
       costEstimate,
       refundEstimate,

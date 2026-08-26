@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
+import { sampleEmployees } from '@/data/employees'
 import { formatINR, selectablePolicies } from '@/data/flexDeal'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
 
@@ -18,7 +19,13 @@ export function SuccessStep() {
     bulkDeleteRows,
     editProofFileName,
     simulateEditSaveFailure,
+    selectedEmployeeId,
+    dateOfLeaving,
+    correctionBatch,
   } = useLivesWizard()
+  const selectedEmployee = sampleEmployees.find(
+    (item) => item.id === selectedEmployeeId,
+  )
 
   const policies = selectablePolicies.filter((p) =>
     resolvedAssignment.policyIds.includes(p.id),
@@ -43,10 +50,16 @@ export function SuccessStep() {
     subtitle =
       method === 'bulk'
         ? `${bulkDeleteRows.filter((r) => r.status === 'pass').length} employees removed. Rejected rows available in the error sheet.`
-        : 'Coverage end dates updated using the date of leaving.'
+        : `${selectedEmployee?.firstName ?? 'Employee'} was off-boarded with ${
+            selectedEmployee?.dependants.length ?? 0
+          } dependant${
+            selectedEmployee?.dependants.length === 1 ? '' : 's'
+          }, effective ${dateOfLeaving || 'the selected leaving date'}.`
   } else if (action === 'edit') {
-    title = 'Correction submitted'
-    subtitle = `${employee.firstName || 'Member'} details were updated successfully.`
+    title = 'Corrections submitted'
+    subtitle = `${Math.max(correctionBatch.length, 1)} member${
+      correctionBatch.length === 1 ? '' : 's'
+    } updated. Plan and benefit assignments remain unchanged.`
   } else if (method === 'bulk') {
     title = 'Bulk lives added successfully'
     subtitle = `${costEstimate.totalLivesAdded} lives verified and submitted for endorsement.`
@@ -91,6 +104,18 @@ export function SuccessStep() {
             <strong>{formatINR(refundEstimate.totalEmployeeRefund)}</strong>
           </TotalRow>
         </Totals>
+      ) : null}
+
+      {action === 'delete' &&
+      refundEstimate?.lines.some((line) => line.staysActive) ? (
+        <ErrorSheet>
+          Retained benefits:{' '}
+          {refundEstimate.lines
+            .filter((line) => line.staysActive)
+            .map((line) => line.label)
+            .join(', ')}
+          . These remain active until their configured end date.
+        </ErrorSheet>
       ) : null}
 
       {action === 'delete' && method === 'bulk' ? (

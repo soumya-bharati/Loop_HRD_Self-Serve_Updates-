@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { sampleEmployees } from '@/data/employees'
+import { validateMemberCorrection } from '@/domain/flex'
 import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
 
@@ -12,12 +13,55 @@ export function EditFormStep() {
     employee,
     updateEmployee,
     selectedEmployeeId,
-    setEditBlocked,
+    selectedDependantId,
+    activeDeal,
+    setPendingCorrection,
+    addCorrection,
     setStep,
   } = useLivesWizard()
 
   const member = sampleEmployees.find((e) => e.id === selectedEmployeeId)
   const isDependant = method === 'single-dependant'
+  const originalDependant = isDependant
+    ? member?.dependants.find((item) => item.id === selectedDependantId)
+    : undefined
+  const original = originalDependant ?? member
+  const benefitIds = isDependant
+    ? originalDependant?.benefitIds ?? []
+    : member?.coverages
+        .filter((coverage) => coverage.kind === 'benefit')
+        .map((coverage) => coverage.id) ?? []
+  const correction =
+    activeDeal && original
+      ? validateMemberCorrection(activeDeal, {
+          memberId: original.id,
+          memberName:
+            `${employee.firstName} ${employee.lastName}`.trim() || 'Member',
+          relationship: isDependant
+            ? originalDependant?.relationship ?? 'Dependant'
+            : 'Self',
+          original: {
+            firstName: original.firstName,
+            lastName: original.lastName,
+            dateOfBirth: original.dateOfBirth,
+            gender: original.gender,
+            email: original.email,
+            mobile: original.mobile,
+          },
+          updated: {
+            firstName: employee.firstName,
+            lastName: employee.lastName,
+            dateOfBirth: employee.dateOfBirth,
+            gender: employee.gender,
+            email: employee.email,
+            mobile: employee.mobile,
+          },
+          benefitIds,
+          dealId: activeDeal.id,
+          department: member?.department,
+          attributes: member?.dealAttributes,
+        })
+      : null
 
   const canProceed =
     Boolean(employee.firstName.trim()) &&
@@ -32,16 +76,21 @@ export function EditFormStep() {
       secondaryLabel="Back"
       onSecondary={() => setStep('search-employee')}
       primaryLabel="Continue"
-      primaryDisabled={!canProceed}
+      primaryDisabled={
+        !canProceed ||
+        !correction ||
+        correction.diffs.length === 0 ||
+        !correction.accepted
+      }
       onPrimary={() => {
-        // Mock eligibility block: dependant DOB before 2000 ages out of child cover
-        const blocked =
-          isDependant &&
-          Boolean(employee.dateOfBirth) &&
-          employee.dateOfBirth < '2000-01-01'
-        setEditBlocked(blocked)
-        if (member?.requiresProofOnEdit) setStep('edit-proof')
-        else setStep('verify')
+        if (!correction?.accepted) return
+        setPendingCorrection(correction)
+        if (correction.requiresKyc) {
+          setStep('edit-proof')
+        } else {
+          addCorrection(correction)
+          setStep('correction-batch')
+        }
       }}
     >
       <FlowStepper
@@ -54,6 +103,24 @@ export function EditFormStep() {
         Personal and contact details only. Benefit and plan assignment cannot be
         changed here.
       </Note>
+
+      <LockedGrid>
+        <LockedField>
+          <span>Employee ID</span>
+          <strong>{member?.employeeId ?? '—'}</strong>
+          <small>Employee ID cannot be changed after creation.</small>
+        </LockedField>
+        <LockedField>
+          <span>Relationship</span>
+          <strong>{isDependant ? originalDependant?.relationship : 'Self'}</strong>
+          <small>Relationship and coverage cannot be changed here.</small>
+        </LockedField>
+        <LockedField>
+          <span>Deal</span>
+          <strong>{activeDeal?.name ?? '—'}</strong>
+          <small>Deal attributes are locked for corrections.</small>
+        </LockedField>
+      </LockedGrid>
 
       {member ? (
         <Covers>
@@ -143,6 +210,31 @@ export function EditFormStep() {
           />
         </Field>
       </Grid>
+
+      {correction && correction.diffs.length > 0 ? (
+        <Changes>
+          <ChangesTitle>Changes detected</ChangesTitle>
+          {correction.diffs.map((diff) => (
+            <ChangeRow key={diff.field}>
+              <strong>{diff.label}</strong>
+              <span>{diff.from || '—'} → {diff.to || '—'}</span>
+            </ChangeRow>
+          ))}
+          {correction.requiresKyc ? (
+            <KycNote>
+              Supporting KYC will be required for this correction.
+            </KycNote>
+          ) : null}
+        </Changes>
+      ) : null}
+
+      {correction?.rejectionReason &&
+      correction.diffs.length > 0 ? (
+        <Blocked>
+          <strong>This change can’t be saved</strong>
+          <span>{correction.rejectionReason}</span>
+        </Blocked>
+      ) : null}
     </WizardChrome>
   )
 }
@@ -151,6 +243,84 @@ const Note = styled.p`
   margin: 0;
   font-size: 13px;
   color: ${({ theme }) => theme.colors.textSecondary};
+`
+
+const LockedGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+`
+
+const LockedField = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: ${({ theme }) => theme.colors.disableFill};
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+
+  strong {
+    font-size: 13px;
+    color: ${({ theme }) => theme.colors.textPrimary};
+  }
+
+  small {
+    line-height: 16px;
+  }
+`
+
+const Changes = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 12px;
+  background: ${({ theme }) => theme.colors.surface1};
+  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
+`
+
+const ChangesTitle = styled.h3`
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.beyondGrey};
+`
+
+const ChangeRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+
+  strong {
+    color: ${({ theme }) => theme.colors.textPrimary};
+  }
+`
+
+const KycNote = styled.div`
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fff6e5;
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textPrimary};
+`
+
+const Blocked = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #fdecec;
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textError};
 `
 
 const Covers = styled.div`

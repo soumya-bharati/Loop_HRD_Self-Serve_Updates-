@@ -27,10 +27,10 @@ export function DateOfLeavingStep() {
       onSecondary={() => setStep('search-employee')}
       primaryLabel="Continue"
       primaryDisabled={!valid}
-      onPrimary={() => setStep('delete-summary')}
+      onPrimary={() => setStep('offboard-coverage')}
     >
       <FlowStepper
-        steps={['Search', 'Date of leaving', 'Refund summary']}
+        steps={['Search', 'Leaving date', 'Coverage', 'Refund']}
         activeIndex={1}
         bare
       />

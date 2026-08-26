@@ -120,7 +120,11 @@ export interface CostEstimate {
   cdShortfallAmount: number
 }
 
-export type RefundZeroReason = 'claim' | 'not_insurance' | 'not_prorated'
+export type RefundZeroReason =
+  | 'claim'
+  | 'not_insurance'
+  | 'not_prorated'
+  | 'not_eligible'
 
 export interface RefundLine {
   id: string
@@ -1410,7 +1414,8 @@ export function formatINR(amount: number) {
 export function zeroReasonLabel(reason: RefundZeroReason) {
   if (reason === 'claim') return 'A claim exists on this cover'
   if (reason === 'not_insurance') return 'Not an insurance benefit'
-  return 'Premium is not prorated'
+  if (reason === 'not_prorated') return 'Premium is not prorated'
+  return 'Not eligible for refund'
 }
 
 export function isValidDateOfLeaving(isoDate: string, today = new Date()) {

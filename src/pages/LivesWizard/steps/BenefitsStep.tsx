@@ -4,13 +4,19 @@ import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
 import {
-  activeDeals,
   estimatePolicyEndorsementCost,
   formatINR,
   getDependantCoverEligibility,
   getEmployeeCoverEligibility,
   selectablePolicies,
 } from '@/data/flexDeal'
+import {
+  evaluateDependantCoverEligibility,
+  evaluateEmployeeEligibility,
+  isRelationshipAllowedForBenefit,
+  resolveAssignment,
+  type AssignmentResult,
+} from '@/domain/flex'
 import {
   flattenMembers,
   type AddEmployeeMember,
@@ -31,6 +37,7 @@ type CoverItem = {
   eligibleCount: number
   totalCount: number
   recommended: boolean
+  locked: boolean
 }
 
 function familyLifeIds(member: AddEmployeeMember) {
@@ -47,6 +54,7 @@ export function BenefitsStep() {
   const navigate = useNavigate()
   const {
     addEmployees,
+    activeDeal,
     intakeMode,
     selectedPolicyIds,
     selectedPolicyTiers,
@@ -62,6 +70,23 @@ export function BenefitsStep() {
 
   const lives = useMemo(() => flattenMembers(addEmployees), [addEmployees])
   const totalLives = lives.length
+  const assignments = useMemo(() => {
+    if (!activeDeal) return new Map<string, AssignmentResult>()
+    return new Map<string, AssignmentResult>(
+      addEmployees.map((member) => [
+        member.id,
+        resolveAssignment({
+          deal: activeDeal,
+          employee: {
+            dateOfBirth: member.employee.dateOfBirth,
+            department:
+              member.employee.customAttributes['attr-department'],
+            attributes: member.employee.customAttributes,
+          },
+        }),
+      ]),
+    )
+  }, [activeDeal, addEmployees])
   const [selectedLifeId, setSelectedLifeId] = useState(
     () => lives[0]?.id ?? '',
   )
@@ -81,7 +106,7 @@ export function BenefitsStep() {
   const covers = useMemo(() => {
     const items: CoverItem[] = []
 
-    for (const policy of selectablePolicies) {
+    for (const policy of activeDeal ? [] : selectablePolicies) {
       const eligibleLifeIds: string[] = []
       for (const life of lives) {
         if (life.kind === 'employee') {
@@ -110,48 +135,62 @@ export function BenefitsStep() {
         eligibleCount,
         totalCount: totalLives,
         recommended: eligibleCount > 0 && eligibleCount >= totalLives * 0.5,
+        locked: false,
       })
     }
 
-    for (const deal of activeDeals) {
-      for (const group of deal.purchaseGroups) {
-        for (const opt of group.options) {
-          const coverId = opt.benefitId ?? opt.planId ?? opt.id
+    if (activeDeal) {
+      for (const benefit of activeDeal.benefits) {
           const eligibleLifeIds: string[] = []
           for (const life of lives) {
             if (life.kind === 'employee') {
               const member = addEmployees.find((m) => m.id === life.memberId)
               if (!member) continue
-              const eligibility = getEmployeeCoverEligibility(member.employee)
-              if (eligibility.options[opt.id]?.eligible !== false) {
+              const eligibility = evaluateEmployeeEligibility(activeDeal, {
+                dateOfBirth: member.employee.dateOfBirth,
+                department:
+                  member.employee.customAttributes['attr-department'],
+                attributes: member.employee.customAttributes,
+              })
+              if (eligibility.benefits[benefit.id]?.eligible !== false) {
                 eligibleLifeIds.push(life.id)
               }
-            } else if (opt.benefitId) {
-              const status = getDependantCoverEligibility(
+            } else if (
+              isRelationshipAllowedForBenefit(
+                activeDeal,
+                life.relationship || '',
+                benefit.id,
+              )
+            ) {
+              const status = evaluateDependantCoverEligibility(
+                activeDeal,
                 life.relationship || '',
                 life.dateOfBirth,
-                opt.benefitId,
+                benefit.id,
               )
               if (status.eligible) eligibleLifeIds.push(life.id)
             }
           }
           const eligibleCount = eligibleLifeIds.length
+          const assigned = addEmployees.some((member) =>
+            assignments.get(member.id)?.benefitIds.includes(benefit.id),
+          )
           items.push({
-            id: coverId,
-            label: opt.label,
-            meta: `${group.name} · Add-on`,
+            id: benefit.id,
+            label: benefit.name,
+            meta: `${benefit.policyName} · ${benefit.category.toUpperCase()}`,
             kind: 'addon',
             eligibleLifeIds,
             eligibleCount,
             totalCount: totalLives,
-            recommended: false,
+            recommended: assigned,
+            locked: assigned,
           })
-        }
       }
     }
 
     return items
-  }, [addEmployees, lives, totalLives])
+  }, [activeDeal, addEmployees, assignments, lives, totalLives])
 
   const scopedCovers = useMemo(() => {
     const scopeSet = new Set(scopeIds)
@@ -220,6 +259,19 @@ export function BenefitsStep() {
         setPolicyTier(cover.id, policy.tiers[0].id)
       }
     }
+    if (activeDeal) {
+      for (const assignment of assignments.values()) {
+        for (const [groupId, optionIds] of Object.entries(
+          assignment.purchaseGroupSelections,
+        )) {
+          setPurchaseGroupChoice(
+            activeDeal.id,
+            groupId,
+            optionIds[0] ?? null,
+          )
+        }
+      }
+    }
   }, [
     covers,
     lives,
@@ -227,6 +279,9 @@ export function BenefitsStep() {
     setPolicyFamilyStructure,
     setPolicyTier,
     toggleCoverForEligibleLives,
+    activeDeal,
+    assignments,
+    setPurchaseGroupChoice,
   ])
 
   const employeesHaveCover = addEmployees.every(
@@ -264,9 +319,10 @@ export function BenefitsStep() {
   }
 
   const toggleCover = (cover: CoverItem) => {
+    if (cover.locked && selectedCoverIds.has(cover.id)) return
     const enabled = !selectedCoverIds.has(cover.id)
     if (cover.kind === 'addon') {
-      const deal = activeDeals[0]
+      const deal = activeDeal
       const group = deal?.purchaseGroups.find((g) =>
         g.options.some(
           (o) => (o.benefitId ?? o.planId ?? o.id) === cover.id,
@@ -294,7 +350,7 @@ export function BenefitsStep() {
     const tierId = selectedPolicyTiers[cover.id] ?? ''
 
     return (
-      <CoverCard
+    <CoverCard
         key={cover.id}
         $selected={selected}
         $recommended={cover.recommended}
@@ -303,6 +359,7 @@ export function BenefitsStep() {
           type="button"
           onClick={() => {
             if (cover.eligibleCount === 0) return
+            if (cover.locked && selected) return
             toggleCover(cover)
           }}
         >
@@ -324,7 +381,9 @@ export function BenefitsStep() {
           <CoverCopy>
             <NameRow>
               <CoverName>{cover.label}</CoverName>
-              {cover.recommended ? (
+              {cover.locked ? (
+                <RecommendedBadge>Assigned</RecommendedBadge>
+              ) : cover.recommended ? (
                 <RecommendedBadge>Recommended</RecommendedBadge>
               ) : null}
             </NameRow>
@@ -416,7 +475,7 @@ export function BenefitsStep() {
       onSecondary={() => setStep('user-details')}
       primaryLabel="Proceed"
       primaryDisabled={!canProceed}
-      onPrimary={() => setStep('endo-costs')}
+      onPrimary={() => setStep('family')}
       footerLeft={
         <FooterHint>
           {canProceed
@@ -528,7 +587,7 @@ export function BenefitsStep() {
         </ScopeHint>
       ) : null}
 
-      <SectionTitle>Recommended</SectionTitle>
+      <SectionTitle>Assigned by company</SectionTitle>
       <CoverList>
         {recommended.length > 0 ? (
           recommended.map(renderCoverCard)
@@ -540,7 +599,7 @@ export function BenefitsStep() {
         )}
       </CoverList>
 
-      <SectionTitle>Other benefits</SectionTitle>
+      <SectionTitle>Other available benefits</SectionTitle>
       <CoverList>
         {other.length > 0 ? (
           other.map(renderCoverCard)

@@ -5,9 +5,11 @@ import { formatINR, type CostEstimate } from '@/data/flexDeal'
 export function CostAndCdSummary({
   estimate,
   showPayroll = true,
+  currentPayrollDeduction,
 }: {
   estimate: CostEstimate
   showPayroll?: boolean
+  currentPayrollDeduction?: number
 }) {
   const byCd = new Map<
     string,
@@ -36,6 +38,27 @@ export function CostAndCdSummary({
       <Totals>
         {showPayroll ? (
           <>
+            {currentPayrollDeduction !== undefined ? (
+              <>
+                <TotalRow>
+                  <span>Current deduction</span>
+                  <strong>{formatINR(currentPayrollDeduction)} / month</strong>
+                </TotalRow>
+                <TotalRow>
+                  <span>Additional</span>
+                  <strong>+{formatINR(estimate.monthlyInstallment)} / month</strong>
+                </TotalRow>
+                <TotalRow>
+                  <span>New deduction</span>
+                  <strong>
+                    {formatINR(
+                      currentPayrollDeduction + estimate.monthlyInstallment,
+                    )}{' '}
+                    / month
+                  </strong>
+                </TotalRow>
+              </>
+            ) : null}
             <TotalRow>
               <span>Total payroll deduction</span>
               <strong>{formatINR(estimate.totalPayrollDeduction)}</strong>

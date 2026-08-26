@@ -4,6 +4,7 @@ import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
 import { type PolicyCostBreakdown } from '@/data/flexDeal'
+import { getBenefitConfig } from '@/domain/flex'
 import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
 import { SINGLE_ADD_STEPS } from '@/pages/LivesWizard/singleAddSteps'
@@ -41,7 +42,7 @@ type InsurerGroup = {
 
 export function EndoCostsStep() {
   const navigate = useNavigate()
-  const { costEstimate, setStep, completeFlow } = useLivesWizard()
+  const { activeDeal, addEmployees, costEstimate, setStep } = useLivesWizard()
 
   const insurerGroups = useMemo(() => {
     const map = new Map<string, InsurerGroup>()
@@ -66,19 +67,57 @@ export function EndoCostsStep() {
   return (
     <WizardChrome
       title="Submit Addition Request"
-      onBack={() => setStep('benefits')}
+      onBack={() => setStep('family')}
       onExit={() => navigate('/endorsements')}
       secondaryLabel="Go Back"
-      onSecondary={() => setStep('benefits')}
-      primaryLabel={`Submit ${livesCount} Lives`}
+      onSecondary={() => setStep('family')}
+      primaryLabel="Continue to enrolment"
       primaryDisabled={livesCount === 0}
-      onPrimary={() => completeFlow()}
+      onPrimary={() => setStep('enrolment')}
       primaryHint={{
         title: 'Submit Your Endo! ⚡',
         body: 'If everything looks good click below to submit your endo!',
       }}
     >
-      <FlowStepper steps={[...SINGLE_ADD_STEPS]} activeIndex={2} bare />
+      <FlowStepper steps={[...SINGLE_ADD_STEPS]} activeIndex={3} bare />
+
+      <PeopleReview>
+        <ReviewTitle>Members and benefits</ReviewTitle>
+        {addEmployees.map((member) => (
+          <FamilyReview key={member.id}>
+            <ReviewPerson>
+              <strong>
+                {member.employee.firstName} {member.employee.lastName}
+              </strong>
+              <span>{member.employee.employeeId} · Employee</span>
+              <ReviewChips>
+                {member.selectedBenefitIds.map((id) => (
+                  <ReviewChip key={id}>
+                    {activeDeal ? getBenefitConfig(activeDeal, id)?.name ?? id : id}
+                  </ReviewChip>
+                ))}
+              </ReviewChips>
+            </ReviewPerson>
+            {member.dependants.map((dependant) => (
+              <ReviewPerson key={dependant.id}>
+                <strong>
+                  {dependant.firstName} {dependant.lastName}
+                </strong>
+                <span>{dependant.relationship}</span>
+                <ReviewChips>
+                  {dependant.selectedBenefitIds.map((id) => (
+                    <ReviewChip key={id}>
+                      {activeDeal
+                        ? getBenefitConfig(activeDeal, id)?.name ?? id
+                        : id}
+                    </ReviewChip>
+                  ))}
+                </ReviewChips>
+              </ReviewPerson>
+            ))}
+          </FamilyReview>
+        ))}
+      </PeopleReview>
 
       <Layout>
         <InsurerColumn>
@@ -149,6 +188,60 @@ export function EndoCostsStep() {
     </WizardChrome>
   )
 }
+
+const PeopleReview = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 14px;
+  background: ${({ theme }) => theme.colors.surface1};
+  border: 1px solid ${({ theme }) => theme.colors.disableFill};
+`
+
+const ReviewTitle = styled.h2`
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.beyondGrey};
+`
+
+const FamilyReview = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+`
+
+const ReviewPerson = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 10px;
+  background: ${({ theme }) => theme.colors.surface0};
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+
+  strong {
+    font-size: 13px;
+    color: ${({ theme }) => theme.colors.textPrimary};
+  }
+`
+
+const ReviewChips = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+`
+
+const ReviewChip = styled.span`
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: ${({ theme }) => theme.colors.planeGreenLight};
+  font-size: 10px;
+  color: ${({ theme }) => theme.colors.emerald};
+`
 
 function ReceiptIcon() {
   return (

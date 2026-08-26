@@ -28,20 +28,20 @@ export function DeleteSummaryStep() {
   return (
     <WizardChrome
       title={isBulk ? 'Bulk delete refund estimate' : 'Deletion & refund summary'}
-      onBack={() => setStep(isBulk ? 'bulk-validate' : 'date-of-leaving')}
+      onBack={() => setStep(isBulk ? 'bulk-validate' : 'offboard-coverage')}
       onExit={() => navigate('/endorsements')}
       secondaryLabel="Back"
-      onSecondary={() => setStep(isBulk ? 'bulk-validate' : 'date-of-leaving')}
-      primaryLabel="Confirm deletion"
+      onSecondary={() => setStep(isBulk ? 'bulk-validate' : 'offboard-coverage')}
+      primaryLabel={isBulk ? 'Confirm deletion' : 'Off-board employee'}
       onPrimary={completeFlow}
     >
       <FlowStepper
         steps={
           isBulk
             ? ['Upload', 'Validate', 'Refund estimate']
-            : ['Search', 'Date of leaving', 'Refund summary']
+            : ['Search', 'Leaving date', 'Coverage', 'Refund']
         }
-        activeIndex={2}
+        activeIndex={isBulk ? 2 : 3}
         bare
       />
 
@@ -49,7 +49,9 @@ export function DeleteSummaryStep() {
         <Banner>
           Off-boarding as of <strong>{dateOfLeaving}</strong> —{' '}
           {employee.firstName} {employee.lastName} and{' '}
-          {employee.dependants.length} dependants.
+          {employee.dependants.length} dependant
+          {employee.dependants.length === 1 ? '' : 's'}. This action removes
+          the employee and all dependants together.
         </Banner>
       ) : null}
 

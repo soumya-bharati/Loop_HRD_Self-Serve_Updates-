@@ -11,6 +11,13 @@ import dotYellow from '@/assets/figma/dot-yellow.svg'
 import hourglassYellowBg from '@/assets/figma/hourglass-yellow-bg.svg'
 import hourglassYellowIcon from '@/assets/figma/hourglass-yellow-icon.svg'
 import iciciLogo from '@/assets/figma/icici-logo.png'
+import iconBusiness from '@/assets/figma/icon-business.svg'
+import iconCake from '@/assets/figma/icon-cake.svg'
+import iconCall from '@/assets/figma/icon-call.svg'
+import iconEditPencil from '@/assets/figma/icon-edit-pencil.svg'
+import iconGender from '@/assets/figma/icon-gender-male.svg'
+import iconMail from '@/assets/figma/icon-mail.svg'
+import iconPlusEmerald from '@/assets/figma/icon-plus-emerald.svg'
 import iconCalendarField from '@/assets/figma/icon-calendar-field.svg'
 import iconCalendar24 from '@/assets/figma/icon-calendar-24.svg'
 import iconCompany from '@/assets/figma/icon-company.svg'
@@ -61,6 +68,7 @@ import modalPencil3 from '@/assets/figma/modal-pencil-3.svg'
 import modalPencil4 from '@/assets/figma/modal-pencil-4.svg'
 import modalPencil5 from '@/assets/figma/modal-pencil-5.svg'
 import modalPencil6 from '@/assets/figma/modal-pencil-6.svg'
+import flexDealIcon from '@/assets/figma/flex-deal-icon.png'
 import policyCardLoopIcon from '@/assets/figma/policy-card-loop-icon.png'
 
 export const assets = {
@@ -72,11 +80,19 @@ export const assets = {
   chevronRight,
   chevronUp,
   digitLogo,
+  flexDealIcon,
   dotTurquoise,
   dotYellow,
   hourglassYellowBg,
   hourglassYellowIcon,
   iciciLogo,
+  iconBusiness,
+  iconCake,
+  iconCall,
+  iconEditPencil,
+  iconGender,
+  iconMail,
+  iconPlusEmerald,
   iconCalendarField,
   iconCalendar24,
   iconCompany,

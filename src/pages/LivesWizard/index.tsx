@@ -9,6 +9,7 @@ import {
 } from '@/pages/LivesWizard/WizardContext'
 import { BulkReviewStep } from '@/pages/LivesWizard/steps/BulkReviewStep'
 import { BulkValidateStep } from '@/pages/LivesWizard/steps/BulkValidateStep'
+import { CorrectionBatchStep } from '@/pages/LivesWizard/steps/CorrectionBatchStep'
 import { BenefitsStep } from '@/pages/LivesWizard/steps/BenefitsStep'
 import { DateOfLeavingStep } from '@/pages/LivesWizard/steps/DateOfLeavingStep'
 import { DeleteSummaryStep } from '@/pages/LivesWizard/steps/DeleteSummaryStep'
@@ -19,7 +20,9 @@ import { EditProofStep } from '@/pages/LivesWizard/steps/EditProofStep'
 import { EmployeeDetailsStep } from '@/pages/LivesWizard/steps/EmployeeDetailsStep'
 import { EndoCostsStep } from '@/pages/LivesWizard/steps/EndoCostsStep'
 import { EnrolmentStep } from '@/pages/LivesWizard/steps/EnrolmentStep'
+import { FamilyStep } from '@/pages/LivesWizard/steps/FamilyStep'
 import { MidtermProofStep } from '@/pages/LivesWizard/steps/MidtermProofStep'
+import { OffboardCoverageStep } from '@/pages/LivesWizard/steps/OffboardCoverageStep'
 import { ProcessingStep } from '@/pages/LivesWizard/steps/ProcessingStep'
 import { SearchEmployeeStep } from '@/pages/LivesWizard/steps/SearchEmployeeStep'
 import { SelectionStep } from '@/pages/LivesWizard/steps/SelectionStep'
@@ -63,6 +66,7 @@ function LivesWizardInner() {
       {step === 'dependant-details' && <DependantDetailsStep />}
       {step === 'dependant-plan' && <DependantPlanStep />}
       {step === 'benefits' && <BenefitsStep />}
+      {step === 'family' && <FamilyStep />}
       {step === 'verify' && <VerifyStep />}
       {step === 'endo-costs' && <EndoCostsStep />}
       {step === 'enrolment' && <EnrolmentStep />}
@@ -71,9 +75,11 @@ function LivesWizardInner() {
       {step === 'midterm-proof' && <MidtermProofStep />}
       {step === 'bulk-review' && <BulkReviewStep />}
       {step === 'date-of-leaving' && <DateOfLeavingStep />}
+      {step === 'offboard-coverage' && <OffboardCoverageStep />}
       {step === 'delete-summary' && <DeleteSummaryStep />}
       {step === 'edit-form' && <EditFormStep />}
       {step === 'edit-proof' && <EditProofStep />}
+      {step === 'correction-batch' && <CorrectionBatchStep />}
     </Page>
   )
 }

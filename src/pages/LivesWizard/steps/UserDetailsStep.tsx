@@ -2,17 +2,41 @@ import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
+import { assets } from '@/assets/figma'
 import { ChevronIcon } from '@/components/icons/ChevronIcon'
-import { flexDeal } from '@/data/flexDeal'
+import {
+  listActiveDeals,
+  parseDateOnly,
+  resolveAttributeFields,
+  validateAttributeValues,
+} from '@/domain/flex'
 import {
   ADD_EMPLOYEES_CSV_TEMPLATE,
   areMembersValid,
   emptyAddEmployeeMember,
+  isEmployeeValid,
   parseEmployeesCsv,
 } from '@/pages/LivesWizard/addEmployees'
 import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
+import { DealSelector } from '@/pages/LivesWizard/components/DealSelector'
+import { DynamicAttributeForm } from '@/pages/LivesWizard/components/DynamicAttributeForm'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
 import { SINGLE_ADD_STEPS } from '@/pages/LivesWizard/singleAddSteps'
+
+/** "1986-04-24" or "24/04/1986" → "Apr 24, 1986"; falls back to the raw value. */
+function formatSummaryDate(value: string) {
+  const parsed = parseDateOnly(value)
+  if (!parsed) return value
+  return new Date(
+    parsed.year,
+    parsed.month - 1,
+    parsed.day,
+  ).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
 
 export function UserDetailsStep() {
   const navigate = useNavigate()
@@ -24,40 +48,60 @@ export function UserDetailsStep() {
     updateAddEmployeeCustomAttribute,
     addAddEmployee,
     removeAddEmployee,
-    addAddEmployeeDependant,
-    updateAddEmployeeDependant,
-    removeAddEmployeeDependant,
     setAddEmployees,
     fileName,
     setFileName,
     setTemplateDownloaded,
+    activeDeal,
+    activeDealId,
+    selectDeal,
     setStep,
   } = useLivesWizard()
 
   const inputRef = useRef<HTMLInputElement>(null)
   const [parseError, setParseError] = useState<string | null>(null)
   const [uploadSummary, setUploadSummary] = useState<string | null>(null)
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
+  const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set())
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
 
-  const toggleMemberCollapsed = (id: string) => {
-    setCollapsedIds((prev) => {
+  const toggleId = (
+    setIds: typeof setSavedIds,
+    id: string,
+    force?: boolean,
+  ) => {
+    setIds((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      const shouldAdd = force ?? !next.has(id)
+      if (shouldAdd) next.add(id)
+      else next.delete(id)
       return next
     })
   }
 
-  const requiredAttrs = flexDeal.customAttributes.filter((a) => a.required)
+  const deals = listActiveDeals()
+  const employeeAttributeFields = activeDeal
+    ? resolveAttributeFields({
+        deal: activeDeal,
+        entity: 'employee',
+      }).fields
+    : []
   const formOk =
+    Boolean(activeDeal) &&
     intakeMode === 'form' &&
+    addEmployees.length > 0 &&
+    addEmployees.every((m) => savedIds.has(m.id)) &&
     areMembersValid(addEmployees) &&
-    addEmployees.every((m) =>
-      requiredAttrs.every((a) =>
-        Boolean(m.employee.customAttributes[a.id]?.trim()),
-      ),
+    addEmployees.every(
+      (m) =>
+        Object.keys(
+          validateAttributeValues(
+            employeeAttributeFields,
+            m.employee.customAttributes,
+          ),
+        ).length === 0,
     )
   const excelOk =
+    Boolean(activeDeal) &&
     intakeMode === 'excel' &&
     Boolean(fileName) &&
     areMembersValid(addEmployees)
@@ -107,15 +151,47 @@ export function UserDetailsStep() {
   return (
     <WizardChrome
       title="Add new employee(s)"
-      onBack={() => navigate('/endorsements')}
       onExit={() => navigate('/endorsements')}
-      secondaryLabel="Back"
-      onSecondary={() => navigate('/endorsements')}
       primaryLabel="Proceed"
       primaryDisabled={!canProceed}
       onPrimary={() => setStep('benefits')}
     >
       <FlowStepper steps={[...SINGLE_ADD_STEPS]} activeIndex={0} bare />
+
+      <DealSelector
+        deals={deals}
+        value={activeDealId}
+        onChange={(dealId) => {
+          const hasDownstreamSelections = addEmployees.some(
+            (member) =>
+              member.selectedBenefitIds.length > 0 ||
+              Object.values(member.employee.customAttributes).some(Boolean) ||
+              member.dependants.some(
+                (dependant) =>
+                  dependant.selectedBenefitIds.length > 0 ||
+                  Object.values(dependant.customAttributes).some(Boolean),
+              ),
+          )
+          if (
+            activeDealId &&
+            activeDealId !== dealId &&
+            hasDownstreamSelections &&
+            !window.confirm(
+              'Changing the deal will clear benefit assignments and deal-specific details. Continue?',
+            )
+          ) {
+            return
+          }
+          selectDeal(dealId)
+        }}
+      />
+
+      {!activeDeal ? (
+        <DealPrompt>
+          Select a Flex deal to load the required employee details.
+        </DealPrompt>
+      ) : (
+        <>
 
       <ModeToggle>
         <ModeButton
@@ -142,53 +218,171 @@ export function UserDetailsStep() {
 
       {intakeMode === 'form' ? (
         <>
-          <Hint>
-            Add one or more employees. Optionally nest dependants under each
-            employee before choosing benefits.
-          </Hint>
+          <Hint>Add one or more employees, then choose benefits.</Hint>
           {addEmployees.map((member, index) => {
-            const collapsed = collapsedIds.has(member.id)
-            const displayName = [member.employee.firstName, member.employee.lastName]
-              .filter(Boolean)
-              .join(' ')
-            const collapsedMeta = [
-              displayName || member.employee.employeeId,
-              `${member.dependants.length} dependant${member.dependants.length === 1 ? '' : 's'}`,
-            ]
-              .filter(Boolean)
-              .join(' · ')
+            const saved = savedIds.has(member.id)
+            const expanded = expandedIds.has(member.id)
+
+            if (saved) {
+              const fullName =
+                [member.employee.firstName, member.employee.lastName]
+                  .filter(Boolean)
+                  .join(' ') || member.employee.employeeId
+              const detailFields = employeeAttributeFields.filter(
+                (field) => field.visible,
+              )
+
+              return (
+                <SummaryCard key={member.id}>
+                  <SummaryRow>
+                    <SummaryIndex>#{index + 1}</SummaryIndex>
+                    <SummaryData>
+                      <Avatar aria-hidden>
+                        {(fullName.trim()[0] ?? '?').toUpperCase()}
+                      </Avatar>
+                      <SummaryCopy>
+                        <SummaryName>{fullName}</SummaryName>
+                        <MetaRow>
+                          {member.employee.employeeId ? (
+                            <MetaChip>
+                              <MetaIcon
+                                src={assets.iconBusiness}
+                                alt=""
+                                width={14}
+                                height={14}
+                                aria-hidden
+                              />
+                              ID: {member.employee.employeeId}
+                            </MetaChip>
+                          ) : null}
+                          {member.employee.gender ? (
+                            <>
+                              <MetaDivider aria-hidden />
+                              <MetaChip>
+                                <MetaIcon
+                                  src={assets.iconGender}
+                                  alt=""
+                                  width={16}
+                                  height={16}
+                                  aria-hidden
+                                />
+                                {member.employee.gender}
+                              </MetaChip>
+                            </>
+                          ) : null}
+                          {member.employee.dateOfBirth ? (
+                            <>
+                              <MetaDivider aria-hidden />
+                              <MetaChip>
+                                <MetaIcon
+                                  src={assets.iconCake}
+                                  alt=""
+                                  width={16}
+                                  height={16}
+                                  aria-hidden
+                                />
+                                {formatSummaryDate(member.employee.dateOfBirth)}
+                              </MetaChip>
+                            </>
+                          ) : null}
+                          {member.employee.email ? (
+                            <>
+                              <MetaDivider aria-hidden />
+                              <MetaChip>
+                                <MetaIcon
+                                  src={assets.iconMail}
+                                  alt=""
+                                  width={14}
+                                  height={14}
+                                  aria-hidden
+                                />
+                                {member.employee.email}
+                              </MetaChip>
+                            </>
+                          ) : null}
+                          {member.employee.mobile ? (
+                            <>
+                              <MetaDivider aria-hidden />
+                              <MetaChip>
+                                <MetaIcon
+                                  src={assets.iconCall}
+                                  alt=""
+                                  width={16}
+                                  height={16}
+                                  aria-hidden
+                                />
+                                {member.employee.mobile}
+                              </MetaChip>
+                            </>
+                          ) : null}
+                        </MetaRow>
+                      </SummaryCopy>
+                    </SummaryData>
+                    <EditButton
+                      type="button"
+                      onClick={() => {
+                        toggleId(setSavedIds, member.id, false)
+                        toggleId(setExpandedIds, member.id, false)
+                      }}
+                    >
+                      <img
+                        src={assets.iconEditPencil}
+                        alt=""
+                        width={20}
+                        height={20}
+                        aria-hidden
+                      />
+                      Edit
+                    </EditButton>
+                    {detailFields.length > 0 ? (
+                      <SummaryChevron
+                        type="button"
+                        aria-label={
+                          expanded
+                            ? 'Hide additional details'
+                            : 'Show additional details'
+                        }
+                        aria-expanded={expanded}
+                        aria-controls={`employee-details-${member.id}`}
+                        onClick={() => toggleId(setExpandedIds, member.id)}
+                      >
+                        <ChevronIcon
+                          direction={expanded ? 'up' : 'down'}
+                          size={24}
+                        />
+                      </SummaryChevron>
+                    ) : null}
+                  </SummaryRow>
+
+                  {expanded && detailFields.length > 0 ? (
+                    <DetailsPanel id={`employee-details-${member.id}`}>
+                      <DetailsTitle>Additional Details</DetailsTitle>
+                      <DetailsGrid>
+                        {detailFields.map(({ definition }) => (
+                          <DetailItem key={definition.id}>
+                            <DetailLabel>{definition.label}</DetailLabel>
+                            <DetailValue>
+                              {member.employee.customAttributes[
+                                definition.id
+                              ] || '—'}
+                            </DetailValue>
+                          </DetailItem>
+                        ))}
+                      </DetailsGrid>
+                    </DetailsPanel>
+                  ) : null}
+                </SummaryCard>
+              )
+            }
 
             return (
             <MemberCard key={member.id}>
               <MemberHeader>
-                <CollapseToggle
-                  type="button"
-                  aria-expanded={!collapsed}
-                  aria-controls={`employee-form-${member.id}`}
-                  onClick={() => toggleMemberCollapsed(member.id)}
-                >
+                <HeaderLeft>
                   <MemberTitle>Employee {index + 1}</MemberTitle>
-                  {collapsed && collapsedMeta ? (
-                    <CollapsedMeta>{collapsedMeta}</CollapsedMeta>
-                  ) : null}
-                  <ChevronWrap>
-                    <ChevronIcon
-                      direction={collapsed ? 'down' : 'up'}
-                      size={20}
-                    />
-                  </ChevronWrap>
-                </CollapseToggle>
-                {addEmployees.length > 1 ? (
-                  <RemoveLink
-                    type="button"
-                    onClick={() => removeAddEmployee(member.id)}
-                  >
-                    Remove
-                  </RemoveLink>
-                ) : null}
+                </HeaderLeft>
               </MemberHeader>
 
-              {collapsed ? null : (
               <MemberBody id={`employee-form-${member.id}`}>
               <Grid>
                 <Field>
@@ -197,7 +391,7 @@ export function UserDetailsStep() {
                   </Label>
                   <Input
                     value={member.employee.employeeId}
-                    placeholder="Enter Here"
+                    placeholder="Enter employee ID"
                     onChange={(e) =>
                       updateAddEmployeeFields(member.id, {
                         employeeId: e.target.value,
@@ -211,7 +405,7 @@ export function UserDetailsStep() {
                   </Label>
                   <Input
                     value={member.employee.firstName}
-                    placeholder="Enter Here"
+                    placeholder="Enter first name"
                     onChange={(e) =>
                       updateAddEmployeeFields(member.id, {
                         firstName: e.target.value,
@@ -223,7 +417,7 @@ export function UserDetailsStep() {
                   <Label>Last Name</Label>
                   <Input
                     value={member.employee.lastName}
-                    placeholder="Enter Here"
+                    placeholder="Enter last name"
                     onChange={(e) =>
                       updateAddEmployeeFields(member.id, {
                         lastName: e.target.value,
@@ -231,56 +425,95 @@ export function UserDetailsStep() {
                     }
                   />
                 </Field>
+              </Grid>
+
+              <Grid>
                 <Field>
                   <Label>
                     Gender<span>*</span>
                   </Label>
-                  <Select
-                    value={member.employee.gender}
-                    onChange={(e) =>
-                      updateAddEmployeeFields(member.id, {
-                        gender: e.target.value as typeof member.employee.gender,
-                      })
-                    }
-                  >
-                    <option value="">Select</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                  </Select>
+                  <SelectWrap>
+                    <Select
+                      $placeholder={!member.employee.gender}
+                      value={member.employee.gender}
+                      onChange={(e) =>
+                        updateAddEmployeeFields(member.id, {
+                          gender: e.target.value as typeof member.employee.gender,
+                        })
+                      }
+                    >
+                      <option value="">Select gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                    </Select>
+                    <SelectChevron
+                      src={assets.chevronDown}
+                      alt=""
+                      width={24}
+                      height={24}
+                      aria-hidden
+                    />
+                  </SelectWrap>
                 </Field>
                 <Field>
                   <Label>
                     Date of Birth<span>*</span>
                   </Label>
-                  <Input
-                    type="date"
-                    value={member.employee.dateOfBirth}
-                    onChange={(e) =>
-                      updateAddEmployeeFields(member.id, {
-                        dateOfBirth: e.target.value,
-                      })
-                    }
-                  />
+                  <DateWrap>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="Enter Date (DD/MM/YYYY)"
+                      value={member.employee.dateOfBirth}
+                      onChange={(e) =>
+                        updateAddEmployeeFields(member.id, {
+                          dateOfBirth: e.target.value,
+                        })
+                      }
+                    />
+                    <DateIcon
+                      src={assets.iconCalendar24}
+                      alt=""
+                      width={24}
+                      height={24}
+                      aria-hidden
+                    />
+                  </DateWrap>
                 </Field>
                 <Field>
                   <Label>
                     Date of Joining<span>*</span>
                   </Label>
-                  <Input
-                    type="date"
-                    value={member.employee.dateOfJoining}
-                    onChange={(e) =>
-                      updateAddEmployeeFields(member.id, {
-                        dateOfJoining: e.target.value,
-                      })
-                    }
-                  />
+                  <DateWrap>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="Enter Date (DD/MM/YYYY)"
+                      value={member.employee.dateOfJoining}
+                      onChange={(e) =>
+                        updateAddEmployeeFields(member.id, {
+                          dateOfJoining: e.target.value,
+                        })
+                      }
+                    />
+                    <DateIcon
+                      src={assets.iconCalendar24}
+                      alt=""
+                      width={24}
+                      height={24}
+                      aria-hidden
+                    />
+                  </DateWrap>
                 </Field>
+              </Grid>
+
+              <Grid>
                 <Field>
                   <Label>Work Email</Label>
                   <Input
+                    type="email"
                     value={member.employee.email}
-                    placeholder="Enter Here"
+                    placeholder="Enter work email"
                     onChange={(e) =>
                       updateAddEmployeeFields(member.id, {
                         email: e.target.value,
@@ -289,172 +522,70 @@ export function UserDetailsStep() {
                   />
                 </Field>
                 <Field>
-                  <Label>Mobile</Label>
-                  <Input
-                    value={member.employee.mobile}
-                    placeholder="Enter Here"
-                    onChange={(e) =>
-                      updateAddEmployeeFields(member.id, {
-                        mobile: e.target.value,
-                      })
-                    }
-                  />
+                  <Label>Mobile Number</Label>
+                  <PhoneWrap>
+                    <PhonePrefix>+91</PhonePrefix>
+                    <PhoneDivider aria-hidden />
+                    <PhoneInput
+                      value={member.employee.mobile}
+                      placeholder="Enter phone number"
+                      onChange={(e) =>
+                        updateAddEmployeeFields(member.id, {
+                          mobile: e.target.value,
+                        })
+                      }
+                    />
+                  </PhoneWrap>
                 </Field>
-                {requiredAttrs.map((attr) => (
-                  <Field key={attr.id}>
-                    <Label>
-                      {attr.label}
-                      <span>*</span>
-                    </Label>
-                    {attr.allowedValues?.length ? (
-                      <Select
-                        value={member.employee.customAttributes[attr.id] ?? ''}
-                        onChange={(e) =>
-                          updateAddEmployeeCustomAttribute(
-                            member.id,
-                            attr.id,
-                            e.target.value,
-                          )
-                        }
-                      >
-                        <option value="">Select</option>
-                        {attr.allowedValues.map((v) => (
-                          <option key={v} value={v}>
-                            {v}
-                          </option>
-                        ))}
-                      </Select>
-                    ) : (
-                      <Input
-                        value={member.employee.customAttributes[attr.id] ?? ''}
-                        onChange={(e) =>
-                          updateAddEmployeeCustomAttribute(
-                            member.id,
-                            attr.id,
-                            e.target.value,
-                          )
-                        }
-                      />
-                    )}
-                  </Field>
-                ))}
               </Grid>
 
-              <DependantBlock>
-                <DependantHeader>
-                  <SubTitle>Dependants</SubTitle>
-                  <AddLink
+              <DynamicAttributeForm
+                fields={employeeAttributeFields}
+                values={member.employee.customAttributes}
+                onChange={(attributeId, value) =>
+                  updateAddEmployeeCustomAttribute(
+                    member.id,
+                    attributeId,
+                    value,
+                  )
+                }
+              />
+
+              <CardActions $split={addEmployees.length > 1}>
+                {addEmployees.length > 1 ? (
+                  <RemoveLink
                     type="button"
-                    onClick={() => addAddEmployeeDependant(member.id)}
+                    onClick={() => {
+                      toggleId(setSavedIds, member.id, false)
+                      toggleId(setExpandedIds, member.id, false)
+                      removeAddEmployee(member.id)
+                    }}
                   >
-                    + Add dependant
-                  </AddLink>
-                </DependantHeader>
-                {member.dependants.length === 0 ? (
-                  <EmptyDeps>No dependants added</EmptyDeps>
-                ) : (
-                  member.dependants.map((dep, dIndex) => (
-                    <DependantCard key={dep.id}>
-                      <MemberHeader>
-                        <SubTitle>Dependant {dIndex + 1}</SubTitle>
-                        <RemoveLink
-                          type="button"
-                          onClick={() =>
-                            removeAddEmployeeDependant(member.id, dep.id)
-                          }
-                        >
-                          Remove
-                        </RemoveLink>
-                      </MemberHeader>
-                      <Grid>
-                        <Field>
-                          <Label>
-                            Relationship<span>*</span>
-                          </Label>
-                          <Select
-                            value={dep.relationship}
-                            onChange={(e) =>
-                              updateAddEmployeeDependant(member.id, dep.id, {
-                                relationship: e.target
-                                  .value as typeof dep.relationship,
-                              })
-                            }
-                          >
-                            <option value="">Select</option>
-                            <option value="Spouse">Spouse</option>
-                            <option value="Child">Child</option>
-                            <option value="Parent">Parent</option>
-                            <option value="Parent-in-law">Parent-in-law</option>
-                          </Select>
-                        </Field>
-                        <Field>
-                          <Label>
-                            First Name<span>*</span>
-                          </Label>
-                          <Input
-                            value={dep.firstName}
-                            onChange={(e) =>
-                              updateAddEmployeeDependant(member.id, dep.id, {
-                                firstName: e.target.value,
-                              })
-                            }
-                          />
-                        </Field>
-                        <Field>
-                          <Label>Last Name</Label>
-                          <Input
-                            value={dep.lastName}
-                            onChange={(e) =>
-                              updateAddEmployeeDependant(member.id, dep.id, {
-                                lastName: e.target.value,
-                              })
-                            }
-                          />
-                        </Field>
-                        <Field>
-                          <Label>
-                            Gender<span>*</span>
-                          </Label>
-                          <Select
-                            value={dep.gender}
-                            onChange={(e) =>
-                              updateAddEmployeeDependant(member.id, dep.id, {
-                                gender: e.target.value as typeof dep.gender,
-                              })
-                            }
-                          >
-                            <option value="">Select</option>
-                            <option value="Male">Male</option>
-                            <option value="Female">Female</option>
-                          </Select>
-                        </Field>
-                        <Field>
-                          <Label>
-                            Date of Birth<span>*</span>
-                          </Label>
-                          <Input
-                            type="date"
-                            value={dep.dateOfBirth}
-                            onChange={(e) =>
-                              updateAddEmployeeDependant(member.id, dep.id, {
-                                dateOfBirth: e.target.value,
-                              })
-                            }
-                          />
-                        </Field>
-                      </Grid>
-                    </DependantCard>
-                  ))
-                )}
-              </DependantBlock>
+                    Remove
+                  </RemoveLink>
+                ) : null}
+                <SaveButton
+                  type="button"
+                  disabled={!isEmployeeValid(member.employee)}
+                  onClick={() => toggleId(setSavedIds, member.id, true)}
+                >
+                  Save
+                </SaveButton>
+              </CardActions>
               </MemberBody>
-              )}
             </MemberCard>
             )
           })}
 
           <AddEmployeeBtn type="button" onClick={addAddEmployee}>
-            + Add another employee
+            <img
+              src={assets.iconPlusEmerald}
+              alt=""
+              width={20}
+              height={20}
+              aria-hidden
+            />
+            Add another employee
           </AddEmployeeBtn>
         </>
       ) : (
@@ -512,9 +643,19 @@ export function UserDetailsStep() {
           ) : null}
         </ExcelPanel>
       )}
+        </>
+      )}
     </WizardChrome>
   )
 }
+
+const DealPrompt = styled.div`
+  padding: 16px;
+  border-radius: 10px;
+  background: ${({ theme }) => theme.colors.disableFill};
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+`
 
 const ModeToggle = styled.div`
   display: inline-flex;
@@ -550,73 +691,224 @@ const Hint = styled.p`
 const MemberCard = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px 24px;
-  border-radius: 12px;
+  gap: 24px;
+  padding: 24px;
+  border-radius: 16px;
   background: ${({ theme }) => theme.colors.surface1};
-  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
+  overflow: hidden;
 `
 
 const MemberHeader = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  width: 100%;
 `
 
-const CollapseToggle = styled.button`
-  flex: 1;
-  min-width: 0;
+const SummaryCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  padding: 16px;
+  border-radius: 12px;
+  background: ${({ theme }) => theme.colors.surface1};
+  box-sizing: border-box;
+`
+
+const SummaryRow = styled.div`
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
+  width: 100%;
+`
+
+const SummaryIndex = styled.span`
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+`
+
+const SummaryData = styled.div`
+  display: flex;
+  flex: 1 0 0;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+`
+
+const Avatar = styled.span`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 40px;
+  background: ${({ theme }) => theme.colors.planeGreenDark};
+  color: ${({ theme }) => theme.colors.textTertiary};
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+`
+
+const SummaryCopy = styled.div`
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+`
+
+const SummaryName = styled.span`
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  color: ${({ theme }) => theme.colors.textPrimary};
+`
+
+const MetaRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+`
+
+const MetaChip = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: 0.2px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+`
+
+const MetaIcon = styled.img`
+  display: block;
+  flex-shrink: 0;
+`
+
+const MetaDivider = styled.span`
+  width: 1px;
+  height: 8px;
+  flex-shrink: 0;
+  background: ${({ theme }) => theme.colors.defaultBorder};
+`
+
+const EditButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+  width: 72px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: ${({ theme }) => theme.fontFamily};
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  color: ${({ theme }) => theme.colors.emerald};
+  cursor: pointer;
+`
+
+const SummaryChevron = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: none;
   background: transparent;
   cursor: pointer;
-  text-align: left;
-  font-family: ${({ theme }) => theme.fontFamily};
+`
+
+const DetailsPanel = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  padding: 16px;
+  border-radius: 12px;
+  background: ${({ theme }) => theme.colors.surface0};
+  box-sizing: border-box;
+`
+
+const DetailsTitle = styled.h4`
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  letter-spacing: 0.2px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+`
+
+const DetailsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+
+  @media (max-width: 720px) {
+    grid-template-columns: 1fr;
+  }
+`
+
+const DetailItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+`
+
+const DetailLabel = styled.span`
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  letter-spacing: 0.2px;
+  color: ${({ theme }) => theme.colors.textPrimary};
+`
+
+const DetailValue = styled.span`
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: 0.2px;
+  color: ${({ theme }) => theme.colors.textPrimary};
+`
+
+const HeaderLeft = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 `
 
 const MemberTitle = styled.h3`
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 24px;
   color: ${({ theme }) => theme.colors.textPrimary};
   white-space: nowrap;
-`
-
-const CollapsedMeta = styled.span`
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 400;
-  color: ${({ theme }) => theme.colors.textSecondary};
-`
-
-const ChevronWrap = styled.span`
-  margin-left: auto;
-  display: flex;
-  flex-shrink: 0;
 `
 
 const MemberBody = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 16px;
-`
-
-const SubTitle = styled.h4`
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.textPrimary};
+  gap: 24px;
 `
 
 const RemoveLink = styled.button`
+  padding: 0;
   border: none;
   background: transparent;
   color: ${({ theme }) => theme.colors.textError};
@@ -625,20 +917,38 @@ const RemoveLink = styled.button`
   cursor: pointer;
 `
 
-const AddLink = styled.button`
+const CardActions = styled.div<{ $split?: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: ${({ $split }) => ($split ? 'space-between' : 'flex-end')};
+  gap: 16px;
+  width: 100%;
+`
+
+const SaveButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 104px;
+  height: 36px;
+  padding: 8px 16px;
   border: none;
-  background: transparent;
+  border-radius: 8px;
+  background: ${({ theme }) => theme.colors.fillGreen};
   color: ${({ theme }) => theme.colors.emerald};
   font-family: ${({ theme }) => theme.fontFamily};
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
+  line-height: 18px;
+  letter-spacing: 0.2px;
   cursor: pointer;
+  box-sizing: border-box;
 `
 
 const Grid = styled.div`
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  gap: 24px;
 
   @media (max-width: 960px) {
     grid-template-columns: 1fr;
@@ -648,12 +958,15 @@ const Grid = styled.div`
 const Field = styled.label`
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  min-width: 0;
 `
 
 const Label = styled.span`
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.2px;
   color: ${({ theme }) => theme.colors.textPrimary};
 
   span {
@@ -662,69 +975,155 @@ const Label = styled.span`
 `
 
 const Input = styled.input`
-  height: 40px;
-  padding: 0 12px;
+  width: 100%;
+  height: 48px;
+  padding: 12px 20px;
   border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
-  border-radius: 8px;
+  border-radius: ${({ theme }) => theme.radii.sm};
   font-family: ${({ theme }) => theme.fontFamily};
   font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.2px;
   color: ${({ theme }) => theme.colors.textPrimary};
+  background: ${({ theme }) => theme.colors.surface1};
+  box-sizing: border-box;
+
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.textSecondary};
+  }
+
+  &:focus {
+    outline: 1px solid ${({ theme }) => theme.colors.emerald};
+  }
+`
+
+const SelectWrap = styled.div`
+  position: relative;
+`
+
+const Select = styled.select<{ $placeholder?: boolean }>`
+  width: 100%;
+  height: 48px;
+  padding: 12px 48px 12px 20px;
+  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  font-family: ${({ theme }) => theme.fontFamily};
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  color: ${({ theme, $placeholder }) =>
+    $placeholder ? theme.colors.textSecondary : theme.colors.textPrimary};
+  background: ${({ theme }) => theme.colors.surface1};
+  appearance: none;
+  cursor: pointer;
+  box-sizing: border-box;
+`
+
+const SelectChevron = styled.img`
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+`
+
+const DateWrap = styled.div`
+  position: relative;
+
+  ${Input} {
+    padding-right: 48px;
+  }
+`
+
+const DateIcon = styled.img`
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+`
+
+const PhoneWrap = styled.div`
+  display: flex;
+  align-items: center;
+  height: 48px;
+  padding: 0 20px;
+  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
+  border-radius: ${({ theme }) => theme.radii.sm};
   background: ${({ theme }) => theme.colors.surface1};
   box-sizing: border-box;
 `
 
-const Select = styled.select`
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
-  border-radius: 8px;
+const PhonePrefix = styled.span`
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  white-space: nowrap;
+`
+
+const PhoneDivider = styled.span`
+  width: 1px;
+  height: 20px;
+  margin: 0 8px;
+  background: ${({ theme }) => theme.colors.defaultBorder};
+  flex-shrink: 0;
+`
+
+const PhoneInput = styled.input`
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  padding: 0;
   font-family: ${({ theme }) => theme.fontFamily};
   font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.2px;
   color: ${({ theme }) => theme.colors.textPrimary};
-  background: ${({ theme }) => theme.colors.surface1};
-`
+  background: transparent;
 
-const DependantBlock = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-top: 8px;
-  border-top: 1px solid ${({ theme }) => theme.colors.defaultBorder};
-`
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.textSecondary};
+  }
 
-const DependantHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-`
-
-const DependantCard = styled.div`
-  padding: 12px;
-  border-radius: 10px;
-  background: ${({ theme }) => theme.colors.surface0};
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-`
-
-const EmptyDeps = styled.p`
-  margin: 0;
-  font-size: 13px;
-  color: ${({ theme }) => theme.colors.textSecondary};
+  &:focus {
+    outline: none;
+  }
 `
 
 const AddEmployeeBtn = styled.button`
   align-self: flex-start;
-  height: 40px;
-  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px 24px;
   border: 1px dashed ${({ theme }) => theme.colors.emerald};
-  border-radius: 8px;
+  border-radius: 12px;
   background: transparent;
   color: ${({ theme }) => theme.colors.emerald};
   font-family: ${({ theme }) => theme.fontFamily};
   font-size: 14px;
   font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.2px;
   cursor: pointer;
+  box-sizing: border-box;
+
+  img {
+    display: block;
+    width: 20px;
+    height: 20px;
+  }
 `
 
 const ExcelPanel = styled.div`

@@ -1,8 +1,9 @@
-/** Shared stepper labels for Add employee(s) (3-step flow). */
+/** Shared stepper labels for Add employee(s). */
 export const SINGLE_ADD_STEPS = [
-  'User details',
+  'Employee',
   'Benefits',
-  'Endo costs',
+  'Dependants',
+  'Review',
 ] as const
 
 /** Stepper labels for Add new dependant (unchanged path). */

@@ -7,6 +7,7 @@ import {
   getPlanById,
   selectablePolicies,
 } from '@/data/flexDeal'
+import { getBenefitConfig } from '@/domain/flex'
 import {
   AssignmentSummary,
   type CoverageGroup,
@@ -40,6 +41,7 @@ export function VerifyStep() {
   const {
     action,
     method,
+    activeDeal,
     employee,
     dependants,
     addDependants,
@@ -152,11 +154,22 @@ export function VerifyStep() {
         for (const coverId of dep.selectedBenefitIds ?? []) {
           const policy = selectablePolicies.find((p) => p.id === coverId)
           const benefit = getBenefitById(coverId)
+          const configuredBenefit = activeDeal
+            ? getBenefitConfig(activeDeal, coverId)
+            : undefined
           const plan = getPlanById(coverId)
           if (policy) {
             upsertMember(map, policy.id, policy.name, 'policy', member)
           } else if (benefit) {
             upsertMember(map, benefit.id, benefit.name, 'benefit', member)
+          } else if (configuredBenefit) {
+            upsertMember(
+              map,
+              configuredBenefit.id,
+              configuredBenefit.name,
+              'benefit',
+              member,
+            )
           } else if (plan) {
             upsertMember(map, plan.id, plan.name, 'plan', member)
           }
@@ -219,7 +232,14 @@ export function VerifyStep() {
 
       <Grid>
         <AssignmentSummary groups={coverageGroups} />
-        <CostAndCdSummary estimate={costEstimate} />
+        <CostAndCdSummary
+          estimate={costEstimate}
+          currentPayrollDeduction={
+            isSingleDependant
+              ? selectedEmployee?.currentPayrollDeduction
+              : undefined
+          }
+        />
       </Grid>
     </WizardChrome>
   )

@@ -32,6 +32,9 @@ export interface DependantFormData {
   email: string
   /** Benefit / policy ids this dependant is enrolled on. */
   selectedBenefitIds: string[]
+  /** Configuration-driven dependant attributes, including marriage date. */
+  customAttributes: Record<string, string>
+  supportingDocumentName: string
 }
 
 export interface MemberCoverage {
@@ -40,6 +43,7 @@ export interface MemberCoverage {
   label: string
   category?: 'gmc' | 'gpa' | 'gtl' | 'opd'
   planId?: string
+  status?: 'active' | 'draft'
 }
 
 export interface SearchableEmployee {
@@ -64,7 +68,11 @@ export interface SearchableEmployee {
     gender: Gender
     email: string
     mobile: string
+    benefitIds?: string[]
   }[]
+  dealId?: string
+  dealAttributes?: Record<string, string>
+  currentPayrollDeduction?: number
   hasClaimOnGmc: boolean
   hasFlatWellness: boolean
   requiresProofOnEdit: boolean
@@ -93,6 +101,8 @@ export const emptyDependantForm = (id: string): DependantFormData => ({
   mobile: '',
   email: '',
   selectedBenefitIds: [],
+  customAttributes: {},
+  supportingDocumentName: '',
 })
 
 export const sampleEmployees: SearchableEmployee[] = [
@@ -107,6 +117,9 @@ export const sampleEmployees: SearchableEmployee[] = [
     gender: 'Male',
     dateOfBirth: '1992-03-14',
     dateOfJoining: '2021-06-01',
+    dealId: 'deal-herbalife-flex',
+    dealAttributes: { 'attr-grade': 'L3', 'attr-location': 'Bangalore' },
+    currentPayrollDeduction: 1200,
     plans: [
       { id: 'plan-standard', name: 'Standard Plan', category: 'gmc' },
       { id: 'plan-parental', name: 'Parental Plan', category: 'gmc' },
@@ -114,9 +127,9 @@ export const sampleEmployees: SearchableEmployee[] = [
     coverages: [
       { kind: 'plan', id: 'plan-standard', label: 'Standard Plan', category: 'gmc', planId: 'plan-standard' },
       { kind: 'plan', id: 'plan-parental', label: 'Parental Plan', category: 'gmc', planId: 'plan-parental' },
-      { kind: 'benefit', id: 'ben-gmc', label: 'Group Medical Cover', category: 'gmc' },
-      { kind: 'benefit', id: 'ben-gpa', label: 'Group Personal Accidental', category: 'gpa' },
-      { kind: 'policy', id: 'pol-gmc', label: 'Group Medical Coverage' },
+      { kind: 'benefit', id: 'ben-gmc', label: 'Group Medical Cover', category: 'gmc', status: 'active' },
+      { kind: 'benefit', id: 'ben-gpa', label: 'Group Personal Accidental', category: 'gpa', status: 'active' },
+      { kind: 'policy', id: 'pol-gmc', label: 'Group Medical Coverage', status: 'active' },
     ],
     dependants: [
       {
@@ -128,6 +141,7 @@ export const sampleEmployees: SearchableEmployee[] = [
         gender: 'Female',
         email: 'anita.sharma@email.com',
         mobile: '9876543211',
+        benefitIds: ['ben-gmc', 'ben-gpa'],
       },
       {
         id: 'dep-r2',
@@ -138,6 +152,7 @@ export const sampleEmployees: SearchableEmployee[] = [
         gender: 'Male',
         email: '',
         mobile: '',
+        benefitIds: ['ben-gmc', 'ben-gpa'],
       },
       {
         id: 'dep-r3',
@@ -148,6 +163,7 @@ export const sampleEmployees: SearchableEmployee[] = [
         gender: 'Male',
         email: '',
         mobile: '9876501122',
+        benefitIds: ['ben-gmc-parental'],
       },
     ],
     hasClaimOnGmc: true,
@@ -165,10 +181,13 @@ export const sampleEmployees: SearchableEmployee[] = [
     gender: 'Female',
     dateOfBirth: '1990-08-22',
     dateOfJoining: '2019-02-15',
+    dealId: 'deal-herbalife-flex',
+    dealAttributes: { 'attr-grade': 'L2', 'attr-location': 'Mumbai' },
+    currentPayrollDeduction: 980,
     plans: [{ id: 'plan-standard', name: 'Standard Plan', category: 'gmc' }],
     coverages: [
       { kind: 'plan', id: 'plan-standard', label: 'Standard Plan', category: 'gmc', planId: 'plan-standard' },
-      { kind: 'benefit', id: 'ben-gmc', label: 'Group Medical Cover', category: 'gmc' },
+      { kind: 'benefit', id: 'ben-gmc', label: 'Group Medical Cover', category: 'gmc', status: 'active' },
       { kind: 'policy', id: 'pol-gmc', label: 'Group Medical Coverage' },
     ],
     dependants: [
@@ -181,6 +200,7 @@ export const sampleEmployees: SearchableEmployee[] = [
         gender: 'Female',
         email: '',
         mobile: '',
+        benefitIds: ['ben-gmc'],
       },
     ],
     hasClaimOnGmc: false,
@@ -198,11 +218,17 @@ export const sampleEmployees: SearchableEmployee[] = [
     gender: 'Male',
     dateOfBirth: '1995-06-14',
     dateOfJoining: '2022-01-10',
+    dealId: 'deal-symphony-care-flex',
+    dealAttributes: {
+      'attr-grade': 'B',
+      'attr-employment-type': 'Permanent',
+    },
+    currentPayrollDeduction: 1250,
     plans: [{ id: 'plan-standard', name: 'Standard Plan', category: 'gmc' }],
     coverages: [
       { kind: 'plan', id: 'plan-standard', label: 'Standard Plan', category: 'gmc', planId: 'plan-standard' },
-      { kind: 'benefit', id: 'ben-gmc', label: 'Group Medical Cover', category: 'gmc' },
-      { kind: 'benefit', id: 'ben-gpa', label: 'Group Personal Accidental', category: 'gpa' },
+      { kind: 'benefit', id: 'ben-care-gmc', label: 'GMC — Gold', category: 'gmc', status: 'active' },
+      { kind: 'benefit', id: 'ben-care-gtl', label: 'Group Term Life', category: 'gtl', status: 'active' },
     ],
     dependants: [
       {
@@ -214,6 +240,7 @@ export const sampleEmployees: SearchableEmployee[] = [
         gender: 'Female',
         email: 'meera.jain@email.com',
         mobile: '9822223345',
+        benefitIds: ['ben-care-gmc'],
       },
     ],
     hasClaimOnGmc: false,
@@ -231,6 +258,9 @@ export const sampleEmployees: SearchableEmployee[] = [
     gender: 'Female',
     dateOfBirth: '1988-11-05',
     dateOfJoining: '2018-08-20',
+    dealId: 'deal-herbalife-flex',
+    dealAttributes: { 'attr-grade': 'L4', 'attr-location': 'Delhi' },
+    currentPayrollDeduction: 1520,
     plans: [
       { id: 'plan-standard', name: 'Standard Plan', category: 'gmc' },
       { id: 'plan-gpa-extra', name: 'GPA Plus', category: 'gpa' },
@@ -238,7 +268,9 @@ export const sampleEmployees: SearchableEmployee[] = [
     coverages: [
       { kind: 'plan', id: 'plan-standard', label: 'Standard Plan', category: 'gmc', planId: 'plan-standard' },
       { kind: 'plan', id: 'plan-gpa-extra', label: 'GPA Plus', category: 'gpa', planId: 'plan-gpa-extra' },
-      { kind: 'benefit', id: 'ben-gpa', label: 'Group Personal Accidental', category: 'gpa' },
+      { kind: 'benefit', id: 'ben-gmc', label: 'Group Medical Cover', category: 'gmc', status: 'active' },
+      { kind: 'benefit', id: 'ben-gpa', label: 'Group Personal Accidental', category: 'gpa', status: 'active' },
+      { kind: 'benefit', id: 'ben-gmc-parental', label: 'GMC Parental', category: 'gmc', status: 'draft' },
     ],
     dependants: [
       {
@@ -250,6 +282,7 @@ export const sampleEmployees: SearchableEmployee[] = [
         gender: 'Male',
         email: 'rohan.kapoor@email.com',
         mobile: '9833334456',
+        benefitIds: ['ben-gmc', 'ben-gpa'],
       },
       {
         id: 'dep-n2',
@@ -260,8 +293,122 @@ export const sampleEmployees: SearchableEmployee[] = [
         gender: 'Male',
         email: '',
         mobile: '',
+        benefitIds: ['ben-gmc', 'ben-gpa'],
       },
     ],
+    hasClaimOnGmc: false,
+    hasFlatWellness: false,
+    requiresProofOnEdit: false,
+  },
+  {
+    id: 'emp-5',
+    employeeId: 'EMP-23140',
+    firstName: 'Vikram',
+    lastName: 'Mehta',
+    email: 'vikram.mehta@symphonyeyc.com',
+    mobile: '9844400011',
+    department: 'Engineering',
+    gender: 'Male',
+    dateOfBirth: '1989-12-11',
+    dateOfJoining: '2020-04-06',
+    dealId: 'deal-symphony-care-flex',
+    dealAttributes: {
+      'attr-grade': 'A',
+      'attr-employment-type': 'Permanent',
+    },
+    currentPayrollDeduction: 1450,
+    plans: [{ id: 'plan-care-core', name: 'Care Core', category: 'gmc' }],
+    coverages: [
+      { kind: 'benefit', id: 'ben-care-gmc', label: 'GMC — Gold', category: 'gmc', status: 'active' },
+      { kind: 'benefit', id: 'ben-care-gtl', label: 'Group Term Life', category: 'gtl', status: 'active' },
+    ],
+    dependants: [
+      {
+        id: 'dep-v1',
+        firstName: 'Tara',
+        lastName: 'Mehta',
+        relationship: 'Spouse',
+        dateOfBirth: '1991-10-12',
+        gender: 'Female',
+        email: '',
+        mobile: '',
+        benefitIds: ['ben-care-gmc'],
+      },
+      {
+        id: 'dep-v2',
+        firstName: 'Ria',
+        lastName: 'Mehta',
+        relationship: 'Child',
+        dateOfBirth: '2017-05-03',
+        gender: 'Female',
+        email: '',
+        mobile: '',
+        benefitIds: ['ben-care-gmc'],
+      },
+      {
+        id: 'dep-v3',
+        firstName: 'Kabir',
+        lastName: 'Mehta',
+        relationship: 'Child',
+        dateOfBirth: '2020-01-19',
+        gender: 'Male',
+        email: '',
+        mobile: '',
+        benefitIds: ['ben-care-gmc'],
+      },
+    ],
+    hasClaimOnGmc: false,
+    hasFlatWellness: false,
+    requiresProofOnEdit: false,
+  },
+  {
+    id: 'emp-6',
+    employeeId: 'EMP-24516',
+    firstName: 'Farah',
+    lastName: 'Khan',
+    email: 'farah.khan@symphonyeyc.com',
+    mobile: '9844400022',
+    department: 'Operations',
+    gender: 'Female',
+    dateOfBirth: '1987-03-28',
+    dateOfJoining: '2017-09-18',
+    dealId: 'deal-herbalife-flex',
+    dealAttributes: { 'attr-grade': 'L3', 'attr-location': 'Hyderabad' },
+    currentPayrollDeduction: 1680,
+    plans: [{ id: 'plan-standard', name: 'Standard Plan', category: 'gmc' }],
+    coverages: [
+      { kind: 'benefit', id: 'ben-gmc', label: 'Group Medical Cover', category: 'gmc', status: 'active' },
+      { kind: 'benefit', id: 'ben-gpa', label: 'Group Personal Accidental', category: 'gpa', status: 'active' },
+      { kind: 'benefit', id: 'ben-wellness', label: 'Wellness Flat Benefit', category: 'opd', status: 'active' },
+    ],
+    dependants: [],
+    hasClaimOnGmc: false,
+    hasFlatWellness: true,
+    requiresProofOnEdit: false,
+  },
+  {
+    id: 'emp-7',
+    employeeId: 'EMP-25773',
+    firstName: 'Arjun',
+    lastName: 'Rao',
+    email: 'arjun.rao@symphonyeyc.com',
+    mobile: '9844400033',
+    department: 'HR',
+    gender: 'Male',
+    dateOfBirth: '2006-08-20',
+    dateOfJoining: '2025-01-13',
+    dealId: 'deal-symphony-care-flex',
+    dealAttributes: {
+      'attr-grade': 'C',
+      'attr-employment-type': 'Permanent',
+    },
+    currentPayrollDeduction: 1250,
+    plans: [{ id: 'plan-care-core', name: 'Care Core', category: 'gmc' }],
+    coverages: [
+      { kind: 'benefit', id: 'ben-care-gmc', label: 'GMC — Gold', category: 'gmc', status: 'active' },
+      { kind: 'benefit', id: 'ben-care-gtl', label: 'Group Term Life', category: 'gtl', status: 'active' },
+    ],
+    dependants: [],
     hasClaimOnGmc: false,
     hasFlatWellness: false,
     requiresProofOnEdit: false,

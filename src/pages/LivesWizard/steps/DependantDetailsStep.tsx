@@ -18,7 +18,8 @@ import {
 } from '@/data/flexDeal'
 import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
-import { SINGLE_ADD_STEPS, SINGLE_DEPENDANT_STEPS } from '@/pages/LivesWizard/singleAddSteps'
+import { SINGLE_ADD_STEPS } from '@/pages/LivesWizard/singleAddSteps'
+import { ExistingEmployeeDependantStep } from '@/pages/LivesWizard/steps/ExistingEmployeeDependantStep'
 
 type ParentMode = 'parents' | 'parents-in-law'
 
@@ -929,9 +930,12 @@ function SingleDependantDetailsLegacy() {
 }
 
 export function DependantDetailsStep() {
+  // Keep the prior form implementation compiled as a fallback while the
+  // configuration-driven flow is exercised with the same route and entry step.
+  void SingleDependantDetailsLegacy
   const { method, action } = useLivesWizard()
   const isSingleDependant = method === 'single-dependant' && action === 'add'
-  if (isSingleDependant) return <SingleDependantDetailsLegacy />
+  if (isSingleDependant) return <ExistingEmployeeDependantStep />
   return <SingleAddDependantDetails />
 }
 

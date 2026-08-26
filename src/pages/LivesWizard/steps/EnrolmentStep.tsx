@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
-import { activeDeals, flexDeal, selectablePolicies } from '@/data/flexDeal'
+import { flexDeal, selectablePolicies } from '@/data/flexDeal'
 import { EnrolmentSettings } from '@/pages/LivesWizard/components/EnrolmentSettings'
 import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
@@ -17,6 +17,7 @@ export function EnrolmentStep() {
     setEnrolment,
     selectedPolicyIds,
     activeDealId,
+    activeDeal,
     setStep,
     completeFlow,
     startProcessing,
@@ -40,9 +41,9 @@ export function EnrolmentStep() {
         ...selectablePolicies
           .filter((p) => selectedPolicyIds.includes(p.id))
           .map((p) => ({ id: p.id, label: p.name })),
-        ...activeDeals
-          .filter((d) => !activeDealId || d.id === activeDealId)
-          .map((d) => ({ id: d.id, label: d.name })),
+        ...(activeDeal && (!activeDealId || activeDeal.id === activeDealId)
+          ? [{ id: activeDeal.id, label: activeDeal.name }]
+          : []),
       ]
 
   useEffect(() => {
@@ -62,7 +63,8 @@ export function EnrolmentStep() {
   const canProceed = isBulk
     ? enrolment.runEnrolment === false ||
       (enrolment.runEnrolment === true && Boolean(enrolment.dueDate))
-    : Boolean(enrolment.dueDate)
+    : enrolment.runEnrolment === false ||
+      (enrolment.runEnrolment === true && Boolean(enrolment.dueDate))
 
   const stepperSteps = isBulk
     ? ['Upload', 'Validate', 'Review', 'Enrolment']
@@ -96,8 +98,8 @@ export function EnrolmentStep() {
 
       <Card>
         <Lead>
-          Optionally set an enrolment due date and choose whether invitations go
-          out now or later.
+          Enrolment is optional. Send an invite now, schedule it for later, or
+          continue without an invitation.
         </Lead>
         <EnrolmentSettings
           value={enrolment}

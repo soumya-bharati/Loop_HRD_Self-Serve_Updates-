@@ -21,6 +21,7 @@ export function SearchEmployeeStep() {
     setSelectedDependantId,
     setDependants,
     setEmployee,
+    selectDeal,
     setStep,
   } = useLivesWizard()
   const [query, setQuery] = useState('')
@@ -69,6 +70,7 @@ export function SearchEmployeeStep() {
       onPrimary={() => {
         const emp = sampleEmployees.find((e) => e.id === selectedEmployeeId)
         if (!emp) return
+        if (emp.dealId) selectDeal(emp.dealId)
 
         if (action === 'add') {
           setDependants([emptyDependantForm('dep-1')])

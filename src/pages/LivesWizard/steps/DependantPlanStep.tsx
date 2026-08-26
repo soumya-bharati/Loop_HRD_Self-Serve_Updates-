@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
@@ -143,8 +143,10 @@ function SingleDependantPlanLegacy() {
   } = useLivesWizard()
 
   const employee = sampleEmployees.find((e) => e.id === selectedEmployeeId)
-  const gmcPlans =
-    employee?.plans.filter((p) => p.category === 'gmc') ?? []
+  const gmcPlans = useMemo(
+    () => employee?.plans.filter((p) => p.category === 'gmc') ?? [],
+    [employee],
+  )
 
   useEffect(() => {
     if (gmcPlans.length === 1 && !selectedDependantPlanId) {

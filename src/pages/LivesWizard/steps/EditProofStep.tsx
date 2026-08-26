@@ -12,6 +12,8 @@ export function EditProofStep() {
     setEditProofFileName,
     simulateEditSaveFailure,
     setSimulateEditSaveFailure,
+    pendingCorrection,
+    addPendingCorrection,
     setStep,
   } = useLivesWizard()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -23,9 +25,12 @@ export function EditProofStep() {
       onExit={() => navigate('/endorsements')}
       secondaryLabel="Back"
       onSecondary={() => setStep('edit-form')}
-      primaryLabel="Continue to review"
+      primaryLabel="Add to corrections"
       primaryDisabled={!editProofFileName}
-      onPrimary={() => setStep('verify')}
+      onPrimary={() => {
+        addPendingCorrection()
+        setStep('correction-batch')
+      }}
     >
       <FlowStepper
         steps={['Search', 'Edit details', 'Review']}
@@ -34,7 +39,9 @@ export function EditProofStep() {
       />
 
       <Lead>
-        This correction requires supporting proof before it can be submitted.
+        {pendingCorrection?.kycTriggerFields.length
+          ? `Changes to ${pendingCorrection.kycTriggerFields.join(', ')} require supporting KYC before submission.`
+          : 'This correction requires supporting proof before it can be submitted.'}
       </Lead>
 
       <Drop
