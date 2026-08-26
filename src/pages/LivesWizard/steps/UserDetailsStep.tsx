@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
 
@@ -57,6 +57,7 @@ export function UserDetailsStep() {
     activeDeal,
     activeDealId,
     selectDeal,
+    autofillNonce,
     setStep,
   } = useLivesWizard()
 
@@ -65,6 +66,19 @@ export function UserDetailsStep() {
   const [uploadSummary, setUploadSummary] = useState<string | null>(null)
   const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set())
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
+
+  // Autofilled cards are complete, so show them as saved without a manual Save.
+  useEffect(() => {
+    if (autofillNonce === 0) return
+    setSavedIds(
+      new Set(
+        addEmployees
+          .filter((member) => isEmployeeValid(member.employee))
+          .map((member) => member.id),
+      ),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autofillNonce])
 
   const toggleId = (
     setIds: typeof setSavedIds,

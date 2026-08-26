@@ -7,6 +7,7 @@ import {
   type LifeAction,
   type LifeMethod,
 } from '@/pages/LivesWizard/WizardContext'
+import { AutofillWidget } from '@/pages/LivesWizard/components/AutofillWidget'
 import { BulkReviewStep } from '@/pages/LivesWizard/steps/BulkReviewStep'
 import { BulkValidateStep } from '@/pages/LivesWizard/steps/BulkValidateStep'
 import { CorrectionBatchStep } from '@/pages/LivesWizard/steps/CorrectionBatchStep'
@@ -80,6 +81,7 @@ function LivesWizardInner() {
       {step === 'edit-form' && <EditFormStep />}
       {step === 'edit-proof' && <EditProofStep />}
       {step === 'correction-batch' && <CorrectionBatchStep />}
+      <AutofillWidget />
     </Page>
   )
 }

@@ -215,6 +215,10 @@ interface LivesWizardContextValue {
   refundEstimate: RefundEstimate | null
   resolvedAssignment: ReturnType<typeof resolveSelectionBenefitIds>
 
+  /** Increments whenever the demo autofill widget writes to the wizard. */
+  autofillNonce: number
+  signalAutofill: () => void
+
   completeFlow: () => void
   /** @deprecated use completeFlow */
   completeAddition: () => void
@@ -351,6 +355,11 @@ export function LivesWizardProvider({
   ])
   const [benefitsAssignMode, setBenefitsAssignMode] =
     useState<BenefitsAssignMode>('common')
+  const [autofillNonce, setAutofillNonce] = useState(0)
+
+  const signalAutofill = useCallback(() => {
+    setAutofillNonce((current) => current + 1)
+  }, [])
 
   const activeDeal = useMemo(
     () => (activeDealId ? getDealConfig(activeDealId) ?? null : null),
@@ -1086,6 +1095,8 @@ export function LivesWizardProvider({
       costEstimate,
       refundEstimate,
       resolvedAssignment,
+      autofillNonce,
+      signalAutofill,
       completeFlow,
       completeAddition: completeFlow,
       resetWizard,
@@ -1158,6 +1169,8 @@ export function LivesWizardProvider({
       costEstimate,
       refundEstimate,
       resolvedAssignment,
+      autofillNonce,
+      signalAutofill,
       completeFlow,
       resetWizard,
     ],
