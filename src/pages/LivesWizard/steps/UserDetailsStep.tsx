@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
@@ -21,7 +21,7 @@ import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { DealSelector } from '@/pages/LivesWizard/components/DealSelector'
 import { DynamicAttributeForm } from '@/pages/LivesWizard/components/DynamicAttributeForm'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
-import { SINGLE_ADD_STEPS } from '@/pages/LivesWizard/singleAddSteps'
+import { SINGLE_ADD_STEPS, addEmployeesPageTitle } from '@/pages/LivesWizard/singleAddSteps'
 
 /** "1986-04-24" or "24/04/1986" → "Apr 24, 1986"; falls back to the raw value. */
 function formatSummaryDate(value: string) {
@@ -40,6 +40,8 @@ function formatSummaryDate(value: string) {
 
 export function UserDetailsStep() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const dealPickedUpfront = Boolean(searchParams.get('deal'))
   const {
     intakeMode,
     setIntakeMode,
@@ -150,7 +152,7 @@ export function UserDetailsStep() {
 
   return (
     <WizardChrome
-      title="Add new employee(s)"
+      title={addEmployeesPageTitle(activeDeal?.name)}
       onExit={() => navigate('/endorsements')}
       primaryLabel="Proceed"
       primaryDisabled={!canProceed}
@@ -158,33 +160,35 @@ export function UserDetailsStep() {
     >
       <FlowStepper steps={[...SINGLE_ADD_STEPS]} activeIndex={0} bare />
 
-      <DealSelector
-        deals={deals}
-        value={activeDealId}
-        onChange={(dealId) => {
-          const hasDownstreamSelections = addEmployees.some(
-            (member) =>
-              member.selectedBenefitIds.length > 0 ||
-              Object.values(member.employee.customAttributes).some(Boolean) ||
-              member.dependants.some(
-                (dependant) =>
-                  dependant.selectedBenefitIds.length > 0 ||
-                  Object.values(dependant.customAttributes).some(Boolean),
-              ),
-          )
-          if (
-            activeDealId &&
-            activeDealId !== dealId &&
-            hasDownstreamSelections &&
-            !window.confirm(
-              'Changing the deal will clear benefit assignments and deal-specific details. Continue?',
+      {dealPickedUpfront ? null : (
+        <DealSelector
+          deals={deals}
+          value={activeDealId}
+          onChange={(dealId) => {
+            const hasDownstreamSelections = addEmployees.some(
+              (member) =>
+                member.selectedBenefitIds.length > 0 ||
+                Object.values(member.employee.customAttributes).some(Boolean) ||
+                member.dependants.some(
+                  (dependant) =>
+                    dependant.selectedBenefitIds.length > 0 ||
+                    Object.values(dependant.customAttributes).some(Boolean),
+                ),
             )
-          ) {
-            return
-          }
-          selectDeal(dealId)
-        }}
-      />
+            if (
+              activeDealId &&
+              activeDealId !== dealId &&
+              hasDownstreamSelections &&
+              !window.confirm(
+                'Changing the deal will clear benefit assignments and deal-specific details. Continue?',
+              )
+            ) {
+              return
+            }
+            selectDeal(dealId)
+          }}
+        />
+      )}
 
       {!activeDeal ? (
         <DealPrompt>

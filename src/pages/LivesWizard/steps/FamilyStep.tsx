@@ -12,7 +12,7 @@ import { DependantSlotSelector } from '@/pages/LivesWizard/components/DependantS
 import { DynamicAttributeForm } from '@/pages/LivesWizard/components/DynamicAttributeForm'
 import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
-import { SINGLE_ADD_STEPS } from '@/pages/LivesWizard/singleAddSteps'
+import { SINGLE_ADD_STEPS, addEmployeesPageTitle } from '@/pages/LivesWizard/singleAddSteps'
 
 export function FamilyStep() {
   const navigate = useNavigate()
@@ -74,7 +74,7 @@ export function FamilyStep() {
 
   return (
     <WizardChrome
-      title="Add new employee(s)"
+      title={addEmployeesPageTitle(activeDeal?.name)}
       onBack={() => setStep('benefits')}
       onExit={() => navigate('/endorsements')}
       secondaryLabel="Back"

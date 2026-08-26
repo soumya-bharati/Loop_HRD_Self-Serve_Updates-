@@ -20,9 +20,19 @@ export function EndorsementsPage() {
   )
   const [modalOpen, setModalOpen] = useState(false)
 
-  const handleConfirm = (action: LifeAction, method: LifeMethod) => {
+  const handleConfirm = (
+    action: LifeAction,
+    method: LifeMethod,
+    entityId: string,
+    dealId?: string,
+  ) => {
     setModalOpen(false)
-    navigate(`/endorsements/lives/${action}?method=${method}`)
+    const params = new URLSearchParams({
+      method,
+      entity: entityId,
+    })
+    if (dealId) params.set('deal', dealId)
+    navigate(`/endorsements/lives/${action}?${params.toString()}`)
   }
 
   return (

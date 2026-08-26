@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
-import { singleAddEntityName } from '@/data/flexDeal'
+import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
 
 export function WizardChrome({
   title,
@@ -29,8 +29,16 @@ export function WizardChrome({
   onSecondary?: () => void
   primaryHint?: { title: string; body: string }
 }) {
+  const { action, organisationEntityName } = useLivesWizard()
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false)
   const [hintDismissed, setHintDismissed] = useState(false)
+
+  const entityPrefix =
+    action === 'edit'
+      ? 'This correction is for'
+      : action === 'delete'
+        ? 'This request is for'
+        : 'This addition is for'
 
   useEffect(() => {
     if (!exitConfirmOpen) return
@@ -65,7 +73,7 @@ export function WizardChrome({
                 aria-hidden
               />
               <ContextText>
-                This addition is for <strong>{singleAddEntityName}</strong>
+                {entityPrefix} <strong>{organisationEntityName}</strong>
               </ContextText>
             </>
           )}

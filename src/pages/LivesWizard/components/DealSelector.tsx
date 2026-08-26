@@ -8,29 +8,36 @@ export function DealSelector({
   value,
   onChange,
   compact = false,
+  embedded = false,
 }: {
   deals: FlexDealConfig[]
   value: string | null
   onChange: (dealId: string) => void
   compact?: boolean
+  embedded?: boolean
 }) {
   if (deals.length === 0) return null
 
-  if (deals.length === 1 && compact) {
-    const deal = deals[0]
+  const selectedDeal = value
+    ? deals.find((deal) => deal.id === value)
+    : deals.length === 1
+      ? deals[0]
+      : undefined
+
+  if (compact && selectedDeal) {
     return (
       <Context>
         <ContextLabel>Flex Deal</ContextLabel>
-        <strong>{deal.name}</strong>
-        <span>· {deal.periodLabel}</span>
+        <strong>{selectedDeal.name}</strong>
+        <span>· {selectedDeal.periodLabel}</span>
       </Context>
     )
   }
 
   return (
-    <Section>
-      {!compact ? <Title>In which you want to add?</Title> : null}
-      <Grid>
+    <Section $embedded={embedded}>
+      {!compact ? <Title>In which Flex deal do you want to add?</Title> : null}
+      <Grid $list={embedded}>
         {deals.map((deal) => {
           const selected = value === deal.id
           const coverageCount = deal.benefits.length
@@ -39,6 +46,7 @@ export function DealSelector({
               key={deal.id}
               type="button"
               $selected={selected}
+              $list={embedded}
               onClick={() => onChange(deal.id)}
               aria-pressed={selected}
             >
@@ -78,14 +86,15 @@ export function DealSelector({
   )
 }
 
-const Section = styled.section`
+const Section = styled.section<{ $embedded?: boolean }>`
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 16px;
-  border-radius: 16px;
-  background: ${({ theme }) => theme.colors.surface1};
-  overflow: hidden;
+  padding: ${({ $embedded }) => ($embedded ? '0' : '16px')};
+  border-radius: ${({ $embedded }) => ($embedded ? '0' : '16px')};
+  background: ${({ theme, $embedded }) =>
+    $embedded ? 'transparent' : theme.colors.surface1};
+  overflow: ${({ $embedded }) => ($embedded ? 'visible' : 'hidden')};
 `
 
 const Title = styled.h2`
@@ -97,34 +106,51 @@ const Title = styled.h2`
   color: ${({ theme }) => theme.colors.textSecondary};
 `
 
-const Grid = styled.div`
+const Grid = styled.div<{ $list?: boolean }>`
   display: flex;
-  gap: 16px;
+  flex-direction: ${({ $list }) => ($list ? 'column' : 'row')};
+  gap: ${({ $list }) => ($list ? '0' : '16px')};
   align-items: stretch;
   width: 100%;
+  border: ${({ theme, $list }) =>
+    $list ? `1px solid ${theme.colors.defaultBorder}` : 'none'};
 
   @media (max-width: 900px) {
     flex-direction: column;
   }
 `
 
-const Card = styled.button<{ $selected: boolean }>`
-  flex: 1 0 0;
+const Card = styled.button<{ $selected: boolean; $list?: boolean }>`
+  flex: ${({ $list }) => ($list ? 'none' : '1 0 0')};
+  width: ${({ $list }) => ($list ? '100%' : 'auto')};
   min-width: 0;
   display: flex;
-  align-items: flex-start;
+  align-items: ${({ $list }) => ($list ? 'center' : 'flex-start')};
   justify-content: space-between;
   gap: 12px;
-  padding: 16px;
-  border-radius: 12px;
-  border: 1px solid
-    ${({ theme, $selected }) =>
-      $selected ? theme.colors.emerald : theme.colors.disableFill};
+  padding: ${({ $list }) => ($list ? '12px 16px' : '16px')};
+  border-radius: ${({ $list }) => ($list ? '0' : '12px')};
+  border: ${({ theme, $selected, $list }) =>
+    $list
+      ? 'none'
+      : `1px solid ${$selected ? theme.colors.emerald : theme.colors.disableFill}`};
   background: ${({ theme, $selected }) =>
     $selected ? theme.colors.planeGreenLight : theme.colors.surface1};
   text-align: left;
   font-family: ${({ theme }) => theme.fontFamily};
   cursor: pointer;
+  box-sizing: border-box;
+
+  ${({ theme, $list }) =>
+    $list
+      ? `
+    border-bottom: 1px solid ${theme.colors.defaultBorder};
+
+    &:last-child {
+      border-bottom: none;
+    }
+  `
+      : ''}
 `
 
 const CardMain = styled.div`

@@ -26,7 +26,7 @@ import {
   useLivesWizard,
   type BenefitsAssignMode,
 } from '@/pages/LivesWizard/WizardContext'
-import { SINGLE_ADD_STEPS } from '@/pages/LivesWizard/singleAddSteps'
+import { SINGLE_ADD_STEPS, addEmployeesPageTitle } from '@/pages/LivesWizard/singleAddSteps'
 
 type CoverItem = {
   id: string
@@ -468,7 +468,7 @@ export function BenefitsStep() {
 
   return (
     <WizardChrome
-      title="Add new employee(s)"
+      title={addEmployeesPageTitle(activeDeal?.name)}
       onBack={() => setStep('user-details')}
       onExit={() => navigate('/endorsements')}
       secondaryLabel="Back"

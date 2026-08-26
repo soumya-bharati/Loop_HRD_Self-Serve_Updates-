@@ -2,7 +2,13 @@ import { useEffect, useState, type ReactNode } from 'react'
 import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
+import {
+  getOrganisationEntity,
+  organisationEntities,
+} from '@/data/flexDeal'
+import { listActiveDeals } from '@/domain/flex'
 import { InsurerShareBanner } from '@/pages/Endorsements/InsurerShareBanner'
+import { DealSelector } from '@/pages/LivesWizard/components/DealSelector'
 import type { LifeMethod } from '@/pages/LivesWizard/WizardContext'
 
 export type LifeAction = 'add' | 'edit' | 'delete'
@@ -10,7 +16,12 @@ export type LifeAction = 'add' | 'edit' | 'delete'
 interface LivesActionModalProps {
   open: boolean
   onClose: () => void
-  onConfirm: (action: LifeAction, method: LifeMethod) => void
+  onConfirm: (
+    action: LifeAction,
+    method: LifeMethod,
+    entityId: string,
+    dealId?: string,
+  ) => void
 }
 
 type ModalStep = 'action' | 'method'
@@ -122,19 +133,31 @@ export function LivesActionModal({
   const [step, setStep] = useState<ModalStep>('action')
   const [action, setAction] = useState<LifeAction | null>(null)
   const [selectedMethod, setSelectedMethod] = useState<LifeMethod | null>(null)
+  const [entityId, setEntityId] = useState(
+    () => organisationEntities[0]?.id ?? '',
+  )
+  const [entityError, setEntityError] = useState(false)
+  const [dealId, setDealId] = useState('')
+
+  const deals = listActiveDeals()
 
   useEffect(() => {
     if (!open) {
       setStep('action')
       setAction(null)
       setSelectedMethod(null)
+      setEntityError(false)
+      setDealId('')
+      return
     }
+    setEntityId((current) => getOrganisationEntity(current).id)
   }, [open])
 
   if (!open) return null
 
   const options = action ? methodOptions(action) : []
-  const canProceed = Boolean(selectedMethod)
+  const needsDeal = action === 'add' && selectedMethod === 'single'
+  const canProceed = Boolean(selectedMethod) && (!needsDeal || Boolean(dealId))
 
   return (
     <Overlay
@@ -175,34 +198,89 @@ export function LivesActionModal({
         </Top>
 
         {step === 'action' ? (
-          <OptionsRow>
-            {ACTION_OPTIONS.map((option) => (
-              <OptionCard
-                key={option.id}
-                type="button"
-                onClick={() => {
-                  setAction(option.id)
-                  setSelectedMethod(null)
-                  setStep('method')
-                }}
-              >
-                <OptionIcon src={option.icon} alt="" width={48} height={48} />
-                <TextGroup>
-                  <OptionTitle>{option.title}</OptionTitle>
-                  <OptionDescription>{option.description}</OptionDescription>
-                </TextGroup>
-              </OptionCard>
-            ))}
-          </OptionsRow>
+          <>
+            <EntityField>
+              <EntityLabel htmlFor="lives-entity">
+                Entity <RequiredMark aria-hidden>*</RequiredMark>
+              </EntityLabel>
+              <SelectWrap>
+                <EntitySelect
+                  id="lives-entity"
+                  value={entityId}
+                  $invalid={entityError}
+                  aria-invalid={entityError}
+                  aria-required="true"
+                  onChange={(event) => {
+                    setEntityId(event.target.value)
+                    setEntityError(false)
+                  }}
+                >
+                  {organisationEntities.map((entity) => (
+                    <option key={entity.id} value={entity.id}>
+                      {entity.name}
+                    </option>
+                  ))}
+                </EntitySelect>
+                <SelectChevron src={assets.chevronDown} alt="" />
+              </SelectWrap>
+              {entityError ? (
+                <EntityHint>Select the entity this action is for.</EntityHint>
+              ) : (
+                <EntityHint $muted>
+                  Lives will be added, edited, or deleted only for this entity.
+                </EntityHint>
+              )}
+            </EntityField>
+            <OptionsRow>
+              {ACTION_OPTIONS.map((option) => (
+                <OptionCard
+                  key={option.id}
+                  type="button"
+                  onClick={() => {
+                    if (!entityId) {
+                      setEntityError(true)
+                      return
+                    }
+                    setAction(option.id)
+                    setSelectedMethod(null)
+                    setStep('method')
+                  }}
+                >
+                  <OptionIcon src={option.icon} alt="" width={48} height={48} />
+                  <TextGroup>
+                    <OptionTitle>{option.title}</OptionTitle>
+                    <OptionDescription>{option.description}</OptionDescription>
+                  </TextGroup>
+                </OptionCard>
+              ))}
+            </OptionsRow>
+          </>
         ) : (
           <>
+            <EntityField>
+              <EntityHint $muted>
+                Entity:{' '}
+                <strong>
+                  {organisationEntities.find((entity) => entity.id === entityId)
+                    ?.name}
+                </strong>
+              </EntityHint>
+            </EntityField>
             <OptionsRow $count={options.length} $noBottomPad>
               {options.map((option) => (
                 <OptionCard
                   key={option.id}
                   type="button"
                   $selected={selectedMethod === option.id}
-                  onClick={() => setSelectedMethod(option.id)}
+                  $compact={Boolean(action === 'add' && selectedMethod === 'single')}
+                  onClick={() => {
+                    setSelectedMethod(option.id)
+                    if (action === 'add' && option.id === 'single') {
+                      if (deals.length === 1) setDealId(deals[0]!.id)
+                    } else {
+                      setDealId('')
+                    }
+                  }}
                 >
                   <OptionIcon src={option.icon} alt="" width={48} height={48} />
                   <TextGroup>
@@ -213,6 +291,17 @@ export function LivesActionModal({
               ))}
             </OptionsRow>
 
+            {needsDeal ? (
+              <DealBlock>
+                <DealSelector
+                  deals={deals}
+                  value={dealId || null}
+                  onChange={setDealId}
+                  embedded
+                />
+              </DealBlock>
+            ) : null}
+
             <Footer>
               <FooterRow>
                 <BackButton
@@ -221,6 +310,7 @@ export function LivesActionModal({
                     setStep('action')
                     setAction(null)
                     setSelectedMethod(null)
+                    setDealId('')
                   }}
                 >
                   Go Back
@@ -229,8 +319,14 @@ export function LivesActionModal({
                   type="button"
                   disabled={!canProceed}
                   onClick={() => {
-                    if (!action || !selectedMethod) return
-                    onConfirm(action, selectedMethod)
+                    if (!action || !selectedMethod || !entityId) return
+                    if (needsDeal && !dealId) return
+                    onConfirm(
+                      action,
+                      selectedMethod,
+                      entityId,
+                      needsDeal ? dealId : undefined,
+                    )
                   }}
                 >
                   Proceed
@@ -257,13 +353,14 @@ const Overlay = styled.div`
 
 const Dialog = styled.div<{ $method?: boolean }>`
   width: min(800px, 100%);
+  max-height: min(90vh, 860px);
   background: ${({ theme }) => theme.colors.surface1};
   border-radius: 16px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 24px;
-  overflow: hidden;
+  overflow: auto;
   box-shadow: 0 16px 48px rgba(16, 24, 40, 0.16);
 `
 
@@ -288,7 +385,6 @@ const Title = styled.h2`
   font-weight: 500;
   line-height: 24px;
   color: ${({ theme }) => theme.colors.textPrimary};
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 `
@@ -321,6 +417,80 @@ const DismissIcon = styled.span`
   }
 `
 
+const EntityField = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 0 24px;
+  box-sizing: border-box;
+`
+
+const EntityLabel = styled.label`
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  color: ${({ theme }) => theme.colors.textPrimary};
+`
+
+const RequiredMark = styled.span`
+  color: ${({ theme }) => theme.colors.textError};
+`
+
+const SelectWrap = styled.div`
+  position: relative;
+`
+
+const EntitySelect = styled.select<{ $invalid?: boolean }>`
+  width: 100%;
+  height: 48px;
+  padding: 12px 48px 12px 20px;
+  border: 1px solid
+    ${({ theme, $invalid }) =>
+      $invalid ? theme.colors.textError : theme.colors.defaultBorder};
+  border-radius: 12px;
+  font-family: ${({ theme }) => theme.fontFamily};
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  color: ${({ theme }) => theme.colors.textPrimary};
+  background: ${({ theme }) => theme.colors.surface1};
+  appearance: none;
+  cursor: pointer;
+  box-sizing: border-box;
+
+  &:focus {
+    outline: 1px solid ${({ theme }) => theme.colors.emerald};
+  }
+`
+
+const SelectChevron = styled.img`
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+`
+
+const EntityHint = styled.p<{ $muted?: boolean }>`
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  letter-spacing: 0.2px;
+  color: ${({ theme, $muted }) =>
+    $muted ? theme.colors.textSecondary : theme.colors.textError};
+
+  strong {
+    font-weight: 500;
+    color: ${({ theme }) => theme.colors.textPrimary};
+  }
+`
+
 const OptionsRow = styled.div<{ $count?: number; $noBottomPad?: boolean }>`
   display: flex;
   gap: 16px;
@@ -333,10 +503,16 @@ const OptionsRow = styled.div<{ $count?: number; $noBottomPad?: boolean }>`
   }
 `
 
-const OptionCard = styled.button<{ $selected?: boolean }>`
+const DealBlock = styled.div`
+  width: 100%;
+  padding: 0 24px;
+  box-sizing: border-box;
+`
+
+const OptionCard = styled.button<{ $selected?: boolean; $compact?: boolean }>`
   flex: 1;
   min-width: 0;
-  height: 200px;
+  height: ${({ $compact }) => ($compact ? '156px' : '200px')};
   display: flex;
   flex-direction: column;
   align-items: flex-start;

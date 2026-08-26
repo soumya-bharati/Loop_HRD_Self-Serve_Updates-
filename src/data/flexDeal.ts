@@ -490,7 +490,26 @@ export function estimatePurchaseOptionCost(option: PurchaseGroupOption) {
   return 0
 }
 
-export const singleAddEntityName = 'Symphony Eyc India Private Limited'
+export interface OrganisationEntity {
+  id: string
+  name: string
+}
+
+/** Legal entities under the logged-in organisation — lives actions apply to one. */
+export const organisationEntities: OrganisationEntity[] = [
+  { id: 'symphony-eyc', name: 'Symphony Eyc India Private Limited' },
+  { id: 'symphony-holdings', name: 'Symphony Holdings Pvt Ltd' },
+  { id: 'eyc-services', name: 'EYC Services India Pvt Ltd' },
+]
+
+export function getOrganisationEntity(id: string | null | undefined) {
+  return (
+    organisationEntities.find((entity) => entity.id === id) ??
+    organisationEntities[0]
+  )
+}
+
+export const singleAddEntityName = organisationEntities[0].name
 
 export const defaultEnrolmentDueDate = '2026-08-28'
 

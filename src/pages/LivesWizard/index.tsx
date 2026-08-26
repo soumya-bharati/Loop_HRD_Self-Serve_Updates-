@@ -89,6 +89,8 @@ export function LivesWizardPage() {
   const [searchParams] = useSearchParams()
   const action = actionParam as LifeAction | undefined
   const methodParam = searchParams.get('method') as LifeMethod | null
+  const entityParam = searchParams.get('entity')
+  const dealParam = searchParams.get('deal')
 
   if (!action || !VALID_ACTIONS.includes(action)) {
     return <Navigate to="/endorsements" replace />
@@ -108,9 +110,11 @@ export function LivesWizardPage() {
 
   return (
     <LivesWizardProvider
-      key={`${action}-${methodParam}`}
+      key={`${action}-${methodParam}-${entityParam ?? 'default'}-${dealParam ?? 'default'}`}
       action={action}
       initialMethod={methodParam}
+      organisationEntityId={entityParam}
+      initialDealId={dealParam}
     >
       <LivesWizardInner />
     </LivesWizardProvider>

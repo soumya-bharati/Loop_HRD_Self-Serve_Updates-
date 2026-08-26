@@ -21,6 +21,7 @@ import {
   buildSingleCostEstimate,
   emptyEnrolmentSettings,
   flexDeal,
+  getOrganisationEntity,
   getPlanById,
   resolveSelectionBenefitIds,
   sampleBulkDeleteRows,
@@ -86,6 +87,8 @@ interface LivesWizardContextValue {
   setStep: (step: WizardStep) => void
   method: LifeMethod
   setMethod: (method: LifeMethod) => void
+  organisationEntityId: string
+  organisationEntityName: string
 
   employee: EmployeeFormData
   setEmployee: (value: EmployeeFormData) => void
@@ -275,13 +278,20 @@ let dependantSeq = 1
 export function LivesWizardProvider({
   action,
   initialMethod,
+  organisationEntityId: organisationEntityIdProp,
+  initialDealId,
   children,
 }: {
   action: LifeAction
   initialMethod: LifeMethod
+  organisationEntityId?: string | null
+  initialDealId?: string | null
   children: ReactNode
 }) {
   const initialStep = initialStepFor(action, initialMethod)
+  const organisationEntity = getOrganisationEntity(organisationEntityIdProp)
+  const organisationEntityId = organisationEntity.id
+  const organisationEntityName = organisationEntity.name
 
   const [step, setStep] = useState<WizardStep>(initialStep)
   const [method, setMethod] = useState<LifeMethod>(initialMethod)
@@ -306,9 +316,10 @@ export function LivesWizardProvider({
   const [purchaseGroupChoices, setPurchaseGroupChoices] = useState<
     Record<string, string[]>
   >({})
-  const [activeDealId, setActiveDealId] = useState<string | null>(
-    resolveInitialDealId,
-  )
+  const [activeDealId, setActiveDealId] = useState<string | null>(() => {
+    if (initialDealId && getDealConfig(initialDealId)) return initialDealId
+    return resolveInitialDealId()
+  })
   const [fileName, setFileName] = useState<string | null>(null)
   const [templateDownloaded, setTemplateDownloaded] = useState(false)
   const [deleteConfirmed, setDeleteConfirmed] = useState(false)
@@ -958,7 +969,11 @@ export function LivesWizardProvider({
     setSelectedPolicyTiers({})
     setSelectedPolicyFamilyStructures({})
     setPurchaseGroupChoices({})
-    setActiveDealId(resolveInitialDealId())
+    setActiveDealId(
+      initialDealId && getDealConfig(initialDealId)
+        ? initialDealId
+        : resolveInitialDealId(),
+    )
     setFileName(null)
     setTemplateDownloaded(false)
     setDeleteConfirmed(false)
@@ -977,7 +992,7 @@ export function LivesWizardProvider({
     setIntakeMode('form')
     setAddEmployees([emptyAddEmployeeMember()])
     setBenefitsAssignMode('common')
-  }, [initialMethod, initialStep])
+  }, [initialMethod, initialStep, initialDealId])
 
   const value = useMemo(
     () => ({
@@ -986,6 +1001,8 @@ export function LivesWizardProvider({
       setStep,
       method,
       setMethod,
+      organisationEntityId,
+      organisationEntityName,
       employee,
       setEmployee,
       updateEmployee,
@@ -1077,6 +1094,8 @@ export function LivesWizardProvider({
       action,
       step,
       method,
+      organisationEntityId,
+      organisationEntityName,
       employee,
       updateEmployee,
       updateCustomAttribute,
