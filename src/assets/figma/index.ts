@@ -2,6 +2,7 @@ import bannerCal1 from '@/assets/figma/banner-cal-1.svg'
 import bannerCal2 from '@/assets/figma/banner-cal-2.svg'
 import bannerCal3 from '@/assets/figma/banner-cal-3.svg'
 import avatar from '@/assets/figma/avatar.png'
+import bulkUpload from '@/assets/figma/bulk-upload.png'
 import chevronDown from '@/assets/figma/chevron-down.svg'
 import chevronRight from '@/assets/figma/chevron-right.svg'
 import chevronUp from '@/assets/figma/chevron-up.svg'
@@ -16,17 +17,21 @@ import iconCake from '@/assets/figma/icon-cake.svg'
 import iconCall from '@/assets/figma/icon-call.svg'
 import iconEditPencil from '@/assets/figma/icon-edit-pencil.svg'
 import iconGender from '@/assets/figma/icon-gender-male.svg'
+import iconDocumentCopy from '@/assets/figma/icon-document-copy.svg'
 import iconMail from '@/assets/figma/icon-mail.svg'
+import iconPlayEmerald from '@/assets/figma/icon-play-emerald.svg'
 import iconPlusEmerald from '@/assets/figma/icon-plus-emerald.svg'
 import iconCalendarField from '@/assets/figma/icon-calendar-field.svg'
 import iconCalendar24 from '@/assets/figma/icon-calendar-24.svg'
 import iconCompany from '@/assets/figma/icon-company.svg'
 import iconAddDependant from '@/assets/figma/icon-add-dependant.svg'
 import iconUserTag from '@/assets/figma/icon-user-tag.svg'
+import employeeEmpty from '@/assets/figma/employee-empty.png'
 import infoCircle from '@/assets/figma/info-circle.svg'
 import infoMark from '@/assets/figma/info-mark.svg'
 import loopL from '@/assets/figma/loop-l.svg'
 import loopLogo from '@/assets/figma/loop-logo.svg'
+import loopLogoYellow from '@/assets/figma/loop-logo-yellow.png'
 import loopO1 from '@/assets/figma/loop-o1.svg'
 import loopO2 from '@/assets/figma/loop-o2.svg'
 import loopP from '@/assets/figma/loop-p.svg'
@@ -69,6 +74,7 @@ import modalPencil4 from '@/assets/figma/modal-pencil-4.svg'
 import modalPencil5 from '@/assets/figma/modal-pencil-5.svg'
 import modalPencil6 from '@/assets/figma/modal-pencil-6.svg'
 import flexDealIcon from '@/assets/figma/flex-deal-icon.png'
+import illustrationFamily from '@/assets/figma/illustration-family.jpg'
 import policyCardLoopIcon from '@/assets/figma/policy-card-loop-icon.png'
 
 export const assets = {
@@ -76,11 +82,13 @@ export const assets = {
   bannerCal2,
   bannerCal3,
   avatar,
+  bulkUpload,
   chevronDown,
   chevronRight,
   chevronUp,
   digitLogo,
   flexDealIcon,
+  illustrationFamily,
   dotTurquoise,
   dotYellow,
   hourglassYellowBg,
@@ -91,17 +99,21 @@ export const assets = {
   iconCall,
   iconEditPencil,
   iconGender,
+  iconDocumentCopy,
   iconMail,
+  iconPlayEmerald,
   iconPlusEmerald,
   iconCalendarField,
   iconCalendar24,
   iconCompany,
   iconAddDependant,
   iconUserTag,
+  employeeEmpty,
   infoCircle,
   infoMark,
   loopL,
   loopLogo,
+  loopLogoYellow,
   loopO1,
   loopO2,
   loopP,

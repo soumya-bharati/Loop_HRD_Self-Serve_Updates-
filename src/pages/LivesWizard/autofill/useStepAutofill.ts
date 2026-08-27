@@ -9,12 +9,12 @@ import { defaultDependantBenefitIds } from '@/data/flexDeal'
 import {
   availableBenefitsForRelationship,
   computeFamilySlots,
-  listActiveDeals,
   resolveAttributeFields,
   type FamilySlotSummary,
   type FlexDealConfig,
 } from '@/domain/flex'
 import { nextDependantId } from '@/pages/LivesWizard/addEmployees'
+import { useActiveFormAutofill } from '@/pages/LivesWizard/autofill/activeFormAutofill'
 import {
   attributeValueFor,
   isoDaysAgo,
@@ -26,6 +26,7 @@ import {
   type DemoPersona,
 } from '@/pages/LivesWizard/autofill/personas'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
+import { useProtoConfig } from '@/proto/ProtoConfigContext'
 
 export interface StepAutofill {
   /** Human label for the step the widget is currently pointed at. */
@@ -118,6 +119,8 @@ function pluralise(count: number, noun: string) {
 
 export function useStepAutofill(): StepAutofill {
   const wizard = useLivesWizard()
+  const { deals: protoDeals } = useProtoConfig()
+  const activeForm = useActiveFormAutofill()
 
   return useMemo<StepAutofill>(() => {
     const {
@@ -151,6 +154,19 @@ export function useStepAutofill(): StepAutofill {
       signalAutofill,
     } = wizard
 
+    /**
+     * An overlay form (e.g. employee onboarding) covers the step underneath and
+     * keeps its own draft, so it fills what is on screen instead of the step.
+     */
+    if (activeForm) {
+      return {
+        stepLabel: activeForm.stepLabel,
+        hint: activeForm.hint,
+        supported: true,
+        run: activeForm.run,
+      }
+    }
+
     const unsupported = (stepLabel: string, hint: string): StepAutofill => ({
       stepLabel,
       hint,
@@ -161,7 +177,7 @@ export function useStepAutofill(): StepAutofill {
     /** Deal-driven steps need a deal before attribute fields can be resolved. */
     const ensureDeal = () => {
       if (activeDeal) return activeDeal
-      const fallback = listActiveDeals()[0]
+      const fallback = protoDeals[0]
       if (fallback) selectDeal(fallback.id)
       return null
     }
@@ -173,24 +189,41 @@ export function useStepAutofill(): StepAutofill {
          * touches the ones whose form is actually on screen.
          */
         const editing = new Set(editingAddEmployeeIds)
+        /**
+         * The list shows an empty state until a card has content, so an
+         * untouched placeholder member is not actually on screen.
+         */
+        const hasContent = addEmployees.some(
+          (member) =>
+            member.assignmentCompleted ||
+            Object.values(member.employee).some(
+              (value) => typeof value === 'string' && value,
+            ),
+        )
         const isOpen = (member: (typeof addEmployees)[number]) =>
-          !member.assignmentCompleted || editing.has(member.id)
+          hasContent && (!member.assignmentCompleted || editing.has(member.id))
         const openCount = addEmployees.filter(isOpen).length
 
         return {
           stepLabel: 'Employee details',
           hint: openCount
             ? `Fills ${pluralise(openCount, 'open employee card')} with demo data, including deal attributes.`
-            : 'Every employee card is saved — add or edit one to fill it.',
+            : 'Open an employee form with Add new employee to fill it.',
           supported: openCount > 0 || intakeMode === 'excel',
           run: (personaIndex) => {
             const deal = ensureDeal()
             if (!deal) {
               return 'Picked a Flex deal — press Autofill again to complete the form.'
             }
+            // A simulated sheet upload replaces every row, on screen or not.
+            const shouldFill =
+              intakeMode === 'excel'
+                ? (member: (typeof addEmployees)[number]) =>
+                    !member.assignmentCompleted || editing.has(member.id)
+                : isOpen
             let offset = 0
             const next = addEmployees.map((member) => {
-              if (!isOpen(member)) return member
+              if (!shouldFill(member)) return member
               const index = personaIndex + offset
               offset += 1
               const persona = personaAt(index)
@@ -629,17 +662,11 @@ export function useStepAutofill(): StepAutofill {
           'Benefit choices drive costs, so pick them manually.',
         )
 
-      case 'employee-assignment':
-        return unsupported(
-          'Plan assignment',
-          'The plan is assigned for you — change it or add dependants manually.',
-        )
-
       default:
         return unsupported(
           'This step',
           'Nothing to fill here — this step has no form inputs.',
         )
     }
-  }, [wizard])
+  }, [activeForm, wizard, protoDeals])
 }

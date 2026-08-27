@@ -5,7 +5,6 @@ import styled from 'styled-components'
 import { assets } from '@/assets/figma'
 import { ChevronIcon } from '@/components/icons/ChevronIcon'
 import {
-  listActiveDeals,
   parseDateOnly,
   resolveAttributeFields,
   validateAttributeValues,
@@ -17,15 +16,15 @@ import {
   isEmployeeValid,
   parseEmployeesCsv,
 } from '@/pages/LivesWizard/addEmployees'
-import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
+import { WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { DealSelector } from '@/pages/LivesWizard/components/DealSelector'
 import { DynamicAttributeForm } from '@/pages/LivesWizard/components/DynamicAttributeForm'
+import { EmployeeOnboardingPage } from '@/pages/LivesWizard/components/EmployeeOnboardingPage'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
 import {
-  FORM_ADD_STEPS,
-  SINGLE_ADD_STEPS,
   addEmployeesPageTitle,
 } from '@/pages/LivesWizard/singleAddSteps'
+import { useProtoConfig } from '@/proto/ProtoConfigContext'
 
 /** "1986-04-24" or "24/04/1986" → "Apr 24, 1986"; falls back to the raw value. */
 function formatSummaryDate(value: string) {
@@ -45,6 +44,7 @@ function formatSummaryDate(value: string) {
 export function UserDetailsStep() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const { deals } = useProtoConfig()
   const dealPickedUpfront = Boolean(searchParams.get('deal'))
   const {
     intakeMode,
@@ -52,7 +52,6 @@ export function UserDetailsStep() {
     addEmployees,
     updateAddEmployeeFields,
     updateAddEmployeeCustomAttribute,
-    addAddEmployee,
     removeAddEmployee,
     editingAddEmployeeIds,
     setAddEmployeeEditing,
@@ -63,7 +62,7 @@ export function UserDetailsStep() {
     activeDeal,
     activeDealId,
     selectDeal,
-    setAssignmentMemberId,
+    completeAddEmployeeAssignment,
     setStep,
   } = useLivesWizard()
 
@@ -71,6 +70,10 @@ export function UserDetailsStep() {
   const [parseError, setParseError] = useState<string | null>(null)
   const [uploadSummary, setUploadSummary] = useState<string | null>(null)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
+  const [manualStarted, setManualStarted] = useState(false)
+  const [assignmentMemberId, setAssignmentMemberId] = useState<string | null>(
+    null,
+  )
 
   const editingIds = new Set(editingAddEmployeeIds)
 
@@ -84,7 +87,6 @@ export function UserDetailsStep() {
     })
   }
 
-  const deals = listActiveDeals()
   const employeeAttributeFields = activeDeal
     ? resolveAttributeFields({
         deal: activeDeal,
@@ -123,6 +125,25 @@ export function UserDetailsStep() {
     Boolean(fileName) &&
     areMembersValid(addEmployees)
   const canProceed = formOk || excelOk
+  const assignmentMember =
+    addEmployees.find((member) => member.id === assignmentMemberId) ?? null
+  const hasEmployeeContent = addEmployees.some((member) => {
+    const employee = member.employee
+    return (
+      member.assignmentCompleted ||
+      Boolean(
+        employee.employeeId ||
+          employee.firstName ||
+          employee.lastName ||
+          employee.gender ||
+          employee.dateOfBirth ||
+          employee.dateOfJoining ||
+          employee.email ||
+          employee.mobile,
+      )
+    )
+  })
+  const showManualRows = manualStarted || hasEmployeeContent
 
   const employeeCount = addEmployees.length
   const dependantCount = addEmployees.reduce(
@@ -169,20 +190,13 @@ export function UserDetailsStep() {
     <WizardChrome
       title={addEmployeesPageTitle(activeDeal?.name)}
       onExit={() => navigate('/endorsements')}
-      primaryLabel="Proceed"
+      primaryLabel="Review Cost of Adding"
+      primaryWidth={280}
       primaryDisabled={!canProceed}
       onPrimary={() =>
         setStep(intakeMode === 'form' ? 'endo-costs' : 'benefits')
       }
     >
-      <FlowStepper
-        steps={
-          intakeMode === 'form' ? [...FORM_ADD_STEPS] : [...SINGLE_ADD_STEPS]
-        }
-        activeIndex={0}
-        bare
-      />
-
       {dealPickedUpfront ? null : (
         <DealSelector
           deals={deals}
@@ -219,34 +233,76 @@ export function UserDetailsStep() {
         </DealPrompt>
       ) : (
         <>
+          <BulkPanel>
+            <BulkIllustration src={assets.bulkUpload} alt="" aria-hidden />
+            <BulkCopy>
+              <BulkTitle>Add employees in bulk</BulkTitle>
+              <BulkDescription>
+                Upload an Excel file to add multiple employees at once. Download
+                the template, fill in the employee details, and upload it when
+                you&apos;re ready.
+              </BulkDescription>
+              <TutorialButton type="button">
+                <PlayIcon
+                  src={assets.iconPlayEmerald}
+                  alt=""
+                  width={16}
+                  height={16}
+                  aria-hidden
+                />
+                Watch Tutorial
+              </TutorialButton>
+            </BulkCopy>
+            <BulkActions>
+              <DownloadButton type="button" onClick={downloadTemplate}>
+                Download Template
+              </DownloadButton>
+              <UploadButton
+                type="button"
+                onClick={() => inputRef.current?.click()}
+              >
+                Upload An Excel
+              </UploadButton>
+              <input
+                ref={inputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls,text/csv"
+                hidden
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (!file) return
+                  setIntakeMode('excel')
+                  void handleFile(file)
+                }}
+              />
+            </BulkActions>
+          </BulkPanel>
 
-      <ModeToggle>
-        <ModeButton
-          type="button"
-          $active={intakeMode === 'form'}
-          onClick={() => {
-            setIntakeMode('form')
-            setParseError(null)
-            if (addEmployees.length === 0) {
-              setAddEmployees([emptyAddEmployeeMember()])
-            }
-          }}
-        >
-          Fill form
-        </ModeButton>
-        <ModeButton
-          type="button"
-          $active={intakeMode === 'excel'}
-          onClick={() => setIntakeMode('excel')}
-        >
-          Upload excel
-        </ModeButton>
-      </ModeToggle>
+          <SectionDivider />
+          <ManualIntro>
+            Or you can manually add one or more employees.
+          </ManualIntro>
 
-      {intakeMode === 'form' ? (
-        <>
-          <Hint>Add one or more employees, then choose benefits.</Hint>
-          {addEmployees.map((member, index) => {
+          <EmployeeList>
+            <EmployeeListHeader>
+              <NumberHeading>#</NumberHeading>
+              <EmployeeHeading>Employee</EmployeeHeading>
+              <ActionsHeading>Actions</ActionsHeading>
+            </EmployeeListHeader>
+
+            {!showManualRows ? (
+              <EmptyState>
+                <EmptyIllustration
+                  src={assets.employeeEmpty}
+                  alt=""
+                  aria-hidden
+                />
+                <EmptyTitle>No Employee found</EmptyTitle>
+                <EmptyCopy>Start by adding details</EmptyCopy>
+              </EmptyState>
+            ) : (
+              <EmployeeRows>
+                {addEmployees.map((member, index) => {
             const saved =
               member.assignmentCompleted && !editingIds.has(member.id)
             const expanded = expandedIds.has(member.id)
@@ -364,8 +420,8 @@ export function UserDetailsStep() {
                       <EditButton
                         type="button"
                         onClick={() => {
-                          setAddEmployeeEditing(member.id, true)
                           toggleExpanded(member.id, false)
+                          setAssignmentMemberId(member.id)
                         }}
                       >
                         <img
@@ -430,7 +486,7 @@ export function UserDetailsStep() {
               )
             }
 
-            return (
+                  return (
             <MemberCard key={member.id}>
               <MemberHeader>
                 <HeaderLeft>
@@ -621,20 +677,39 @@ export function UserDetailsStep() {
                 <SaveButton
                   type="button"
                   disabled={!employeeIsReady(member)}
-                  onClick={() => {
-                    setAssignmentMemberId(member.id)
-                    setStep('employee-assignment')
-                  }}
+                  onClick={() => setAssignmentMemberId(member.id)}
                 >
                   Save
                 </SaveButton>
               </CardActions>
               </MemberBody>
             </MemberCard>
-            )
-          })}
+                  )
+                })}
+              </EmployeeRows>
+            )}
 
-          <AddEmployeeBtn type="button" onClick={addAddEmployee}>
+          <AddEmployeeBtn
+            type="button"
+            onClick={() => {
+              setIntakeMode('form')
+              setParseError(null)
+              const availableBlank = addEmployees.find(
+                (member) =>
+                  !member.assignmentCompleted &&
+                  !member.employee.employeeId &&
+                  !member.employee.firstName,
+              )
+              if (availableBlank) {
+                setAssignmentMemberId(availableBlank.id)
+              } else {
+                const nextMember = emptyAddEmployeeMember()
+                setAddEmployees([...addEmployees, nextMember])
+                setAssignmentMemberId(nextMember.id)
+              }
+              setManualStarted(true)
+            }}
+          >
             <img
               src={assets.iconPlusEmerald}
               alt=""
@@ -642,53 +717,10 @@ export function UserDetailsStep() {
               height={20}
               aria-hidden
             />
-            Add another employee
+            {showManualRows ? 'Add another employee' : 'Add new employee'}
           </AddEmployeeBtn>
-        </>
-      ) : (
-        <ExcelPanel>
-          <Hint>
-            Download the template (includes Relationship so Self + dependants
-            share an Employee ID), or upload your own CSV with the same
-            columns.
-          </Hint>
-          <ActionsGrid>
-            <ActionCard>
-              <ActionTitle>1. Download template</ActionTitle>
-              <ActionCopy>
-                CSV with Employee ID, names, DOB, Relationship, Grade, and more.
-              </ActionCopy>
-              <PrimaryGhost type="button" onClick={downloadTemplate}>
-                Download CSV template
-              </PrimaryGhost>
-            </ActionCard>
-            <ActionCard>
-              <ActionTitle>2. Upload sheet</ActionTitle>
-              <ActionCopy>
-                Accepts .csv (export Excel as CSV). We detect dependants by
-                Relationship.
-              </ActionCopy>
-              <FileRow>
-                <PrimaryGhost
-                  type="button"
-                  onClick={() => inputRef.current?.click()}
-                >
-                  {fileName ? 'Replace file' : 'Choose file'}
-                </PrimaryGhost>
-                <input
-                  ref={inputRef}
-                  type="file"
-                  accept=".csv,.xlsx,.xls,text/csv"
-                  hidden
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (file) void handleFile(file)
-                  }}
-                />
-                {fileName ? <FileName>{fileName}</FileName> : null}
-              </FileRow>
-            </ActionCard>
-          </ActionsGrid>
+          </EmployeeList>
+
           {parseError ? <ErrorText>{parseError}</ErrorText> : null}
           {uploadSummary ? <SummaryBanner>{uploadSummary}</SummaryBanner> : null}
           {!uploadSummary && employeeCount > 0 && fileName ? (
@@ -698,50 +730,234 @@ export function UserDetailsStep() {
               detected
             </SummaryBanner>
           ) : null}
-        </ExcelPanel>
-      )}
+      {activeDeal ? (
+        <EmployeeOnboardingPage
+          open={Boolean(assignmentMember)}
+          member={assignmentMember}
+          deal={activeDeal}
+          onCancel={() => {
+            if (assignmentMember && !assignmentMember.assignmentCompleted) {
+              removeAddEmployee(assignmentMember.id)
+              if (
+                !addEmployees.some(
+                  (member) =>
+                    member.id !== assignmentMember.id &&
+                    member.assignmentCompleted,
+                )
+              ) {
+                setManualStarted(false)
+              }
+            }
+            setAssignmentMemberId(null)
+          }}
+          onSave={(assignment) => {
+            if (!assignmentMember) return
+            updateAddEmployeeFields(assignmentMember.id, assignment.employee)
+            completeAddEmployeeAssignment(assignmentMember.id, assignment)
+            setAddEmployeeEditing(assignmentMember.id, false)
+            setAssignmentMemberId(null)
+          }}
+        />
+      ) : null}
         </>
       )}
     </WizardChrome>
   )
 }
 
+const BulkPanel = styled.section`
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-height: 124px;
+  padding: 16px 24px;
+  border-radius: 12px;
+  background: ${({ theme }) => theme.colors.planeGreenLight};
+  box-sizing: border-box;
+
+  @media (max-width: 900px) {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+`
+
+const BulkIllustration = styled.img`
+  width: 96px;
+  height: 82px;
+  flex-shrink: 0;
+  object-fit: contain;
+`
+
+const BulkCopy = styled.div`
+  display: flex;
+  flex: 1;
+  min-width: 240px;
+  flex-direction: column;
+  gap: 6px;
+`
+
+const BulkTitle = styled.h2`
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 24px;
+  color: ${({ theme }) => theme.colors.textPrimary};
+`
+
+const BulkDescription = styled.p`
+  max-width: 600px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  color: ${({ theme }) => theme.colors.textPrimary};
+`
+
+const TutorialButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: ${({ theme }) => theme.fontFamily};
+  font-size: 13px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.emerald};
+  cursor: pointer;
+`
+
+const PlayIcon = styled.img`
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+`
+
+const BulkActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+
+  @media (max-width: 560px) {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+`
+
+const DownloadButton = styled.button`
+  height: 48px;
+  padding: 0 24px;
+  border: 1px solid ${({ theme }) => theme.colors.emerald};
+  border-radius: 12px;
+  background: transparent;
+  font-family: ${({ theme }) => theme.fontFamily};
+  font-size: 14px;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.emerald};
+  cursor: pointer;
+`
+
+const UploadButton = styled(DownloadButton)`
+  border-color: ${({ theme }) => theme.colors.fillGreen};
+  background: ${({ theme }) => theme.colors.fillGreen};
+`
+
+const SectionDivider = styled.hr`
+  width: 100%;
+  margin: -8px 0 -8px;
+  border: 0;
+  border-top: 1px dashed ${({ theme }) => theme.colors.defaultBorder};
+`
+
+const ManualIntro = styled.p`
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+`
+
+const EmployeeList = styled.section`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  border-radius: 8px;
+`
+
+const EmployeeListHeader = styled.div`
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 280px;
+  width: 100%;
+  padding: 12px 16px;
+  background: ${({ theme }) => theme.colors.planeGreenLight};
+  box-sizing: border-box;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  letter-spacing: 0.2px;
+  color: ${({ theme }) => theme.colors.emerald};
+`
+
+const NumberHeading = styled.span``
+const EmployeeHeading = styled.span``
+const ActionsHeading = styled.span`
+  padding-right: 32px;
+  text-align: right;
+`
+
+const EmployeeRows = styled.div`
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 12px;
+`
+
+const EmptyState = styled.div`
+  display: flex;
+  width: 100%;
+  min-height: 256px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 24px 20px;
+  box-sizing: border-box;
+`
+
+const EmptyIllustration = styled.img`
+  display: block;
+  width: 250px;
+  height: 140px;
+  object-fit: contain;
+`
+
+const EmptyTitle = styled.h3`
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 24px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+`
+
+const EmptyCopy = styled.p`
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  letter-spacing: 0.2px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+`
+
 const DealPrompt = styled.div`
   padding: 16px;
   border-radius: 10px;
   background: ${({ theme }) => theme.colors.disableFill};
   font-size: 13px;
-  color: ${({ theme }) => theme.colors.textSecondary};
-`
-
-const ModeToggle = styled.div`
-  display: inline-flex;
-  gap: 0;
-  padding: 4px;
-  border-radius: 10px;
-  background: ${({ theme }) => theme.colors.disableFill};
-  width: fit-content;
-`
-
-const ModeButton = styled.button<{ $active: boolean }>`
-  border: none;
-  border-radius: 8px;
-  padding: 8px 16px;
-  font-family: ${({ theme }) => theme.fontFamily};
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  background: ${({ theme, $active }) =>
-    $active ? theme.colors.surface1 : 'transparent'};
-  color: ${({ theme, $active }) =>
-    $active ? theme.colors.emerald : theme.colors.textSecondary};
-  box-shadow: ${({ $active, theme }) => ($active ? theme.shadows.smooth : 'none')};
-`
-
-const Hint = styled.p`
-  margin: 0;
-  font-size: 14px;
-  line-height: 20px;
   color: ${({ theme }) => theme.colors.textSecondary};
 `
 
@@ -1224,71 +1440,6 @@ const AddEmployeeBtn = styled.button`
     width: 20px;
     height: 20px;
   }
-`
-
-const ExcelPanel = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-`
-
-const ActionsGrid = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-
-  @media (max-width: 800px) {
-    grid-template-columns: 1fr;
-  }
-`
-
-const ActionCard = styled.div`
-  padding: 20px;
-  border-radius: 12px;
-  background: ${({ theme }) => theme.colors.surface1};
-  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-`
-
-const ActionTitle = styled.div`
-  font-size: 15px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.textPrimary};
-`
-
-const ActionCopy = styled.p`
-  margin: 0;
-  font-size: 13px;
-  line-height: 18px;
-  color: ${({ theme }) => theme.colors.textSecondary};
-`
-
-const PrimaryGhost = styled.button`
-  align-self: flex-start;
-  height: 36px;
-  padding: 0 14px;
-  border: 1px solid ${({ theme }) => theme.colors.emerald};
-  border-radius: 8px;
-  background: transparent;
-  color: ${({ theme }) => theme.colors.emerald};
-  font-family: ${({ theme }) => theme.fontFamily};
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-`
-
-const FileRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-`
-
-const FileName = styled.span`
-  font-size: 13px;
-  color: ${({ theme }) => theme.colors.textSecondary};
 `
 
 const ErrorText = styled.p`

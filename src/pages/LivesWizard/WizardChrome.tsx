@@ -13,6 +13,7 @@ export function WizardChrome({
   primaryLabel,
   onPrimary,
   primaryDisabled,
+  primaryWidth,
   secondaryLabel,
   onSecondary,
   primaryHint,
@@ -25,6 +26,7 @@ export function WizardChrome({
   primaryLabel: string
   onPrimary: () => void
   primaryDisabled?: boolean
+  primaryWidth?: number
   secondaryLabel?: string
   onSecondary?: () => void
   primaryHint?: { title: string; body: string }
@@ -107,6 +109,7 @@ export function WizardChrome({
               type="button"
               disabled={primaryDisabled}
               onClick={onPrimary}
+              $width={primaryWidth}
             >
               {primaryLabel}
             </PrimaryButton>
@@ -480,11 +483,11 @@ const SecondaryButton = styled.button`
   box-sizing: border-box;
 `
 
-const PrimaryButton = styled.button`
+const PrimaryButton = styled.button<{ $width?: number }>`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 180px;
+  min-width: ${({ $width }) => ($width ? `${$width}px` : '180px')};
   height: 48px;
   padding: 0 24px;
   border: none;

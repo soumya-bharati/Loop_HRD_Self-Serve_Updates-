@@ -18,7 +18,6 @@ import { DependantDetailsStep } from '@/pages/LivesWizard/steps/DependantDetails
 import { DependantPlanStep } from '@/pages/LivesWizard/steps/DependantPlanStep'
 import { EditFormStep } from '@/pages/LivesWizard/steps/EditFormStep'
 import { EditProofStep } from '@/pages/LivesWizard/steps/EditProofStep'
-import { EmployeeAssignmentStep } from '@/pages/LivesWizard/steps/EmployeeAssignmentStep'
 import { EmployeeDetailsStep } from '@/pages/LivesWizard/steps/EmployeeDetailsStep'
 import { EndoCostsStep } from '@/pages/LivesWizard/steps/EndoCostsStep'
 import { EnrolmentStep } from '@/pages/LivesWizard/steps/EnrolmentStep'
@@ -64,7 +63,6 @@ function LivesWizardInner() {
       {step === 'selection' && <SelectionStep />}
       {step === 'employee-details' && <EmployeeDetailsStep />}
       {step === 'user-details' && <UserDetailsStep />}
-      {step === 'employee-assignment' && <EmployeeAssignmentStep />}
       {step === 'search-employee' && <SearchEmployeeStep />}
       {step === 'dependant-details' && <DependantDetailsStep />}
       {step === 'dependant-plan' && <DependantPlanStep />}

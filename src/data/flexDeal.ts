@@ -502,11 +502,12 @@ export const organisationEntities: OrganisationEntity[] = [
   { id: 'eyc-services', name: 'EYC Services India Pvt Ltd' },
 ]
 
-export function getOrganisationEntity(id: string | null | undefined) {
-  return (
-    organisationEntities.find((entity) => entity.id === id) ??
-    organisationEntities[0]
-  )
+export function getOrganisationEntity(
+  id: string | null | undefined,
+  list: OrganisationEntity[] = organisationEntities,
+) {
+  const pool = list.length > 0 ? list : organisationEntities
+  return pool.find((entity) => entity.id === id) ?? pool[0]
 }
 
 export const singleAddEntityName = organisationEntities[0].name

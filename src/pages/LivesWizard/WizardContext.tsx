@@ -47,6 +47,7 @@ import {
   type AddEmployeeMember,
   type IntakeMode,
 } from '@/pages/LivesWizard/addEmployees'
+import { useProtoConfig } from '@/proto/ProtoConfigContext'
 
 export type LifeAction = 'add' | 'edit' | 'delete'
 export type LifeMethod = 'bulk' | 'single' | 'single-dependant'
@@ -55,7 +56,6 @@ export type WizardStep =
   | 'selection'
   | 'employee-details'
   | 'user-details'
-  | 'employee-assignment'
   | 'search-employee'
   | 'dependant-details'
   | 'dependant-plan'
@@ -151,7 +151,11 @@ interface LivesWizardContextValue {
     memberId: string,
     assignment: Pick<
       AddEmployeeMember,
-      'planId' | 'assignmentSource' | 'selectedBenefitIds' | 'dependants'
+      'planId'
+        | 'purchaseGroupSelections'
+        | 'assignmentSource'
+        | 'selectedBenefitIds'
+        | 'dependants'
     >,
   ) => void
   updateAddEmployeeFields: (
@@ -168,9 +172,6 @@ interface LivesWizardContextValue {
   /** Saved employee cards reopened for editing, so their form is on screen. */
   editingAddEmployeeIds: string[]
   setAddEmployeeEditing: (memberId: string, editing: boolean) => void
-  /** Employee whose plan assignment page is open. */
-  assignmentMemberId: string | null
-  setAssignmentMemberId: (memberId: string | null) => void
   addAddEmployeeDependant: (memberId: string) => void
   updateAddEmployeeDependant: (
     memberId: string,
@@ -306,8 +307,12 @@ export function LivesWizardProvider({
   initialDealId?: string | null
   children: ReactNode
 }) {
+  const { entities: protoEntities, deals: protoDeals } = useProtoConfig()
   const initialStep = initialStepFor(action, initialMethod)
-  const organisationEntity = getOrganisationEntity(organisationEntityIdProp)
+  const organisationEntity = getOrganisationEntity(
+    organisationEntityIdProp,
+    protoEntities,
+  )
   const organisationEntityId = organisationEntity.id
   const organisationEntityName = organisationEntity.name
 
@@ -335,8 +340,10 @@ export function LivesWizardProvider({
     Record<string, string[]>
   >({})
   const [activeDealId, setActiveDealId] = useState<string | null>(() => {
-    if (initialDealId && getDealConfig(initialDealId)) return initialDealId
-    return resolveInitialDealId()
+    if (initialDealId && getDealConfig(initialDealId, protoDeals)) {
+      return initialDealId
+    }
+    return resolveInitialDealId(protoDeals)
   })
   const [fileName, setFileName] = useState<string | null>(null)
   const [templateDownloaded, setTemplateDownloaded] = useState(false)
@@ -370,9 +377,6 @@ export function LivesWizardProvider({
   const [editingAddEmployeeIds, setEditingAddEmployeeIds] = useState<string[]>(
     [],
   )
-  const [assignmentMemberId, setAssignmentMemberId] = useState<string | null>(
-    null,
-  )
   const [benefitsAssignMode, setBenefitsAssignMode] =
     useState<BenefitsAssignMode>('common')
   const [autofillNonce, setAutofillNonce] = useState(0)
@@ -382,8 +386,8 @@ export function LivesWizardProvider({
   }, [])
 
   const activeDeal = useMemo(
-    () => (activeDealId ? getDealConfig(activeDealId) ?? null : null),
-    [activeDealId],
+    () => (activeDealId ? getDealConfig(activeDealId, protoDeals) ?? null : null),
+    [activeDealId, protoDeals],
   )
 
   const selectDeal = useCallback((dealId: string) => {
@@ -480,7 +484,11 @@ export function LivesWizardProvider({
       memberId: string,
       assignment: Pick<
         AddEmployeeMember,
-        'planId' | 'assignmentSource' | 'selectedBenefitIds' | 'dependants'
+        'planId'
+        | 'purchaseGroupSelections'
+        | 'assignmentSource'
+        | 'selectedBenefitIds'
+        | 'dependants'
       >,
     ) => {
       setAddEmployees((current) =>
@@ -544,7 +552,6 @@ export function LivesWizardProvider({
     setEditingAddEmployeeIds((current) =>
       current.filter((id) => id !== memberId),
     )
-    setAssignmentMemberId((current) => (current === memberId ? null : current))
   }, [])
 
   const setAddEmployeeEditing = useCallback(
@@ -1032,9 +1039,9 @@ export function LivesWizardProvider({
     setSelectedPolicyFamilyStructures({})
     setPurchaseGroupChoices({})
     setActiveDealId(
-      initialDealId && getDealConfig(initialDealId)
+      initialDealId && getDealConfig(initialDealId, protoDeals)
         ? initialDealId
-        : resolveInitialDealId(),
+        : resolveInitialDealId(protoDeals),
     )
     setFileName(null)
     setTemplateDownloaded(false)
@@ -1054,9 +1061,8 @@ export function LivesWizardProvider({
     setIntakeMode('form')
     setAddEmployees([emptyAddEmployeeMember()])
     setEditingAddEmployeeIds([])
-    setAssignmentMemberId(null)
     setBenefitsAssignMode('common')
-  }, [initialMethod, initialStep, initialDealId])
+  }, [initialMethod, initialStep, initialDealId, protoDeals])
 
   const value = useMemo(
     () => ({
@@ -1110,8 +1116,6 @@ export function LivesWizardProvider({
       removeAddEmployee,
       editingAddEmployeeIds,
       setAddEmployeeEditing,
-      assignmentMemberId,
-      setAssignmentMemberId,
       addAddEmployeeDependant,
       updateAddEmployeeDependant,
       removeAddEmployeeDependant,
@@ -1202,8 +1206,6 @@ export function LivesWizardProvider({
       removeAddEmployee,
       editingAddEmployeeIds,
       setAddEmployeeEditing,
-      assignmentMemberId,
-      setAssignmentMemberId,
       addAddEmployeeDependant,
       updateAddEmployeeDependant,
       removeAddEmployeeDependant,

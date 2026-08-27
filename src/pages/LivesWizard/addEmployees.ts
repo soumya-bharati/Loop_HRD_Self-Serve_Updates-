@@ -15,10 +15,12 @@ export interface AddEmployeeMember {
   dependants: DependantFormData[]
   /** Policy / benefit ids assigned to this employee. */
   selectedBenefitIds: string[]
-  /** Plan resolved by company rules or selected on the assignment page. */
+  /** Plan resolved by company rules or selected in the assignment modal. */
   planId: string | null
+  /** Chosen purchase-group option ids, keyed by group id. */
+  purchaseGroupSelections: Record<string, string[]>
   assignmentSource: AssignmentSource | null
-  /** True only after the assignment/dependant page is explicitly saved. */
+  /** True only after the assignment/dependant modal is explicitly saved. */
   assignmentCompleted: boolean
 }
 
@@ -42,6 +44,7 @@ export function emptyAddEmployeeMember(
     dependants: [],
     selectedBenefitIds: [],
     planId: null,
+    purchaseGroupSelections: {},
     assignmentSource: null,
     assignmentCompleted: false,
   }

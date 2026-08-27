@@ -2,14 +2,11 @@ import { useEffect, useState, type ReactNode } from 'react'
 import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
-import {
-  getOrganisationEntity,
-  organisationEntities,
-} from '@/data/flexDeal'
-import { listActiveDeals } from '@/domain/flex'
+import { SelectField } from '@/components/form/SelectField'
 import { InsurerShareBanner } from '@/pages/Endorsements/InsurerShareBanner'
 import { DealSelector } from '@/pages/LivesWizard/components/DealSelector'
 import type { LifeMethod } from '@/pages/LivesWizard/WizardContext'
+import { useProtoConfig } from '@/proto/ProtoConfigContext'
 
 export type LifeAction = 'add' | 'edit' | 'delete'
 
@@ -130,16 +127,17 @@ export function LivesActionModal({
   onClose,
   onConfirm,
 }: LivesActionModalProps) {
+  const { entities, deals } = useProtoConfig()
   const [step, setStep] = useState<ModalStep>('action')
   const [action, setAction] = useState<LifeAction | null>(null)
   const [selectedMethod, setSelectedMethod] = useState<LifeMethod | null>(null)
-  const [entityId, setEntityId] = useState(
-    () => organisationEntities[0]?.id ?? '',
-  )
+  /** A lone entity needs no choosing; otherwise HR picks one before acting. */
+  const impliedEntityId = entities.length === 1 ? entities[0]!.id : ''
+  const [entityId, setEntityId] = useState(impliedEntityId)
   const [entityError, setEntityError] = useState(false)
   const [dealId, setDealId] = useState('')
 
-  const deals = listActiveDeals()
+  const singleEntity = entities.length === 1
 
   useEffect(() => {
     if (!open) {
@@ -150,13 +148,15 @@ export function LivesActionModal({
       setDealId('')
       return
     }
-    setEntityId((current) => getOrganisationEntity(current).id)
-  }, [open])
+    setEntityId(impliedEntityId)
+  }, [open, impliedEntityId])
 
   if (!open) return null
 
   const options = action ? methodOptions(action) : []
-  const needsDeal = action === 'add' && selectedMethod === 'single'
+  const dealApplies = action === 'add' && selectedMethod === 'single'
+  /** A lone deal is implicit — HR only picks when the account runs several. */
+  const needsDeal = dealApplies && deals.length > 1
   const canProceed = Boolean(selectedMethod) && (!needsDeal || Boolean(dealId))
 
   return (
@@ -200,35 +200,42 @@ export function LivesActionModal({
         {step === 'action' ? (
           <>
             <EntityField>
-              <EntityLabel htmlFor="lives-entity">
-                Entity <RequiredMark aria-hidden>*</RequiredMark>
-              </EntityLabel>
-              <SelectWrap>
-                <EntitySelect
-                  id="lives-entity"
-                  value={entityId}
-                  $invalid={entityError}
-                  aria-invalid={entityError}
-                  aria-required="true"
-                  onChange={(event) => {
-                    setEntityId(event.target.value)
-                    setEntityError(false)
-                  }}
-                >
-                  {organisationEntities.map((entity) => (
-                    <option key={entity.id} value={entity.id}>
-                      {entity.name}
-                    </option>
-                  ))}
-                </EntitySelect>
-                <SelectChevron src={assets.chevronDown} alt="" />
-              </SelectWrap>
-              {entityError ? (
-                <EntityHint>Select the entity this action is for.</EntityHint>
-              ) : (
+              {singleEntity ? (
                 <EntityHint $muted>
-                  Lives will be added, edited, or deleted only for this entity.
+                  Entity: <strong>{entities[0]?.name}</strong>
                 </EntityHint>
+              ) : (
+                <>
+                  <EntityLabel id="lives-entity-label">
+                    Entity <RequiredMark aria-hidden>*</RequiredMark>
+                  </EntityLabel>
+                  <SelectField
+                    id="lives-entity"
+                    ariaLabelledBy="lives-entity-label"
+                    value={entityId}
+                    invalid={entityError}
+                    placeholder="Select an entity"
+                    options={entities.map((entity) => ({
+                      value: entity.id,
+                      label: entity.name,
+                    }))}
+                    onChange={(next) => {
+                      setEntityId(next)
+                      setEntityError(false)
+                    }}
+                  />
+                  {entityError ? (
+                    <EntityHint>
+                      Select the entity this action is for.
+                    </EntityHint>
+                  ) : (
+                    <EntityHint $muted>
+                      {entityId
+                        ? 'Lives will be added, edited, or deleted only for this entity.'
+                        : 'Pick the entity first — then choose what you want to do.'}
+                    </EntityHint>
+                  )}
+                </>
               )}
             </EntityField>
             <OptionsRow>
@@ -236,6 +243,7 @@ export function LivesActionModal({
                 <OptionCard
                   key={option.id}
                   type="button"
+                  $locked={!entityId}
                   onClick={() => {
                     if (!entityId) {
                       setEntityError(true)
@@ -261,8 +269,7 @@ export function LivesActionModal({
               <EntityHint $muted>
                 Entity:{' '}
                 <strong>
-                  {organisationEntities.find((entity) => entity.id === entityId)
-                    ?.name}
+                  {entities.find((entity) => entity.id === entityId)?.name}
                 </strong>
               </EntityHint>
             </EntityField>
@@ -272,7 +279,7 @@ export function LivesActionModal({
                   key={option.id}
                   type="button"
                   $selected={selectedMethod === option.id}
-                  $compact={Boolean(action === 'add' && selectedMethod === 'single')}
+                  $compact={needsDeal}
                   onClick={() => {
                     setSelectedMethod(option.id)
                     if (action === 'add' && option.id === 'single') {
@@ -325,7 +332,7 @@ export function LivesActionModal({
                       action,
                       selectedMethod,
                       entityId,
-                      needsDeal ? dealId : undefined,
+                      dealApplies ? dealId || undefined : undefined,
                     )
                   }}
                 >
@@ -426,7 +433,7 @@ const EntityField = styled.div`
   box-sizing: border-box;
 `
 
-const EntityLabel = styled.label`
+const EntityLabel = styled.span`
   font-size: 14px;
   font-weight: 500;
   line-height: 20px;
@@ -436,44 +443,6 @@ const EntityLabel = styled.label`
 
 const RequiredMark = styled.span`
   color: ${({ theme }) => theme.colors.textError};
-`
-
-const SelectWrap = styled.div`
-  position: relative;
-`
-
-const EntitySelect = styled.select<{ $invalid?: boolean }>`
-  width: 100%;
-  height: 48px;
-  padding: 12px 48px 12px 20px;
-  border: 1px solid
-    ${({ theme, $invalid }) =>
-      $invalid ? theme.colors.textError : theme.colors.defaultBorder};
-  border-radius: 12px;
-  font-family: ${({ theme }) => theme.fontFamily};
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 20px;
-  letter-spacing: 0.2px;
-  color: ${({ theme }) => theme.colors.textPrimary};
-  background: ${({ theme }) => theme.colors.surface1};
-  appearance: none;
-  cursor: pointer;
-  box-sizing: border-box;
-
-  &:focus {
-    outline: 1px solid ${({ theme }) => theme.colors.emerald};
-  }
-`
-
-const SelectChevron = styled.img`
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 24px;
-  height: 24px;
-  pointer-events: none;
 `
 
 const EntityHint = styled.p<{ $muted?: boolean }>`
@@ -509,7 +478,11 @@ const DealBlock = styled.div`
   box-sizing: border-box;
 `
 
-const OptionCard = styled.button<{ $selected?: boolean; $compact?: boolean }>`
+const OptionCard = styled.button<{
+  $selected?: boolean
+  $compact?: boolean
+  $locked?: boolean
+}>`
   flex: 1;
   min-width: 0;
   height: ${({ $compact }) => ($compact ? '156px' : '200px')};
@@ -528,10 +501,14 @@ const OptionCard = styled.button<{ $selected?: boolean; $compact?: boolean }>`
   cursor: pointer;
   font-family: ${({ theme }) => theme.fontFamily};
   box-sizing: border-box;
+  opacity: ${({ $locked }) => ($locked ? 0.55 : 1)};
+  transition: opacity 0.15s ease;
 
   &:hover {
-    border-color: ${({ theme }) => theme.colors.emerald};
-    background: ${({ theme }) => theme.colors.planeGreenLight};
+    border-color: ${({ theme, $locked }) =>
+      $locked ? theme.colors.disableFill : theme.colors.emerald};
+    background: ${({ theme, $locked }) =>
+      $locked ? theme.colors.surface1 : theme.colors.planeGreenLight};
   }
 `
 

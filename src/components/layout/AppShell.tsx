@@ -1,12 +1,17 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { Sidebar } from '@/components/layout/Sidebar'
 import { TopNav } from '@/components/layout/TopNav'
+import { ProtoControlBar } from '@/proto/ProtoControlBar'
 
 export function AppShell() {
+  const { pathname } = useLocation()
+  const onEndorsementsDashboard = pathname.replace(/\/+$/, '') === '/endorsements'
+
   return (
     <Shell>
+      {onEndorsementsDashboard ? <ProtoControlBar /> : null}
       <TopNav />
       <Body>
         <Sidebar />
