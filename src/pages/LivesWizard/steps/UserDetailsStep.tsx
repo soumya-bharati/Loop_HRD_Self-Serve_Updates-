@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
 
@@ -21,7 +21,11 @@ import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { DealSelector } from '@/pages/LivesWizard/components/DealSelector'
 import { DynamicAttributeForm } from '@/pages/LivesWizard/components/DynamicAttributeForm'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
-import { SINGLE_ADD_STEPS, addEmployeesPageTitle } from '@/pages/LivesWizard/singleAddSteps'
+import {
+  FORM_ADD_STEPS,
+  SINGLE_ADD_STEPS,
+  addEmployeesPageTitle,
+} from '@/pages/LivesWizard/singleAddSteps'
 
 /** "1986-04-24" or "24/04/1986" → "Apr 24, 1986"; falls back to the raw value. */
 function formatSummaryDate(value: string) {
@@ -50,6 +54,8 @@ export function UserDetailsStep() {
     updateAddEmployeeCustomAttribute,
     addAddEmployee,
     removeAddEmployee,
+    editingAddEmployeeIds,
+    setAddEmployeeEditing,
     setAddEmployees,
     fileName,
     setFileName,
@@ -57,35 +63,19 @@ export function UserDetailsStep() {
     activeDeal,
     activeDealId,
     selectDeal,
-    autofillNonce,
+    setAssignmentMemberId,
     setStep,
   } = useLivesWizard()
 
   const inputRef = useRef<HTMLInputElement>(null)
   const [parseError, setParseError] = useState<string | null>(null)
   const [uploadSummary, setUploadSummary] = useState<string | null>(null)
-  const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set())
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
 
-  // Autofilled cards are complete, so show them as saved without a manual Save.
-  useEffect(() => {
-    if (autofillNonce === 0) return
-    setSavedIds(
-      new Set(
-        addEmployees
-          .filter((member) => isEmployeeValid(member.employee))
-          .map((member) => member.id),
-      ),
-    )
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autofillNonce])
+  const editingIds = new Set(editingAddEmployeeIds)
 
-  const toggleId = (
-    setIds: typeof setSavedIds,
-    id: string,
-    force?: boolean,
-  ) => {
-    setIds((prev) => {
+  const toggleExpanded = (id: string, force?: boolean) => {
+    setExpandedIds((prev) => {
       const next = new Set(prev)
       const shouldAdd = force ?? !next.has(id)
       if (shouldAdd) next.add(id)
@@ -101,11 +91,22 @@ export function UserDetailsStep() {
         entity: 'employee',
       }).fields
     : []
+  const employeeIsReady = (member: (typeof addEmployees)[number]) =>
+    isEmployeeValid(member.employee) &&
+    Object.keys(
+      validateAttributeValues(
+        employeeAttributeFields,
+        member.employee.customAttributes,
+      ),
+    ).length === 0
   const formOk =
     Boolean(activeDeal) &&
     intakeMode === 'form' &&
     addEmployees.length > 0 &&
-    addEmployees.every((m) => savedIds.has(m.id)) &&
+    addEmployees.every(
+      (member) =>
+        member.assignmentCompleted && !editingIds.has(member.id),
+    ) &&
     areMembersValid(addEmployees) &&
     addEmployees.every(
       (m) =>
@@ -170,9 +171,17 @@ export function UserDetailsStep() {
       onExit={() => navigate('/endorsements')}
       primaryLabel="Proceed"
       primaryDisabled={!canProceed}
-      onPrimary={() => setStep('benefits')}
+      onPrimary={() =>
+        setStep(intakeMode === 'form' ? 'endo-costs' : 'benefits')
+      }
     >
-      <FlowStepper steps={[...SINGLE_ADD_STEPS]} activeIndex={0} bare />
+      <FlowStepper
+        steps={
+          intakeMode === 'form' ? [...FORM_ADD_STEPS] : [...SINGLE_ADD_STEPS]
+        }
+        activeIndex={0}
+        bare
+      />
 
       {dealPickedUpfront ? null : (
         <DealSelector
@@ -238,7 +247,8 @@ export function UserDetailsStep() {
         <>
           <Hint>Add one or more employees, then choose benefits.</Hint>
           {addEmployees.map((member, index) => {
-            const saved = savedIds.has(member.id)
+            const saved =
+              member.assignmentCompleted && !editingIds.has(member.id)
             const expanded = expandedIds.has(member.id)
 
             if (saved) {
@@ -259,7 +269,21 @@ export function UserDetailsStep() {
                         {(fullName.trim()[0] ?? '?').toUpperCase()}
                       </Avatar>
                       <SummaryCopy>
-                        <SummaryName>{fullName}</SummaryName>
+                        <SummaryNameRow>
+                          <SummaryName>{fullName}</SummaryName>
+                          {member.planId ? (
+                            <AssignmentBadge>
+                              {
+                                activeDeal.plans.find(
+                                  (plan) => plan.id === member.planId,
+                                )?.name
+                              }
+                              {member.dependants.length > 0
+                                ? ` · ${member.dependants.length} dependant${member.dependants.length === 1 ? '' : 's'}`
+                                : ''}
+                            </AssignmentBadge>
+                          ) : null}
+                        </SummaryNameRow>
                         <MetaRow>
                           {member.employee.employeeId ? (
                             <MetaChip>
@@ -336,22 +360,35 @@ export function UserDetailsStep() {
                         </MetaRow>
                       </SummaryCopy>
                     </SummaryData>
-                    <EditButton
-                      type="button"
-                      onClick={() => {
-                        toggleId(setSavedIds, member.id, false)
-                        toggleId(setExpandedIds, member.id, false)
-                      }}
-                    >
-                      <img
-                        src={assets.iconEditPencil}
-                        alt=""
-                        width={20}
-                        height={20}
-                        aria-hidden
-                      />
-                      Edit
-                    </EditButton>
+                    <SummaryActions>
+                      <EditButton
+                        type="button"
+                        onClick={() => {
+                          setAddEmployeeEditing(member.id, true)
+                          toggleExpanded(member.id, false)
+                        }}
+                      >
+                        <img
+                          src={assets.iconEditPencil}
+                          alt=""
+                          width={20}
+                          height={20}
+                          aria-hidden
+                        />
+                        Edit
+                      </EditButton>
+                      {addEmployees.length > 1 ? (
+                        <DeleteButton
+                          type="button"
+                          onClick={() => {
+                            toggleExpanded(member.id, false)
+                            removeAddEmployee(member.id)
+                          }}
+                        >
+                          Delete
+                        </DeleteButton>
+                      ) : null}
+                    </SummaryActions>
                     {detailFields.length > 0 ? (
                       <SummaryChevron
                         type="button"
@@ -362,7 +399,7 @@ export function UserDetailsStep() {
                         }
                         aria-expanded={expanded}
                         aria-controls={`employee-details-${member.id}`}
-                        onClick={() => toggleId(setExpandedIds, member.id)}
+                        onClick={() => toggleExpanded(member.id)}
                       >
                         <ChevronIcon
                           direction={expanded ? 'up' : 'down'}
@@ -574,8 +611,7 @@ export function UserDetailsStep() {
                   <RemoveLink
                     type="button"
                     onClick={() => {
-                      toggleId(setSavedIds, member.id, false)
-                      toggleId(setExpandedIds, member.id, false)
+                      toggleExpanded(member.id, false)
                       removeAddEmployee(member.id)
                     }}
                   >
@@ -584,8 +620,11 @@ export function UserDetailsStep() {
                 ) : null}
                 <SaveButton
                   type="button"
-                  disabled={!isEmployeeValid(member.employee)}
-                  onClick={() => toggleId(setSavedIds, member.id, true)}
+                  disabled={!employeeIsReady(member)}
+                  onClick={() => {
+                    setAssignmentMemberId(member.id)
+                    setStep('employee-assignment')
+                  }}
                 >
                   Save
                 </SaveButton>
@@ -780,12 +819,31 @@ const SummaryCopy = styled.div`
   min-width: 0;
 `
 
+const SummaryNameRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+`
+
 const SummaryName = styled.span`
   font-size: 14px;
   font-weight: 500;
   line-height: 20px;
   letter-spacing: 0.2px;
   color: ${({ theme }) => theme.colors.textPrimary};
+`
+
+const AssignmentBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 99px;
+  background: ${({ theme }) => theme.colors.planeGreenLight};
+  color: ${({ theme }) => theme.colors.emerald};
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
 `
 
 const MetaRow = styled.div`
@@ -818,6 +876,13 @@ const MetaDivider = styled.span`
   background: ${({ theme }) => theme.colors.defaultBorder};
 `
 
+const SummaryActions = styled.div`
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 12px;
+`
+
 const EditButton = styled.button`
   display: flex;
   align-items: center;
@@ -834,6 +899,23 @@ const EditButton = styled.button`
   line-height: 20px;
   letter-spacing: 0.2px;
   color: ${({ theme }) => theme.colors.emerald};
+  cursor: pointer;
+`
+
+const DeleteButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: ${({ theme }) => theme.fontFamily};
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  color: ${({ theme }) => theme.colors.textError};
   cursor: pointer;
 `
 

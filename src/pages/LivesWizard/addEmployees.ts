@@ -5,6 +5,7 @@ import {
   type EmployeeFormData,
   type Relationship,
 } from '@/data/employees'
+import type { AssignmentSource } from '@/domain/flex'
 
 export type IntakeMode = 'form' | 'excel'
 
@@ -14,6 +15,11 @@ export interface AddEmployeeMember {
   dependants: DependantFormData[]
   /** Policy / benefit ids assigned to this employee. */
   selectedBenefitIds: string[]
+  /** Plan resolved by company rules or selected on the assignment page. */
+  planId: string | null
+  assignmentSource: AssignmentSource | null
+  /** True only after the assignment/dependant page is explicitly saved. */
+  assignmentCompleted: boolean
 }
 
 let memberSeq = 1
@@ -35,6 +41,9 @@ export function emptyAddEmployeeMember(
     employee: emptyEmployeeForm(),
     dependants: [],
     selectedBenefitIds: [],
+    planId: null,
+    assignmentSource: null,
+    assignmentCompleted: false,
   }
 }
 

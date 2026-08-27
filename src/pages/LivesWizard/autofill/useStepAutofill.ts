@@ -128,6 +128,7 @@ export function useStepAutofill(): StepAutofill {
       selectDeal,
       addEmployees,
       setAddEmployees,
+      editingAddEmployeeIds,
       intakeMode,
       setFileName,
       setTemplateDownloaded,
@@ -166,21 +167,40 @@ export function useStepAutofill(): StepAutofill {
     }
 
     switch (step) {
-      case 'user-details':
+      case 'user-details': {
+        /**
+         * Saved cards collapse into a read-only summary, so autofill only
+         * touches the ones whose form is actually on screen.
+         */
+        const editing = new Set(editingAddEmployeeIds)
+        const isOpen = (member: (typeof addEmployees)[number]) =>
+          !member.assignmentCompleted || editing.has(member.id)
+        const openCount = addEmployees.filter(isOpen).length
+
         return {
           stepLabel: 'Employee details',
-          hint: `Fills ${pluralise(addEmployees.length, 'employee card')} with demo data, including deal attributes.`,
-          supported: true,
+          hint: openCount
+            ? `Fills ${pluralise(openCount, 'open employee card')} with demo data, including deal attributes.`
+            : 'Every employee card is saved — add or edit one to fill it.',
+          supported: openCount > 0 || intakeMode === 'excel',
           run: (personaIndex) => {
             const deal = ensureDeal()
             if (!deal) {
-              return 'Picked a Flex deal — press Fill again to complete the form.'
+              return 'Picked a Flex deal — press Autofill again to complete the form.'
             }
-            const next = addEmployees.map((member, offset) => {
+            let offset = 0
+            const next = addEmployees.map((member) => {
+              if (!isOpen(member)) return member
               const index = personaIndex + offset
+              offset += 1
               const persona = personaAt(index)
               return {
                 ...member,
+                planId: null,
+                assignmentSource: null,
+                assignmentCompleted: false,
+                selectedBenefitIds: [],
+                dependants: [],
                 employee: {
                   ...member.employee,
                   employeeId: persona.employeeId,
@@ -200,15 +220,22 @@ export function useStepAutofill(): StepAutofill {
                 },
               }
             })
-            setAddEmployees(next)
             if (intakeMode === 'excel') {
+              setAddEmployees(next)
               setTemplateDownloaded(true)
               setFileName('demo-employees.csv')
+              signalAutofill()
+              return 'Attached a demo employee sheet.'
             }
+            if (offset === 0) {
+              return 'Every employee card is saved — add or edit one to fill it.'
+            }
+            setAddEmployees(next)
             signalAutofill()
-            return `Filled ${pluralise(next.length, 'employee')}.`
+            return `Filled ${pluralise(offset, 'employee')}.`
           },
         }
+      }
 
       case 'employee-details':
         return {
@@ -600,6 +627,12 @@ export function useStepAutofill(): StepAutofill {
         return unsupported(
           'Select benefits',
           'Benefit choices drive costs, so pick them manually.',
+        )
+
+      case 'employee-assignment':
+        return unsupported(
+          'Plan assignment',
+          'The plan is assigned for you — change it or add dependants manually.',
         )
 
       default:

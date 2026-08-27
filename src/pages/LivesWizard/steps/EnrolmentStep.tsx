@@ -6,7 +6,11 @@ import { flexDeal, selectablePolicies } from '@/data/flexDeal'
 import { EnrolmentSettings } from '@/pages/LivesWizard/components/EnrolmentSettings'
 import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
-import { SINGLE_ADD_STEPS, SINGLE_DEPENDANT_STEPS } from '@/pages/LivesWizard/singleAddSteps'
+import {
+  FORM_ADD_STEPS,
+  SINGLE_ADD_STEPS,
+  SINGLE_DEPENDANT_STEPS,
+} from '@/pages/LivesWizard/singleAddSteps'
 
 export function EnrolmentStep() {
   const navigate = useNavigate()
@@ -18,6 +22,7 @@ export function EnrolmentStep() {
     selectedPolicyIds,
     activeDealId,
     activeDeal,
+    intakeMode,
     setStep,
     completeFlow,
     startProcessing,
@@ -69,7 +74,10 @@ export function EnrolmentStep() {
   const stepperSteps = isBulk
     ? ['Upload', 'Validate', 'Review', 'Enrolment']
     : isAddEmployees
-      ? [...SINGLE_ADD_STEPS, 'Enrolment']
+      ? [
+          ...(intakeMode === 'form' ? FORM_ADD_STEPS : SINGLE_ADD_STEPS),
+          'Enrolment',
+        ]
       : isSingleDependant
         ? [...SINGLE_DEPENDANT_STEPS, 'Enrolment']
         : [...SINGLE_ADD_STEPS]

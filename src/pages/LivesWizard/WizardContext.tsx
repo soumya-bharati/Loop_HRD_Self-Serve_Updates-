@@ -55,6 +55,7 @@ export type WizardStep =
   | 'selection'
   | 'employee-details'
   | 'user-details'
+  | 'employee-assignment'
   | 'search-employee'
   | 'dependant-details'
   | 'dependant-plan'
@@ -146,6 +147,13 @@ interface LivesWizardContextValue {
     memberId: string,
     patch: Partial<Omit<AddEmployeeMember, 'id'>>,
   ) => void
+  completeAddEmployeeAssignment: (
+    memberId: string,
+    assignment: Pick<
+      AddEmployeeMember,
+      'planId' | 'assignmentSource' | 'selectedBenefitIds' | 'dependants'
+    >,
+  ) => void
   updateAddEmployeeFields: (
     memberId: string,
     patch: Partial<EmployeeFormData>,
@@ -157,6 +165,12 @@ interface LivesWizardContextValue {
   ) => void
   addAddEmployee: () => void
   removeAddEmployee: (memberId: string) => void
+  /** Saved employee cards reopened for editing, so their form is on screen. */
+  editingAddEmployeeIds: string[]
+  setAddEmployeeEditing: (memberId: string, editing: boolean) => void
+  /** Employee whose plan assignment page is open. */
+  assignmentMemberId: string | null
+  setAssignmentMemberId: (memberId: string | null) => void
   addAddEmployeeDependant: (memberId: string) => void
   updateAddEmployeeDependant: (
     memberId: string,
@@ -353,6 +367,12 @@ export function LivesWizardProvider({
   const [addEmployees, setAddEmployees] = useState<AddEmployeeMember[]>(() => [
     emptyAddEmployeeMember(),
   ])
+  const [editingAddEmployeeIds, setEditingAddEmployeeIds] = useState<string[]>(
+    [],
+  )
+  const [assignmentMemberId, setAssignmentMemberId] = useState<string | null>(
+    null,
+  )
   const [benefitsAssignMode, setBenefitsAssignMode] =
     useState<BenefitsAssignMode>('common')
   const [autofillNonce, setAutofillNonce] = useState(0)
@@ -455,6 +475,25 @@ export function LivesWizardProvider({
     [],
   )
 
+  const completeAddEmployeeAssignment = useCallback(
+    (
+      memberId: string,
+      assignment: Pick<
+        AddEmployeeMember,
+        'planId' | 'assignmentSource' | 'selectedBenefitIds' | 'dependants'
+      >,
+    ) => {
+      setAddEmployees((current) =>
+        current.map((member) =>
+          member.id === memberId
+            ? { ...member, ...assignment, assignmentCompleted: true }
+            : member,
+        ),
+      )
+    },
+    [],
+  )
+
   const updateAddEmployeeFields = useCallback(
     (memberId: string, patch: Partial<EmployeeFormData>) => {
       setAddEmployees((current) =>
@@ -502,7 +541,21 @@ export function LivesWizardProvider({
       const next = current.filter((m) => m.id !== memberId)
       return next.length > 0 ? next : [emptyAddEmployeeMember()]
     })
+    setEditingAddEmployeeIds((current) =>
+      current.filter((id) => id !== memberId),
+    )
+    setAssignmentMemberId((current) => (current === memberId ? null : current))
   }, [])
+
+  const setAddEmployeeEditing = useCallback(
+    (memberId: string, editing: boolean) => {
+      setEditingAddEmployeeIds((current) => {
+        const without = current.filter((id) => id !== memberId)
+        return editing ? [...without, memberId] : without
+      })
+    },
+    [],
+  )
 
   const addAddEmployeeDependant = useCallback((memberId: string) => {
     const dep = emptyDependantForm(nextDependantId())
@@ -1000,6 +1053,8 @@ export function LivesWizardProvider({
     setEnrolment(emptyEnrolmentSettings())
     setIntakeMode('form')
     setAddEmployees([emptyAddEmployeeMember()])
+    setEditingAddEmployeeIds([])
+    setAssignmentMemberId(null)
     setBenefitsAssignMode('common')
   }, [initialMethod, initialStep, initialDealId])
 
@@ -1048,10 +1103,15 @@ export function LivesWizardProvider({
       addEmployees,
       setAddEmployees,
       updateAddEmployee,
+      completeAddEmployeeAssignment,
       updateAddEmployeeFields,
       updateAddEmployeeCustomAttribute,
       addAddEmployee,
       removeAddEmployee,
+      editingAddEmployeeIds,
+      setAddEmployeeEditing,
+      assignmentMemberId,
+      setAssignmentMemberId,
       addAddEmployeeDependant,
       updateAddEmployeeDependant,
       removeAddEmployeeDependant,
@@ -1135,10 +1195,15 @@ export function LivesWizardProvider({
       intakeMode,
       addEmployees,
       updateAddEmployee,
+      completeAddEmployeeAssignment,
       updateAddEmployeeFields,
       updateAddEmployeeCustomAttribute,
       addAddEmployee,
       removeAddEmployee,
+      editingAddEmployeeIds,
+      setAddEmployeeEditing,
+      assignmentMemberId,
+      setAssignmentMemberId,
       addAddEmployeeDependant,
       updateAddEmployeeDependant,
       removeAddEmployeeDependant,

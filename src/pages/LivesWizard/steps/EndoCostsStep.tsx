@@ -7,7 +7,10 @@ import { type PolicyCostBreakdown } from '@/data/flexDeal'
 import { getBenefitConfig } from '@/domain/flex'
 import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
-import { SINGLE_ADD_STEPS } from '@/pages/LivesWizard/singleAddSteps'
+import {
+  FORM_ADD_STEPS,
+  SINGLE_ADD_STEPS,
+} from '@/pages/LivesWizard/singleAddSteps'
 
 function formatINRExact(amount: number) {
   return new Intl.NumberFormat('en-IN', {
@@ -42,7 +45,14 @@ type InsurerGroup = {
 
 export function EndoCostsStep() {
   const navigate = useNavigate()
-  const { activeDeal, addEmployees, costEstimate, setStep } = useLivesWizard()
+  const {
+    activeDeal,
+    addEmployees,
+    costEstimate,
+    intakeMode,
+    setStep,
+  } = useLivesWizard()
+  const isFormEntry = intakeMode === 'form'
 
   const insurerGroups = useMemo(() => {
     const map = new Map<string, InsurerGroup>()
@@ -67,10 +77,10 @@ export function EndoCostsStep() {
   return (
     <WizardChrome
       title="Submit Addition Request"
-      onBack={() => setStep('family')}
+      onBack={() => setStep(isFormEntry ? 'user-details' : 'family')}
       onExit={() => navigate('/endorsements')}
       secondaryLabel="Go Back"
-      onSecondary={() => setStep('family')}
+      onSecondary={() => setStep(isFormEntry ? 'user-details' : 'family')}
       primaryLabel="Continue to enrolment"
       primaryDisabled={livesCount === 0}
       onPrimary={() => setStep('enrolment')}
@@ -79,7 +89,11 @@ export function EndoCostsStep() {
         body: 'If everything looks good click below to submit your endo!',
       }}
     >
-      <FlowStepper steps={[...SINGLE_ADD_STEPS]} activeIndex={3} bare />
+      <FlowStepper
+        steps={isFormEntry ? [...FORM_ADD_STEPS] : [...SINGLE_ADD_STEPS]}
+        activeIndex={isFormEntry ? 1 : 3}
+        bare
+      />
 
       <PeopleReview>
         <ReviewTitle>Members and benefits</ReviewTitle>

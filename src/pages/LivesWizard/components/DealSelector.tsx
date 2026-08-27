@@ -36,7 +36,7 @@ export function DealSelector({
 
   return (
     <Section $embedded={embedded}>
-      {!compact ? <Title>In which Flex deal do you want to add?</Title> : null}
+      {!compact ? <Title>In which you want to add?</Title> : null}
       <Grid $list={embedded}>
         {deals.map((deal) => {
           const selected = value === deal.id
@@ -109,11 +109,9 @@ const Title = styled.h2`
 const Grid = styled.div<{ $list?: boolean }>`
   display: flex;
   flex-direction: ${({ $list }) => ($list ? 'column' : 'row')};
-  gap: ${({ $list }) => ($list ? '0' : '16px')};
+  gap: 16px;
   align-items: stretch;
   width: 100%;
-  border: ${({ theme, $list }) =>
-    $list ? `1px solid ${theme.colors.defaultBorder}` : 'none'};
 
   @media (max-width: 900px) {
     flex-direction: column;
@@ -125,32 +123,20 @@ const Card = styled.button<{ $selected: boolean; $list?: boolean }>`
   width: ${({ $list }) => ($list ? '100%' : 'auto')};
   min-width: 0;
   display: flex;
-  align-items: ${({ $list }) => ($list ? 'center' : 'flex-start')};
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: ${({ $list }) => ($list ? '12px 16px' : '16px')};
-  border-radius: ${({ $list }) => ($list ? '0' : '12px')};
-  border: ${({ theme, $selected, $list }) =>
-    $list
-      ? 'none'
-      : `1px solid ${$selected ? theme.colors.emerald : theme.colors.disableFill}`};
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid
+    ${({ theme, $selected }) =>
+      $selected ? theme.colors.emerald : theme.colors.disableFill};
   background: ${({ theme, $selected }) =>
     $selected ? theme.colors.planeGreenLight : theme.colors.surface1};
   text-align: left;
   font-family: ${({ theme }) => theme.fontFamily};
   cursor: pointer;
   box-sizing: border-box;
-
-  ${({ theme, $list }) =>
-    $list
-      ? `
-    border-bottom: 1px solid ${theme.colors.defaultBorder};
-
-    &:last-child {
-      border-bottom: none;
-    }
-  `
-      : ''}
 `
 
 const CardMain = styled.div`

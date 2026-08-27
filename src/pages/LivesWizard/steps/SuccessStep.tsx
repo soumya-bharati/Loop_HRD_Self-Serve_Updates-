@@ -15,6 +15,8 @@ export function SuccessStep() {
     enrolment,
     employee,
     dependants,
+    addEmployees,
+    activeDeal,
     resolvedAssignment,
     bulkDeleteRows,
     editProofFileName,
@@ -30,6 +32,18 @@ export function SuccessStep() {
   const policies = selectablePolicies.filter((p) =>
     resolvedAssignment.policyIds.includes(p.id),
   )
+  const addedBenefits =
+    action === 'add' && method === 'single' && activeDeal
+      ? activeDeal.benefits.filter((benefit) =>
+          addEmployees.some(
+            (member) =>
+              member.selectedBenefitIds.includes(benefit.id) ||
+              member.dependants.some((dependant) =>
+                dependant.selectedBenefitIds.includes(benefit.id),
+              ),
+          ),
+        )
+      : []
 
   if (action === 'edit' && simulateEditSaveFailure === false && !editProofFileName) {
     // after failed save simulation, proof cleared — show failure if somehow landed here incorrectly
@@ -41,6 +55,23 @@ export function SuccessStep() {
       ? ` with ${dependants.length} dependant${dependants.length > 1 ? 's' : ''}`
       : ''
   }.`
+
+  if (action === 'add' && method === 'single') {
+    const employeeCount = addEmployees.length
+    const dependantCount = addEmployees.reduce(
+      (total, member) => total + member.dependants.length,
+      0,
+    )
+    title =
+      employeeCount === 1
+        ? 'Employee added successfully'
+        : 'Employees added successfully'
+    subtitle = `${employeeCount} employee${employeeCount === 1 ? '' : 's'} added${
+      dependantCount
+        ? ` with ${dependantCount} dependant${dependantCount === 1 ? '' : 's'}`
+        : ''
+    }.`
+  }
 
   if (action === 'delete') {
     title =
@@ -130,14 +161,23 @@ export function SuccessStep() {
 
       {action === 'add' && method !== 'bulk' ? (
         <PolicyGrid>
-          {policies.map((policy) => (
-            <PolicyCard key={policy.id}>
-              <PolicyName>{policy.name}</PolicyName>
-              <PolicyMeta>
-                {policy.insurerName} · Policy No: {policy.policyNumber}
-              </PolicyMeta>
-            </PolicyCard>
-          ))}
+          {addedBenefits.length > 0
+            ? addedBenefits.map((benefit) => (
+                <PolicyCard key={benefit.id}>
+                  <PolicyName>{benefit.name}</PolicyName>
+                  <PolicyMeta>
+                    {benefit.insurerName} · Policy No: {benefit.policyNumber}
+                  </PolicyMeta>
+                </PolicyCard>
+              ))
+            : policies.map((policy) => (
+                <PolicyCard key={policy.id}>
+                  <PolicyName>{policy.name}</PolicyName>
+                  <PolicyMeta>
+                    {policy.insurerName} · Policy No: {policy.policyNumber}
+                  </PolicyMeta>
+                </PolicyCard>
+              ))}
         </PolicyGrid>
       ) : null}
 
