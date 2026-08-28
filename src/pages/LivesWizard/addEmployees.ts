@@ -19,6 +19,8 @@ export interface AddEmployeeMember {
   planId: string | null
   /** Chosen purchase-group option ids, keyed by group id. */
   purchaseGroupSelections: Record<string, string[]>
+  /** Policy-slab ids keyed by benefit id (e.g. GTL sum insured). */
+  policySlabIds: Record<string, string>
   assignmentSource: AssignmentSource | null
   /** True only after the assignment/dependant modal is explicitly saved. */
   assignmentCompleted: boolean
@@ -45,6 +47,7 @@ export function emptyAddEmployeeMember(
     selectedBenefitIds: [],
     planId: null,
     purchaseGroupSelections: {},
+    policySlabIds: {},
     assignmentSource: null,
     assignmentCompleted: false,
   }

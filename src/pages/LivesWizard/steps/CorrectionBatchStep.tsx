@@ -59,11 +59,11 @@ export function CorrectionBatchStep() {
           </Header>
           {correctionBatch.map((correction) => (
             <Row key={correction.memberId}>
-              <Member>
+              <Member data-label="Member">
                 <strong>{correction.memberName}</strong>
                 <span>{correction.relationship}</span>
               </Member>
-              <Diffs>
+              <Diffs data-label="Change">
                 {correction.diffs.map((diff) => (
                   <Diff key={diff.field}>
                     <strong>{diff.label}</strong>
@@ -75,6 +75,7 @@ export function CorrectionBatchStep() {
               </Diffs>
               <Remove
                 type="button"
+                data-label="Action"
                 onClick={() => removeCorrection(correction.memberId)}
               >
                 Remove
@@ -107,6 +108,8 @@ const Table = styled.div`
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
+  max-width: 100%;
+  box-sizing: border-box;
 `
 
 const Header = styled.div`
@@ -118,6 +121,10 @@ const Header = styled.div`
   font-size: 11px;
   font-weight: 600;
   color: ${({ theme }) => theme.colors.textSecondary};
+
+  @media (max-width: 640px) {
+    display: none;
+  }
 `
 
 const Row = styled.div`
@@ -129,8 +136,29 @@ const Row = styled.div`
   background: ${({ theme }) => theme.colors.surface1};
   border-top: 1px solid ${({ theme }) => theme.colors.disableFill};
 
-  @media (max-width: 760px) {
-    grid-template-columns: 1fr;
+  @media (max-width: 640px) {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 12px;
+
+    > [data-label] {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px 0;
+
+      &::before {
+        content: attr(data-label);
+        font-size: 11px;
+        font-weight: 600;
+        color: ${({ theme }) => theme.colors.textSecondary};
+      }
+
+      &:not(:last-child) {
+        border-bottom: 1px solid ${({ theme }) => theme.colors.disableFill};
+      }
+    }
   }
 `
 
@@ -172,4 +200,10 @@ const Remove = styled.button`
   font-size: 12px;
   color: ${({ theme }) => theme.colors.textError};
   cursor: pointer;
+  text-align: left;
+
+  @media (max-width: 640px) {
+    align-self: flex-start;
+    padding: 4px 0;
+  }
 `

@@ -356,6 +356,17 @@ const Overlay = styled.div`
   justify-content: center;
   padding: 24px;
   background: rgba(45, 55, 72, 0.45);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+
+  @media (max-width: 720px) {
+    padding: 16px;
+    align-items: flex-start;
+  }
+
+  @media (max-width: 560px) {
+    padding: 12px;
+  }
 `
 
 const Dialog = styled.div<{ $method?: boolean }>`
@@ -369,6 +380,21 @@ const Dialog = styled.div<{ $method?: boolean }>`
   gap: 24px;
   overflow: auto;
   box-shadow: 0 16px 48px rgba(16, 24, 40, 0.16);
+  -webkit-overflow-scrolling: touch;
+
+  @media (max-width: 900px) {
+    gap: 20px;
+  }
+
+  @media (max-width: 720px) {
+    max-height: none;
+    border-radius: 12px;
+  }
+
+  @media (max-width: 560px) {
+    gap: 16px;
+    border-radius: 10px;
+  }
 `
 
 const Top = styled.div`
@@ -376,6 +402,16 @@ const Top = styled.div`
   flex-direction: column;
   gap: 24px;
   padding: 24px 24px 0;
+
+  @media (max-width: 720px) {
+    gap: 16px;
+    padding: 20px 16px 0;
+  }
+
+  @media (max-width: 560px) {
+    gap: 12px;
+    padding: 16px 12px 0;
+  }
 `
 
 const Header = styled.div`
@@ -394,6 +430,17 @@ const Title = styled.h2`
   color: ${({ theme }) => theme.colors.textPrimary};
   overflow: hidden;
   text-overflow: ellipsis;
+
+  @media (max-width: 720px) {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+  }
+
+  @media (max-width: 560px) {
+    font-size: 16px;
+    line-height: 22px;
+  }
 `
 
 const CloseButton = styled.button`
@@ -431,6 +478,14 @@ const EntityField = styled.div`
   width: 100%;
   padding: 0 24px;
   box-sizing: border-box;
+
+  @media (max-width: 720px) {
+    padding: 0 16px;
+  }
+
+  @media (max-width: 560px) {
+    padding: 0 12px;
+  }
 `
 
 const EntityLabel = styled.span`
@@ -467,8 +522,18 @@ const OptionsRow = styled.div<{ $count?: number; $noBottomPad?: boolean }>`
   padding: 0 24px ${({ $noBottomPad }) => ($noBottomPad ? '0' : '24px')};
   box-sizing: border-box;
 
+  @media (max-width: 900px) {
+    gap: 12px;
+  }
+
   @media (max-width: 720px) {
     flex-direction: column;
+    padding: 0 16px ${({ $noBottomPad }) => ($noBottomPad ? '0' : '16px')};
+  }
+
+  @media (max-width: 560px) {
+    gap: 10px;
+    padding: 0 12px ${({ $noBottomPad }) => ($noBottomPad ? '0' : '12px')};
   }
 `
 
@@ -476,6 +541,14 @@ const DealBlock = styled.div`
   width: 100%;
   padding: 0 24px;
   box-sizing: border-box;
+
+  @media (max-width: 720px) {
+    padding: 0 16px;
+  }
+
+  @media (max-width: 560px) {
+    padding: 0 12px;
+  }
 `
 
 const OptionCard = styled.button<{
@@ -503,6 +576,19 @@ const OptionCard = styled.button<{
   box-sizing: border-box;
   opacity: ${({ $locked }) => ($locked ? 0.55 : 1)};
   transition: opacity 0.15s ease;
+
+  @media (max-width: 720px) {
+    flex: none;
+    width: 100%;
+    height: auto;
+    min-height: ${({ $compact }) => ($compact ? '140px' : '160px')};
+  }
+
+  @media (max-width: 560px) {
+    min-height: 0;
+    padding: 14px;
+    gap: 12px;
+  }
 
   &:hover {
     border-color: ${({ theme, $locked }) =>
@@ -557,6 +643,14 @@ const Footer = styled.div`
   border-top: 0.5px solid ${({ theme }) => theme.colors.defaultBorder};
   background: ${({ theme }) => theme.colors.surface1};
   box-sizing: border-box;
+
+  @media (max-width: 720px) {
+    padding: 16px;
+  }
+
+  @media (max-width: 560px) {
+    padding: 12px;
+  }
 `
 
 const FooterRow = styled.div`
@@ -565,6 +659,12 @@ const FooterRow = styled.div`
   justify-content: space-between;
   width: 100%;
   gap: 16px;
+
+  @media (max-width: 560px) {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 10px;
+  }
 `
 
 const BackButton = styled.button`
@@ -585,6 +685,10 @@ const BackButton = styled.button`
   letter-spacing: 0.2px;
   cursor: pointer;
   box-shadow: ${({ theme }) => theme.shadows.smooth};
+
+  @media (max-width: 560px) {
+    width: 100%;
+  }
 `
 
 const ProceedButton = styled.button`
@@ -605,6 +709,10 @@ const ProceedButton = styled.button`
   background: ${({ theme }) => theme.colors.fillGreen};
   color: ${({ theme }) => theme.colors.emerald};
   box-shadow: ${({ theme }) => theme.shadows.smooth};
+
+  @media (max-width: 560px) {
+    width: 100%;
+  }
 
   &:disabled {
     background: ${({ theme }) => theme.colors.disableFill};

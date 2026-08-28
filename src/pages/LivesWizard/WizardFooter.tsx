@@ -36,6 +36,12 @@ const Footer = styled.div`
   gap: 16px;
   margin-top: auto;
   padding-top: 32px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    align-items: stretch;
+    flex-direction: column-reverse;
+    padding-top: 20px;
+  }
 `
 
 const Secondary = styled.button`
@@ -54,6 +60,11 @@ const Secondary = styled.button`
   font-weight: 500;
   cursor: pointer;
   box-sizing: border-box;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    width: 100%;
+    min-width: 0;
+  }
 `
 
 const Primary = styled.button`
@@ -77,5 +88,10 @@ const Primary = styled.button`
     background: ${({ theme }) => theme.colors.disableFill};
     color: ${({ theme }) => theme.colors.textSecondary};
     cursor: not-allowed;
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    width: 100%;
+    min-width: 0;
   }
 `

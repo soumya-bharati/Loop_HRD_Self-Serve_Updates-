@@ -191,6 +191,17 @@ const Overlay = styled.div`
   justify-content: center;
   padding: 24px;
   background: rgba(45, 55, 72, 0.45);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+
+  @media (max-width: 720px) {
+    padding: 16px;
+    align-items: flex-start;
+  }
+
+  @media (max-width: 560px) {
+    padding: 12px;
+  }
 `
 
 const Dialog = styled.div`
@@ -205,6 +216,23 @@ const Dialog = styled.div`
   box-shadow: 0 16px 48px rgba(16, 24, 40, 0.16);
   box-sizing: border-box;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
+
+  @media (max-width: 900px) {
+    gap: 20px;
+  }
+
+  @media (max-width: 720px) {
+    max-height: none;
+    padding: 20px 16px;
+    border-radius: 12px;
+  }
+
+  @media (max-width: 560px) {
+    gap: 16px;
+    padding: 16px 12px;
+    border-radius: 10px;
+  }
 `
 
 const Header = styled.div`
@@ -265,6 +293,17 @@ const SectionHead = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+
+  @media (max-width: 720px) {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  @media (max-width: 560px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
 `
 
 const SectionTitle = styled.h3`
@@ -291,6 +330,11 @@ const ModeSwitch = styled.div`
   padding: 2px;
   border-radius: ${({ theme }) => theme.radii.full};
   background: ${({ theme }) => theme.colors.disableFill};
+
+  @media (max-width: 560px) {
+    width: 100%;
+    justify-content: stretch;
+  }
 `
 
 const ModeButton = styled.button<{ $active: boolean }>`
@@ -308,6 +352,11 @@ const ModeButton = styled.button<{ $active: boolean }>`
     $active ? theme.colors.emerald : 'transparent'};
   color: ${({ theme, $active }) =>
     $active ? theme.colors.textTertiary : theme.colors.textSecondary};
+
+  @media (max-width: 560px) {
+    flex: 1;
+    min-width: 0;
+  }
 `
 
 const Options = styled.div`
@@ -378,6 +427,12 @@ const Footer = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+
+  @media (max-width: 560px) {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 10px;
+  }
 `
 
 const ResetButton = styled.button`
@@ -391,6 +446,11 @@ const ResetButton = styled.button`
   color: ${({ theme }) => theme.colors.textSecondary};
   cursor: pointer;
   text-decoration: underline;
+
+  @media (max-width: 560px) {
+    text-align: center;
+    padding: 8px 0;
+  }
 `
 
 const DoneButton = styled.button`
@@ -409,4 +469,9 @@ const DoneButton = styled.button`
   font-weight: 500;
   letter-spacing: 0.2px;
   cursor: pointer;
+
+  @media (max-width: 560px) {
+    width: 100%;
+    min-width: 0;
+  }
 `

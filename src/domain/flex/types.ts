@@ -73,6 +73,11 @@ export interface MidtermEvidenceRule {
   documentLabel?: string
 }
 
+export interface PolicySlabOption {
+  id: string
+  label: string
+}
+
 export interface FlexBenefitConfig {
   id: string
   name: string
@@ -80,6 +85,10 @@ export interface FlexBenefitConfig {
   policyNumber: string
   insurerName: string
   insurerLogo: InsurerLogo
+  /** Extra policy label shown between insurer and policy number. */
+  policyLabel?: string
+  /** Sum-insured / family-structure combinations shown after the cover is selected. */
+  policySlabs?: PolicySlabOption[]
   category: BenefitCategory
   isInsurance: boolean
   premiumProrated: boolean

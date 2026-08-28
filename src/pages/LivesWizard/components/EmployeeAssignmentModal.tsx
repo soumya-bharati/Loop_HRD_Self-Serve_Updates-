@@ -657,6 +657,10 @@ const Overlay = styled.div`
   padding: 24px 5vw;
   background: rgba(45, 55, 72, 0.48);
   animation: ${fadeIn} 160ms ease-out;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    padding: 0;
+  }
 `
 
 const Dialog = styled.div`
@@ -669,6 +673,13 @@ const Dialog = styled.div`
   background: ${({ theme }) => theme.colors.surface0};
   box-shadow: 0 20px 60px rgba(16, 24, 40, 0.2);
   animation: ${scaleIn} 200ms ease-out;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    width: 100%;
+    max-height: 100dvh;
+    height: 100dvh;
+    border-radius: 0;
+  }
 `
 
 const Header = styled.header`
@@ -679,6 +690,11 @@ const Header = styled.header`
   padding: 24px;
   background: ${({ theme }) => theme.colors.surface1};
   border-bottom: 0.5px solid ${({ theme }) => theme.colors.defaultBorder};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    gap: 12px;
+    padding: 16px;
+  }
 `
 
 const Body = styled.div`
@@ -688,6 +704,13 @@ const Body = styled.div`
   flex: 1;
   min-height: 0;
   padding: 24px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    overflow-y: auto;
+  }
 `
 
 const Rail = styled.ol`
@@ -698,6 +721,13 @@ const Rail = styled.ol`
   margin: 0;
   padding: 6px 0 0;
   list-style: none;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
+    width: 100%;
+    flex-direction: row;
+    gap: 12px;
+    overflow-x: auto;
+  }
 `
 
 const RailStep = styled.li`
@@ -718,6 +748,16 @@ const RailStep = styled.li`
     left: 11px;
     width: 2px;
     background: ${({ theme }) => theme.colors.defaultBorder};
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
+    grid-template-columns: 24px max-content;
+    flex-shrink: 0;
+    padding-bottom: 0 !important;
+
+    &::before {
+      display: none;
+    }
   }
 `
 
@@ -759,6 +799,10 @@ const RailDetail = styled.div`
   flex-direction: column;
   gap: 12px;
   margin-top: 16px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
+    display: none;
+  }
 `
 
 const RailIllustration = styled.img`
@@ -786,6 +830,17 @@ const Panel = styled.div`
   border-radius: 16px;
   background: ${({ theme }) => theme.colors.surface1};
   overflow-y: auto;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
+    width: 100%;
+    max-height: none;
+    padding: 20px;
+    overflow: visible;
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    padding: 16px;
+  }
 `
 
 const Title = styled.h2`
@@ -1129,6 +1184,11 @@ const Footer = styled.footer`
   padding: 24px;
   background: ${({ theme }) => theme.colors.surface1};
   border-top: 0.5px solid ${({ theme }) => theme.colors.defaultBorder};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    gap: 10px;
+    padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+  }
 `
 
 const SecondaryButton = styled.button`
@@ -1145,6 +1205,12 @@ const SecondaryButton = styled.button`
   font-weight: 500;
   letter-spacing: 0.2px;
   cursor: pointer;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    width: auto;
+    min-width: 0;
+    flex: 1;
+  }
 `
 
 const PrimaryButton = styled.button`
@@ -1166,5 +1232,11 @@ const PrimaryButton = styled.button`
     background: ${({ theme }) => theme.colors.disableFill};
     color: ${({ theme }) => theme.colors.textSecondary};
     cursor: not-allowed;
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    width: auto;
+    min-width: 0;
+    flex: 1;
   }
 `

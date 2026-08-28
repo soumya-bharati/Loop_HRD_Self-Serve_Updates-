@@ -5,10 +5,26 @@ import { LoopLogo } from '@/components/brand/LoopLogo'
 import { ChevronIcon } from '@/components/icons/ChevronIcon'
 import { endorsementsSummary } from '@/data/endorsements'
 
-export function TopNav() {
+export function TopNav({
+  mobileNavOpen,
+  onMenuClick,
+}: {
+  mobileNavOpen: boolean
+  onMenuClick: () => void
+}) {
   return (
     <Bar>
       <LogoCell>
+        <MenuButton
+          type="button"
+          aria-label={mobileNavOpen ? 'Close navigation' : 'Open navigation'}
+          aria-expanded={mobileNavOpen}
+          onClick={onMenuClick}
+        >
+          <MenuLine />
+          <MenuLine />
+          <MenuLine />
+        </MenuButton>
         <LoopLogo />
       </LogoCell>
 
@@ -65,6 +81,40 @@ const LogoCell = styled.div`
   align-items: center;
   justify-content: center;
   border-right: 1px solid ${({ theme }) => theme.colors.disableFill};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
+    width: auto;
+    min-width: auto;
+    gap: 14px;
+    padding: 0 16px;
+    border-right: 0;
+  }
+`
+
+const MenuButton = styled.button`
+  display: none;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
+    display: flex;
+    width: 44px;
+    height: 44px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 0;
+    border: 0;
+    border-radius: ${({ theme }) => theme.radii.sm};
+    background: transparent;
+    cursor: pointer;
+  }
+`
+
+const MenuLine = styled.span`
+  width: 20px;
+  height: 2px;
+  border-radius: 2px;
+  background: ${({ theme }) => theme.colors.emerald};
 `
 
 const RightNest = styled.div`
@@ -77,6 +127,18 @@ const RightNest = styled.div`
   gap: 24px;
   padding-right: 56px;
   padding-left: 56px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.xl}) {
+    gap: 16px;
+    padding-right: ${({ theme }) => theme.layout.contentPadXTablet};
+    padding-left: ${({ theme }) => theme.layout.contentPadXTablet};
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
+    gap: 10px;
+    padding-right: 16px;
+    padding-left: 0;
+  }
 `
 
 const SearchArea = styled.div`
@@ -84,6 +146,11 @@ const SearchArea = styled.div`
   min-width: 0;
   display: flex;
   align-items: center;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    justify-content: flex-end;
+    flex: 0 0 44px;
+  }
 `
 
 const SearchFrame = styled.div`
@@ -94,6 +161,13 @@ const SearchFrame = styled.div`
   border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
   border-radius: ${({ theme }) => theme.radii.sm};
   overflow: hidden;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    width: 44px;
+    height: 44px;
+    border: 0;
+    background: transparent;
+  }
 `
 
 const Placeholder = styled.span`
@@ -107,6 +181,10 @@ const Placeholder = styled.span`
   letter-spacing: 0.2px;
   white-space: nowrap;
   pointer-events: none;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    display: none;
+  }
 `
 
 const SearchButton = styled.button`
@@ -122,6 +200,14 @@ const SearchButton = styled.button`
   display: grid;
   place-items: center;
   cursor: pointer;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    inset: 0;
+    width: 44px;
+    height: 44px;
+    transform: none;
+    border-radius: ${({ theme }) => theme.radii.sm};
+  }
 `
 
 const SearchIcon = styled.span`
@@ -151,6 +237,12 @@ const AlertsButton = styled.button`
   cursor: pointer;
   flex-shrink: 0;
   font-family: ${({ theme }) => theme.fontFamily};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
 `
 
 const AlertsContent = styled.span`
@@ -167,6 +259,10 @@ const AlertsLabel = styled.span`
   line-height: 18px;
   letter-spacing: 0.2px;
   white-space: nowrap;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    display: none;
+  }
 `
 
 /** 16×16 icon — triangle + bang positioned to Figma insets */
@@ -217,6 +313,15 @@ const Profile = styled.button`
 
   span {
     white-space: nowrap;
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    gap: 0;
+
+    span,
+    svg {
+      display: none;
+    }
   }
 `
 

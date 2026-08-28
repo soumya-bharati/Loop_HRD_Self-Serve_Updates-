@@ -129,6 +129,8 @@ const Page = styled.div`
   min-height: calc(100vh - ${({ theme }) => theme.layout.topNavHeight});
   width: 100%;
   background: ${({ theme }) => theme.colors.surface0};
+  max-width: 100%;
+  overflow-x: hidden;
 `
 
 const Body = styled.div`
@@ -136,4 +138,12 @@ const Body = styled.div`
   display: flex;
   flex-direction: column;
   padding: 32px 48px 48px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
+    padding: 24px ${({ theme }) => theme.layout.contentPadXTablet};
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    padding: 20px ${({ theme }) => theme.layout.contentPadXMobile};
+  }
 `

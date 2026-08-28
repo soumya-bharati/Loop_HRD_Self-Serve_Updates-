@@ -625,6 +625,10 @@ const ModeToggle = styled.div`
   border-radius: 10px;
   background: ${({ theme }) => theme.colors.disableFill};
   width: fit-content;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    width: 100%;
+  }
 `
 
 const ModeButton = styled.button<{ $active: boolean }>`
@@ -640,6 +644,12 @@ const ModeButton = styled.button<{ $active: boolean }>`
   color: ${({ theme, $active }) =>
     $active ? theme.colors.emerald : theme.colors.textSecondary};
   box-shadow: ${({ $active, theme }) => ($active ? theme.shadows.smooth : 'none')};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    min-width: 0;
+    flex: 1;
+    padding: 8px 10px;
+  }
 `
 
 const PeopleList = styled.div`
@@ -751,6 +761,12 @@ const CoverHeader = styled.button`
   text-align: left;
   cursor: pointer;
   font-family: ${({ theme }) => theme.fontFamily};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    align-items: flex-start;
+    gap: 10px;
+    padding: 16px;
+  }
 `
 
 const Checkbox = styled.input`

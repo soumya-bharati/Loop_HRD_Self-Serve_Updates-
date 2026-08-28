@@ -90,12 +90,12 @@ export function BulkReviewStep() {
         <tbody>
           {[...byAssignment.entries()].map(([name, stats]) => (
             <tr key={name}>
-              <td>
+              <td data-label="Assignment">
                 {flexDeal.name} · {name}
               </td>
-              <td>{stats.employees.size}</td>
-              <td>{stats.lives}</td>
-              <td>{formatINR(stats.payroll)}</td>
+              <td data-label="Employees">{stats.employees.size}</td>
+              <td data-label="Lives">{stats.lives}</td>
+              <td data-label="Payroll deduction">{formatINR(stats.payroll)}</td>
             </tr>
           ))}
         </tbody>
@@ -109,6 +109,10 @@ export function BulkReviewStep() {
 const Actions = styled.div`
   display: flex;
   justify-content: flex-end;
+
+  @media (max-width: 640px) {
+    justify-content: stretch;
+  }
 `
 
 const Download = styled.button`
@@ -121,15 +125,22 @@ const Download = styled.button`
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
+
+  @media (max-width: 640px) {
+    width: 100%;
+    box-sizing: border-box;
+  }
 `
 
 const Table = styled.table`
   width: 100%;
+  max-width: 100%;
   border-collapse: collapse;
   font-size: 13px;
   background: ${({ theme }) => theme.colors.surface1};
   border-radius: 12px;
   overflow: hidden;
+  box-sizing: border-box;
 
   th,
   td {
@@ -142,5 +153,48 @@ const Table = styled.table`
     font-size: 12px;
     color: ${({ theme }) => theme.colors.textSecondary};
     background: ${({ theme }) => theme.colors.surface0};
+  }
+
+  @media (max-width: 640px) {
+    display: block;
+    overflow: hidden;
+
+    thead {
+      display: none;
+    }
+
+    tbody {
+      display: block;
+    }
+
+    tbody tr {
+      display: block;
+      padding: 12px;
+      border-bottom: 1px solid ${({ theme }) => theme.colors.disableFill};
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+
+    tbody td {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 8px 0;
+      border-bottom: none;
+
+      &::before {
+        content: attr(data-label);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+        color: ${({ theme }) => theme.colors.textSecondary};
+      }
+
+      &:not(:last-child) {
+        border-bottom: 1px solid ${({ theme }) => theme.colors.disableFill};
+      }
+    }
   }
 `

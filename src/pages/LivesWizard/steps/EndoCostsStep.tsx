@@ -165,9 +165,13 @@ export function EndoCostsStep() {
                     </TableHead>
                     {group.policies.map((policy) => (
                       <TableRow key={policy.policyId}>
-                        <span>{policyTypeLabel(policy.policyName)}</span>
-                        <span>{policy.livesAdded}</span>
-                        <span>{formatINRExact(policy.endorsementCost)}</span>
+                        <span data-label="Policy Type">
+                          {policyTypeLabel(policy.policyName)}
+                        </span>
+                        <span data-label="Lives Added">{policy.livesAdded}</span>
+                        <span data-label="Endorsement Cost">
+                          {formatINRExact(policy.endorsementCost)}
+                        </span>
                       </TableRow>
                     ))}
                   </PolicyTable>
@@ -211,6 +215,13 @@ const PeopleReview = styled.section`
   border-radius: 14px;
   background: ${({ theme }) => theme.colors.surface1};
   border: 1px solid ${({ theme }) => theme.colors.disableFill};
+  max-width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 640px) {
+    padding: 12px;
+    gap: 10px;
+  }
 `
 
 const ReviewTitle = styled.h2`
@@ -224,6 +235,10 @@ const FamilyReview = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 10px;
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
 `
 
 const ReviewPerson = styled.div`
@@ -281,9 +296,15 @@ const Layout = styled.div`
   grid-template-columns: minmax(0, 1fr) 340px;
   gap: 24px;
   align-items: start;
+  max-width: 100%;
+  box-sizing: border-box;
 
   @media (max-width: 1100px) {
     grid-template-columns: 1fr;
+  }
+
+  @media (max-width: 640px) {
+    gap: 16px;
   }
 `
 
@@ -301,6 +322,13 @@ const InsurerCard = styled.div`
   border-radius: 16px;
   background: ${({ theme }) => theme.colors.surface1};
   border: 1px solid ${({ theme }) => theme.colors.disableFill};
+  max-width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 640px) {
+    padding: 14px 16px 16px;
+    gap: 14px;
+  }
 `
 
 const InsurerHeader = styled.div`
@@ -308,6 +336,12 @@ const InsurerHeader = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
 `
 
 const InsurerIdentity = styled.div`
@@ -355,12 +389,19 @@ const CdPill = styled.div`
   font-size: 13px;
   font-weight: 500;
   color: ${({ theme }) => theme.colors.textPrimary};
+
+  @media (max-width: 640px) {
+    width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+  }
 `
 
 const PolicyTable = styled.div`
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-width: 100%;
 `
 
 const TableHead = styled.div`
@@ -370,6 +411,10 @@ const TableHead = styled.div`
   font-size: 12px;
   font-weight: 500;
   color: ${({ theme }) => theme.colors.textSecondary};
+
+  @media (max-width: 640px) {
+    display: none;
+  }
 `
 
 const TableRow = styled.div`
@@ -379,6 +424,34 @@ const TableRow = styled.div`
   font-size: 16px;
   font-weight: 500;
   color: ${({ theme }) => theme.colors.beyondGrey};
+
+  @media (max-width: 640px) {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 12px;
+    border-radius: 10px;
+    background: ${({ theme }) => theme.colors.surface0};
+    font-size: 14px;
+
+    > span {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 8px 0;
+
+      &::before {
+        content: attr(data-label);
+        font-size: 11px;
+        font-weight: 600;
+        color: ${({ theme }) => theme.colors.textSecondary};
+      }
+
+      &:not(:last-child) {
+        border-bottom: 1px solid ${({ theme }) => theme.colors.disableFill};
+      }
+    }
+  }
 `
 
 const EmptyCard = styled.div`
@@ -400,6 +473,13 @@ const ReceiptCard = styled.div`
   border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
   border-bottom: none;
   border-radius: 12px 12px 0 0;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 640px) {
+    padding: 16px 16px 28px;
+    gap: 12px;
+  }
 `
 
 const ReceiptTitle = styled.div`
@@ -423,6 +503,16 @@ const ReceiptRow = styled.div`
     font-size: 16px;
     font-weight: 600;
     color: ${({ theme }) => theme.colors.beyondGrey};
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 640px) {
+    flex-wrap: wrap;
+
+    strong {
+      font-size: 15px;
+    }
   }
 `
 

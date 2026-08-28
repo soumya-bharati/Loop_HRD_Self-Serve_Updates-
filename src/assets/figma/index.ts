@@ -18,7 +18,10 @@ import iconCall from '@/assets/figma/icon-call.svg'
 import iconEditPencil from '@/assets/figma/icon-edit-pencil.svg'
 import iconGender from '@/assets/figma/icon-gender-male.svg'
 import iconDocumentCopy from '@/assets/figma/icon-document-copy.svg'
+import iconCheckWhite from '@/assets/figma/icon-check-white.svg'
 import iconMail from '@/assets/figma/icon-mail.svg'
+import iconMailCsm from '@/assets/figma/icon-mail-csm.svg'
+import iconSearchField from '@/assets/figma/icon-search-field.svg'
 import iconPlayEmerald from '@/assets/figma/icon-play-emerald.svg'
 import iconPlusEmerald from '@/assets/figma/icon-plus-emerald.svg'
 import iconCalendarField from '@/assets/figma/icon-calendar-field.svg'
@@ -75,6 +78,10 @@ import modalPencil5 from '@/assets/figma/modal-pencil-5.svg'
 import modalPencil6 from '@/assets/figma/modal-pencil-6.svg'
 import flexDealIcon from '@/assets/figma/flex-deal-icon.png'
 import illustrationFamily from '@/assets/figma/illustration-family.jpg'
+import familyAvatarBg from '@/assets/figma/family-avatar-bg.svg'
+import iconEditGreen from '@/assets/figma/icon-edit-green.svg'
+import iconCakeFamily from '@/assets/figma/icon-cake-family.svg'
+import iconPhoneFamily from '@/assets/figma/icon-phone-family.svg'
 import policyCardLoopIcon from '@/assets/figma/policy-card-loop-icon.png'
 
 export const assets = {
@@ -89,6 +96,10 @@ export const assets = {
   digitLogo,
   flexDealIcon,
   illustrationFamily,
+  familyAvatarBg,
+  iconEditGreen,
+  iconCakeFamily,
+  iconPhoneFamily,
   dotTurquoise,
   dotYellow,
   hourglassYellowBg,
@@ -100,7 +111,10 @@ export const assets = {
   iconEditPencil,
   iconGender,
   iconDocumentCopy,
+  iconCheckWhite,
   iconMail,
+  iconMailCsm,
+  iconSearchField,
   iconPlayEmerald,
   iconPlusEmerald,
   iconCalendarField,

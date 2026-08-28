@@ -91,6 +91,15 @@ const Dock = styled.div`
   > * {
     pointer-events: auto;
   }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    right: 16px;
+    bottom: 150px;
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    right: 12px;
+  }
 `
 
 const Fab = styled.button`
@@ -120,6 +129,14 @@ const Fab = styled.button`
     cursor: not-allowed;
     box-shadow: none;
   }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    width: 44px;
+    padding: 0;
+    justify-content: center;
+    overflow: hidden;
+    font-size: 0;
+  }
 `
 
 const Toast = styled.div`
@@ -132,4 +149,8 @@ const Toast = styled.div`
   font-size: 12px;
   line-height: 18px;
   color: ${({ theme }) => theme.colors.textPrimary};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    max-width: calc(100vw - 32px);
+  }
 `

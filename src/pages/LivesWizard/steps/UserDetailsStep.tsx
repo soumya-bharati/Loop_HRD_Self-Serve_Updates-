@@ -774,10 +774,19 @@ const BulkPanel = styled.section`
   border-radius: 12px;
   background: ${({ theme }) => theme.colors.planeGreenLight};
   box-sizing: border-box;
+  max-width: 100%;
 
   @media (max-width: 900px) {
     align-items: flex-start;
     flex-wrap: wrap;
+  }
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    min-height: 0;
+    padding: 12px 16px;
   }
 `
 
@@ -786,14 +795,24 @@ const BulkIllustration = styled.img`
   height: 82px;
   flex-shrink: 0;
   object-fit: contain;
+
+  @media (max-width: 640px) {
+    width: 72px;
+    height: 62px;
+    align-self: center;
+  }
 `
 
 const BulkCopy = styled.div`
   display: flex;
   flex: 1;
-  min-width: 240px;
+  min-width: 0;
   flex-direction: column;
   gap: 6px;
+
+  @media (max-width: 640px) {
+    min-width: 0;
+  }
 `
 
 const BulkTitle = styled.h2`
@@ -860,6 +879,11 @@ const DownloadButton = styled.button`
   font-weight: 500;
   color: ${({ theme }) => theme.colors.emerald};
   cursor: pointer;
+
+  @media (max-width: 560px) {
+    width: 100%;
+    box-sizing: border-box;
+  }
 `
 
 const UploadButton = styled(DownloadButton)`
@@ -887,8 +911,11 @@ const EmployeeList = styled.section`
   flex-direction: column;
   align-items: center;
   gap: 4px;
+  width: 100%;
+  max-width: 100%;
   overflow: hidden;
   border-radius: 8px;
+  box-sizing: border-box;
 `
 
 const EmployeeListHeader = styled.div`
@@ -903,6 +930,10 @@ const EmployeeListHeader = styled.div`
   line-height: 18px;
   letter-spacing: 0.2px;
   color: ${({ theme }) => theme.colors.emerald};
+
+  @media (max-width: 640px) {
+    display: none;
+  }
 `
 
 const NumberHeading = styled.span``
@@ -928,13 +959,24 @@ const EmptyState = styled.div`
   justify-content: center;
   padding: 8px 24px 20px;
   box-sizing: border-box;
+
+  @media (max-width: 640px) {
+    min-height: 200px;
+    padding: 8px 16px 16px;
+  }
 `
 
 const EmptyIllustration = styled.img`
   display: block;
   width: 250px;
   height: 140px;
+  max-width: 100%;
   object-fit: contain;
+
+  @media (max-width: 640px) {
+    width: 200px;
+    height: 112px;
+  }
 `
 
 const EmptyTitle = styled.h3`
@@ -969,6 +1011,14 @@ const MemberCard = styled.div`
   border-radius: 16px;
   background: ${({ theme }) => theme.colors.surface1};
   overflow: hidden;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 640px) {
+    padding: 16px;
+    gap: 16px;
+    border-radius: 12px;
+  }
 `
 
 const MemberHeader = styled.div`
@@ -986,6 +1036,12 @@ const SummaryCard = styled.div`
   border-radius: 12px;
   background: ${({ theme }) => theme.colors.surface1};
   box-sizing: border-box;
+  position: relative;
+
+  @media (max-width: 640px) {
+    padding: 12px;
+    gap: 12px;
+  }
 `
 
 const SummaryRow = styled.div`
@@ -993,6 +1049,13 @@ const SummaryRow = styled.div`
   align-items: center;
   gap: 16px;
   width: 100%;
+
+  @media (max-width: 640px) {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 12px;
+    padding-right: 28px;
+  }
 `
 
 const SummaryIndex = styled.span`
@@ -1090,6 +1153,10 @@ const MetaDivider = styled.span`
   height: 8px;
   flex-shrink: 0;
   background: ${({ theme }) => theme.colors.defaultBorder};
+
+  @media (max-width: 640px) {
+    display: none;
+  }
 `
 
 const SummaryActions = styled.div`
@@ -1097,6 +1164,12 @@ const SummaryActions = styled.div`
   align-items: center;
   flex-shrink: 0;
   gap: 12px;
+
+  @media (max-width: 640px) {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
 `
 
 const EditButton = styled.button`
@@ -1146,6 +1219,12 @@ const SummaryChevron = styled.button`
   border: none;
   background: transparent;
   cursor: pointer;
+
+  @media (max-width: 640px) {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+  }
 `
 
 const DetailsPanel = styled.div`
@@ -1157,6 +1236,11 @@ const DetailsPanel = styled.div`
   border-radius: 12px;
   background: ${({ theme }) => theme.colors.surface0};
   box-sizing: border-box;
+
+  @media (max-width: 640px) {
+    padding: 12px;
+    gap: 12px;
+  }
 `
 
 const DetailsTitle = styled.h4`
@@ -1221,6 +1305,10 @@ const MemberBody = styled.div`
   display: flex;
   flex-direction: column;
   gap: 24px;
+
+  @media (max-width: 640px) {
+    gap: 16px;
+  }
 `
 
 const RemoveLink = styled.button`
@@ -1239,6 +1327,12 @@ const CardActions = styled.div<{ $split?: boolean }>`
   justify-content: ${({ $split }) => ($split ? 'space-between' : 'flex-end')};
   gap: 16px;
   width: 100%;
+
+  @media (max-width: 640px) {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 10px;
+  }
 `
 
 const SaveButton = styled.button`
@@ -1259,6 +1353,11 @@ const SaveButton = styled.button`
   letter-spacing: 0.2px;
   cursor: pointer;
   box-sizing: border-box;
+
+  @media (max-width: 640px) {
+    width: 100%;
+    height: 44px;
+  }
 `
 
 const Grid = styled.div`
@@ -1268,6 +1367,10 @@ const Grid = styled.div`
 
   @media (max-width: 960px) {
     grid-template-columns: 1fr;
+  }
+
+  @media (max-width: 640px) {
+    gap: 16px;
   }
 `
 
@@ -1439,6 +1542,11 @@ const AddEmployeeBtn = styled.button`
     display: block;
     width: 20px;
     height: 20px;
+  }
+
+  @media (max-width: 640px) {
+    align-self: stretch;
+    width: 100%;
   }
 `
 

@@ -7,24 +7,20 @@ import {
   emptyDependantForm,
   type DependantFormData,
   type EmployeeFormData,
-  type Gender,
-  type Relationship,
 } from '@/data/employees'
 import {
   availableBenefitsForRelationship,
   computeFamilySlots,
   evaluateDependantCoverEligibility,
   evaluateEmployeeEligibility,
-  getBenefitConfig,
   resolveAssignment,
   parseDateOnly,
   resolveAttributeFields,
-  resolveBenefitIdsFromSelections,
   validateAttributeValues,
-  validatePurchaseGroupSelections,
   type AssignmentSource,
   type FlexDealConfig,
-  type PurchaseGroupConfig,
+  type FamilyRelationship,
+  type InsurerLogo,
 } from '@/domain/flex'
 import {
   isDependantValid,
@@ -38,23 +34,20 @@ import {
   personaAt,
   toDisplayDate,
 } from '@/pages/LivesWizard/autofill/personas'
+import { AddDependantModal } from '@/pages/LivesWizard/components/AddDependantModal'
 import { DependantSlotSelector } from '@/pages/LivesWizard/components/DependantSlotSelector'
 import { DynamicAttributeForm } from '@/pages/LivesWizard/components/DynamicAttributeForm'
 
-/**
- * The flow walks the deal's purchase groups one at a time, so the steps are
- * derived from configuration rather than fixed: a deal with "Core Cover" and
- * "Add-ons" gets two selection steps between details and dependants.
- */
 type OnboardingStep =
   | { kind: 'details'; label: string }
-  | { kind: 'group'; label: string; group: PurchaseGroupConfig }
+  | { kind: 'policies'; label: string }
   | { kind: 'dependants'; label: string }
 
 export interface EmployeeOnboardingDraft {
   employee: EmployeeFormData
   planId: string
   purchaseGroupSelections: Record<string, string[]>
+  policySlabIds: Record<string, string>
   assignmentSource: AssignmentSource
   selectedBenefitIds: string[]
   dependants: DependantFormData[]
@@ -75,20 +68,26 @@ export function EmployeeOnboardingPage({
 }) {
   const [stepIndex, setStepIndex] = useState(0)
   const [employee, setEmployee] = useState<EmployeeFormData | null>(null)
-  const [selections, setSelections] = useState<Record<string, string[]>>({})
+  const [selectedBenefitIds, setSelectedBenefitIds] = useState<string[]>([])
+  const [policySlabIds, setPolicySlabIds] = useState<Record<string, string>>({})
   const [dependants, setDependants] = useState<DependantFormData[]>([])
+  const [dependantModal, setDependantModal] = useState<{
+    relationship: FamilyRelationship
+    dependant?: DependantFormData
+  } | null>(null)
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
 
+  const policyCovers = useMemo(
+    () => deal.benefits.filter((benefit) => benefit.isInsurance),
+    [deal.benefits],
+  )
   const steps = useMemo<OnboardingStep[]>(
     () => [
       { kind: 'details', label: 'Add Employee Details' },
-      ...deal.purchaseGroups.map((group) => ({
-        kind: 'group' as const,
-        label: `Choose ${group.name}`,
-        group,
-      })),
+      { kind: 'policies', label: 'Choose policies for the employee' },
       { kind: 'dependants', label: 'Add Dependant Details' },
     ],
-    [deal.purchaseGroups],
+    [],
   )
   const activeIndex = Math.min(stepIndex, steps.length - 1)
   const currentStep = steps[activeIndex]
@@ -107,22 +106,30 @@ export function EmployeeOnboardingPage({
     if (seededSessionId.current === sessionId) return
     seededSessionId.current = sessionId
     setStepIndex(0)
+    setCancelConfirmOpen(false)
     setEmployee({
       ...member.employee,
       customAttributes: { ...member.employee.customAttributes },
     })
-    setSelections({ ...member.purchaseGroupSelections })
+    setSelectedBenefitIds([...member.selectedBenefitIds])
+    setPolicySlabIds({ ...(member.policySlabIds ?? {}) })
     setDependants(member.dependants.map((dependant) => ({ ...dependant })))
   }, [member, sessionId])
 
   useEffect(() => {
     if (!open) return
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onCancel()
+      if (event.key !== 'Escape') return
+      if (dependantModal) return
+      if (cancelConfirmOpen) {
+        setCancelConfirmOpen(false)
+        return
+      }
+      setCancelConfirmOpen(true)
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onCancel, open])
+  }, [cancelConfirmOpen, dependantModal, open])
 
   const employeeFields = useMemo(
     () =>
@@ -152,25 +159,21 @@ export function EmployeeOnboardingPage({
       attributes: employee.customAttributes,
     })
   }, [deal, employee])
-  /** Rule / default assignment, dropped where the employee is not eligible. */
-  const recommendedSelections = useMemo(() => {
-    const suggested = recommendation?.purchaseGroupSelections ?? {}
-    const allowed: Record<string, string[]> = {}
-    for (const group of deal.purchaseGroups) {
-      allowed[group.id] = (suggested[group.id] ?? []).filter(
-        (optionId) => eligibility?.options[optionId]?.eligible !== false,
-      )
-    }
-    return allowed
-  }, [deal.purchaseGroups, eligibility, recommendation])
-
-  const resolved = useMemo(
-    () => resolveBenefitIdsFromSelections(deal, selections),
-    [deal, selections],
-  )
-  const planId = resolved.planIds[0] ?? ''
+  const recommendedBenefitIds = useMemo(() => {
+    const suggested = recommendation?.benefitIds ?? []
+    return suggested.filter(
+      (benefitId) =>
+        policyCovers.some((cover) => cover.id === benefitId) &&
+        eligibility?.benefits[benefitId]?.eligible !== false,
+    )
+  }, [eligibility, policyCovers, recommendation])
+  const planId =
+    deal.plans.find((plan) =>
+      plan.benefitIds.every((benefitId) =>
+        selectedBenefitIds.includes(benefitId),
+      ),
+    )?.id ?? ''
   const selectedPlan = deal.plans.find((plan) => plan.id === planId)
-  const selectedBenefitIds = resolved.benefitIds
   const familySummary = computeFamilySlots({
     deal,
     selectedBenefitIds,
@@ -192,14 +195,14 @@ export function EmployeeOnboardingPage({
     Object.keys(
       validateAttributeValues(employeeFields, employee.customAttributes),
     ).length === 0
-  const groupValidation = validatePurchaseGroupSelections(deal, selections)
-  const unmetGroupIds = new Set(groupValidation.unmetMandatoryGroupIds)
-  /** A group is complete when it meets its requirement and holds no ineligible pick. */
-  const isGroupValid = (group: PurchaseGroupConfig) =>
-    !unmetGroupIds.has(group.id) &&
-    (selections[group.id] ?? []).every(
-      (optionId) => eligibility?.options[optionId]?.eligible !== false,
-    )
+  const policiesValid =
+    selectedBenefitIds.length > 0 &&
+    selectedBenefitIds.every((benefitId) => {
+      if (eligibility?.benefits[benefitId]?.eligible === false) return false
+      const cover = policyCovers.find((item) => item.id === benefitId)
+      if (cover?.policySlabs?.length) return Boolean(policySlabIds[benefitId])
+      return true
+    })
   const dependantsValid = dependants.every((dependant) => {
     const fields = resolveAttributeFields({
       deal,
@@ -268,32 +271,38 @@ export function EmployeeOnboardingPage({
     [employee, employeeFields],
   )
 
-  const fillGroup = useCallback(
-    (group: PurchaseGroupConfig) => {
-      if ((selections[group.id] ?? []).length > 0) {
-        return `${group.name} already has a selection.`
+  const fillPolicies = useCallback(() => {
+    if (selectedBenefitIds.length > 0) {
+      return 'Policies are already selected.'
+    }
+    const picked = recommendedBenefitIds.length
+      ? recommendedBenefitIds
+      : policyCovers
+          .filter(
+            (cover) => eligibility?.benefits[cover.id]?.eligible !== false,
+          )
+          .map((cover) => cover.id)
+    if (picked.length === 0) {
+      return 'No policy is available for this employee.'
+    }
+    const slabs: Record<string, string> = { ...policySlabIds }
+    for (const benefitId of picked) {
+      const cover = policyCovers.find((item) => item.id === benefitId)
+      if (cover?.policySlabs?.length && !slabs[benefitId]) {
+        slabs[benefitId] = cover.policySlabs[0].id
       }
-      const recommended = recommendedSelections[group.id] ?? []
-      const eligibleIds = group.options
-        .filter((option) => eligibility?.options[option.id]?.eligible !== false)
-        .map((option) => option.id)
-      const picked = recommended.length
-        ? recommended
-        : group.selectMode === 'single'
-          ? eligibleIds.slice(0, 1)
-          : eligibleIds
-      if (picked.length === 0) {
-        return `No ${group.name} option is available for this employee.`
-      }
-      const labels = group.options
-        .filter((option) => picked.includes(option.id))
-        .map((option) => option.label)
-      setSelections((current) => ({ ...current, [group.id]: picked }))
-      setDependants([])
-      return `Selected ${labels.join(', ')}.`
-    },
-    [eligibility, recommendedSelections, selections],
-  )
+    }
+    setSelectedBenefitIds(picked)
+    setPolicySlabIds(slabs)
+    setDependants([])
+    return `Selected ${picked.length} ${picked.length === 1 ? 'policy' : 'policies'}.`
+  }, [
+    eligibility,
+    policyCovers,
+    policySlabIds,
+    recommendedBenefitIds,
+    selectedBenefitIds.length,
+  ])
 
   const fillDependants = useCallback(
     (personaIndex: number) => {
@@ -416,24 +425,24 @@ export function EmployeeOnboardingPage({
               stepLabel:
                 currentStep.kind === 'details'
                   ? 'Employee details'
-                  : currentStep.kind === 'group'
-                    ? currentStep.group.name
+                  : currentStep.kind === 'policies'
+                    ? 'Choose policies'
                     : 'Dependant details',
               hint:
                 currentStep.kind === 'details'
                   ? 'Fills the empty fields on this employee form.'
-                  : currentStep.kind === 'group'
-                    ? `Picks the assigned ${currentStep.group.name} option.`
+                  : currentStep.kind === 'policies'
+                    ? 'Selects the assigned policies for this employee.'
                     : 'Adds demo dependants that fit the remaining slots.',
               run: (personaIndex: number) =>
                 currentStep.kind === 'details'
                   ? fillDetails(personaIndex)
-                  : currentStep.kind === 'group'
-                    ? fillGroup(currentStep.group)
+                  : currentStep.kind === 'policies'
+                    ? fillPolicies()
                     : fillDependants(personaIndex),
             }
           : null,
-      [currentStep, fillDependants, fillDetails, fillGroup, member, open],
+      [currentStep, fillDependants, fillDetails, fillPolicies, member, open],
     ),
   )
 
@@ -441,43 +450,27 @@ export function EmployeeOnboardingPage({
 
   const updateEmployee = (patch: Partial<EmployeeFormData>) =>
     setEmployee((current) => (current ? { ...current, ...patch } : current))
-  const toggleOption = (group: PurchaseGroupConfig, optionId: string) => {
-    setSelections((current) => {
-      const chosen = current[group.id] ?? []
-      if (group.selectMode === 'single') {
-        // A mandatory group must keep a pick, so re-clicking it is a no-op.
-        const next =
-          chosen.includes(optionId) && group.requirement === 'optional'
-            ? []
-            : [optionId]
-        return { ...current, [group.id]: next }
-      }
-      return {
-        ...current,
-        [group.id]: chosen.includes(optionId)
-          ? chosen.filter((id) => id !== optionId)
-          : [...chosen, optionId],
-      }
-    })
-    // Changing covers changes the family slots the dependants were built from.
+  const toggleCover = (benefitId: string) => {
+    const selected = selectedBenefitIds.includes(benefitId)
+    const next = selected
+      ? selectedBenefitIds.filter((id) => id !== benefitId)
+      : [...selectedBenefitIds, benefitId]
+    setSelectedBenefitIds(next)
+    if (selected) {
+      setPolicySlabIds((current) => {
+        const { [benefitId]: _removed, ...rest } = current
+        return rest
+      })
+    }
     setDependants([])
   }
-  const updateDependant = (
-    dependantId: string,
-    patch: Partial<DependantFormData>,
-  ) =>
-    setDependants((current) =>
-      current.map((dependant) =>
-        dependant.id === dependantId ? { ...dependant, ...patch } : dependant,
-      ),
-    )
 
   return (
     <Page role="dialog" aria-modal="true" aria-label="Add employee">
       <GreenBackdrop />
       <Header>
         <Logo src={assets.loopLogoYellow} alt="Loop" />
-        <CancelButton type="button" onClick={onCancel}>
+        <CancelButton type="button" onClick={() => setCancelConfirmOpen(true)}>
           Cancel
         </CancelButton>
       </Header>
@@ -504,6 +497,17 @@ export function EmployeeOnboardingPage({
         </Rail>
 
         <Content>
+          <MobileProgress>
+            <MobileProgressMeta>
+              Step {activeIndex + 1} of {steps.length}
+            </MobileProgressMeta>
+            <MobileProgressLabel>{currentStep.label}</MobileProgressLabel>
+            <MobileProgressTrack>
+              <MobileProgressFill
+                $progress={((activeIndex + 1) / steps.length) * 100}
+              />
+            </MobileProgressTrack>
+          </MobileProgress>
           {currentStep.kind === 'details' ? (
             <>
               <SectionLabel>Employee Details</SectionLabel>
@@ -615,77 +619,96 @@ export function EmployeeOnboardingPage({
                 }
               />
             </>
-          ) : currentStep.kind === 'group' ? (
+          ) : currentStep.kind === 'policies' ? (
             <Section>
               <SectionHeading>
                 <div>
-                  <SectionTitle>Choose {currentStep.group.name}</SectionTitle>
+                  <SectionTitle>Choose policies for the employee</SectionTitle>
                   <SectionCopy>
-                    {currentStep.group.requirement === 'mandatory'
-                      ? currentStep.group.selectMode === 'single'
-                        ? 'Pick one cover to continue.'
-                        : 'Pick at least one cover to continue.'
-                      : currentStep.group.selectMode === 'single'
-                        ? 'Optional — pick one cover or skip this step.'
-                        : 'Optional — pick any covers that apply, or skip this step.'}
+                    Select every cover this employee should be enrolled on.
                   </SectionCopy>
                 </div>
-                {(recommendedSelections[currentStep.group.id] ?? []).length >
-                0 ? (
+                {recommendedBenefitIds.length > 0 ? (
                   <Badge>Auto assigned</Badge>
                 ) : null}
               </SectionHeading>
-              <PlanList>
-                {currentStep.group.options.map((option) => {
-                  const status = eligibility?.options[option.id]
+              <PolicyList>
+                {policyCovers.map((cover) => {
+                  const status = eligibility?.benefits[cover.id]
                   const disabled = status?.eligible === false
-                  const selected = (
-                    selections[currentStep.group.id] ?? []
-                  ).includes(option.id)
-                  const plan = option.planId
-                    ? deal.plans.find((item) => item.id === option.planId)
-                    : null
-                  const benefit = option.benefitId
-                    ? getBenefitConfig(deal, option.benefitId)
-                    : null
-                  const covers = plan
-                    ? plan.benefitIds
-                        .map((id) => getBenefitConfig(deal, id)?.name ?? id)
-                        .join(' · ')
-                    : (benefit?.policyName ?? benefit?.name ?? '')
+                  const selected = selectedBenefitIds.includes(cover.id)
+                  const slabs = cover.policySlabs ?? []
                   return (
-                    <PlanCard
-                      key={option.id}
-                      type="button"
+                    <PolicyCard
+                      key={cover.id}
                       $selected={selected}
-                      disabled={disabled}
-                      onClick={() =>
-                        toggleOption(currentStep.group, option.id)
-                      }
+                      $disabled={disabled}
                     >
-                      {currentStep.group.selectMode === 'single' ? (
-                        <Radio $selected={selected} />
-                      ) : (
-                        <Checkbox $selected={selected} />
-                      )}
-                      <PlanCopy>
-                        <PlanName>{option.label}</PlanName>
-                        <PlanMeta>{covers}</PlanMeta>
-                        {disabled ? (
-                          <PlanError>{status?.reason}</PlanError>
-                        ) : null}
-                      </PlanCopy>
-                      {plan ? (
-                        <PlanLimit>
-                          Up to {plan.maxDependants} dependants
-                        </PlanLimit>
-                      ) : benefit ? (
-                        <PlanLimit>{benefit.insurerName}</PlanLimit>
+                      <PolicyHeader>
+                        <Checkbox
+                          type="checkbox"
+                          checked={selected}
+                          disabled={disabled}
+                          aria-label={`Select ${cover.name}`}
+                          onChange={() => {
+                            if (disabled) return
+                            toggleCover(cover.id)
+                          }}
+                        />
+                        <LogoBox>
+                          <LogoImg
+                            src={insurerLogoSrc(cover.insurerLogo)}
+                            alt=""
+                          />
+                        </LogoBox>
+                        <PolicyCopy>
+                          <PolicyName>{cover.name}</PolicyName>
+                          <PolicyMeta>
+                            <span>{cover.insurerName}</span>
+                            {cover.policyLabel ? (
+                              <>
+                                <PolicyDot aria-hidden />
+                                <span>{cover.policyLabel}</span>
+                              </>
+                            ) : null}
+                            {cover.policyNumber ? (
+                              <>
+                                <PolicyDot aria-hidden />
+                                <span>Policy No: {cover.policyNumber}</span>
+                              </>
+                            ) : null}
+                          </PolicyMeta>
+                          {disabled ? (
+                            <PlanError>{status?.reason}</PlanError>
+                          ) : null}
+                        </PolicyCopy>
+                      </PolicyHeader>
+                      {selected && slabs.length > 0 ? (
+                        <SlabField>
+                          <SlabLabel id={`${cover.id}-slab-label`}>
+                            Choose Policy Slab<Required>*</Required>
+                          </SlabLabel>
+                          <SelectField
+                            ariaLabelledBy={`${cover.id}-slab-label`}
+                            value={policySlabIds[cover.id] ?? ''}
+                            placeholder="Select Policy Slab"
+                            options={slabs.map((slab) => ({
+                              value: slab.id,
+                              label: slab.label,
+                            }))}
+                            onChange={(value) =>
+                              setPolicySlabIds((current) => ({
+                                ...current,
+                                [cover.id]: value,
+                              }))
+                            }
+                          />
+                        </SlabField>
                       ) : null}
-                    </PlanCard>
+                    </PolicyCard>
                   )
                 })}
-              </PlanList>
+              </PolicyList>
             </Section>
           ) : selectedBenefitIds.length > 0 ? (
             <Section>
@@ -697,150 +720,23 @@ export function EmployeeOnboardingPage({
                     {selectedPlan?.name ?? 'the selected covers'}.
                   </SectionCopy>
                 </div>
-                {!familySummary.allSlotsConsumed &&
-                familySummary.addableRelationships.length > 0 ? (
-                  <OutlineButton
-                    type="button"
-                    onClick={() => {
-                      const relationship =
-                        familySummary.addableRelationships[0]
-                      const dependant = emptyDependantForm(nextDependantId())
-                      dependant.relationship = relationship
-                      dependant.selectedBenefitIds =
-                        availableBenefitsForRelationship(
-                          familySummary,
-                          relationship,
-                        )
-                      setDependants((current) => [...current, dependant])
-                    }}
-                  >
-                    + Add dependant
-                  </OutlineButton>
-                ) : null}
               </SectionHeading>
               <DependantSlotSelector
                 summary={familySummary}
                 benefitLabels={benefitLabels}
+                employee={employee}
+                dependants={dependants}
+                onAddSlot={(relationship) =>
+                  setDependantModal({ relationship })
+                }
+                onEditDependant={(dependant) =>
+                  setDependantModal({
+                    relationship: dependant.relationship as FamilyRelationship,
+                    dependant,
+                  })
+                }
+                onEditSelf={() => setStepIndex(0)}
               />
-              {dependants.length === 0 ? (
-                <EmptyNotice>
-                  Adding dependants is optional. Save to return to the employee
-                  list.
-                </EmptyNotice>
-              ) : (
-                <DependantList>
-                  {dependants.map((dependant, index) => (
-                    <DependantCard key={dependant.id}>
-                      <DependantHeader>
-                        <strong>Dependant {index + 1}</strong>
-                        <RemoveButton
-                          type="button"
-                          onClick={() =>
-                            setDependants((current) =>
-                              current.filter((item) => item.id !== dependant.id),
-                            )
-                          }
-                        >
-                          Remove
-                        </RemoveButton>
-                      </DependantHeader>
-                      <DependantGrid>
-                        <FieldBlock>
-                          <Label id={`${dependant.id}-relationship-label`}>
-                            Relationship<Required>*</Required>
-                          </Label>
-                          <SelectField
-                            ariaLabelledBy={`${dependant.id}-relationship-label`}
-                            value={dependant.relationship}
-                            placeholder="Select relationship"
-                            options={[
-                              ...familySummary.addableRelationships,
-                              ...(dependant.relationship &&
-                              dependant.relationship !== 'Self'
-                                ? [dependant.relationship]
-                                : []),
-                            ]
-                              .filter(
-                                (relationship, relationIndex, all) =>
-                                  all.indexOf(relationship) === relationIndex,
-                              )
-                              .map((relationship) => ({
-                                value: relationship,
-                                label: relationship,
-                              }))}
-                            onChange={(value) => {
-                              const relationship = value as Relationship
-                              updateDependant(dependant.id, {
-                                relationship,
-                                selectedBenefitIds:
-                                  availableBenefitsForRelationship(
-                                    familySummary,
-                                    relationship,
-                                  ),
-                                customAttributes: {},
-                              })
-                            }}
-                          />
-                        </FieldBlock>
-                        <Field>
-                          <Label>First Name<Required>*</Required></Label>
-                          <Input
-                            value={dependant.firstName}
-                            onChange={(event) =>
-                              updateDependant(dependant.id, {
-                                firstName: event.target.value,
-                              })
-                            }
-                          />
-                        </Field>
-                        <Field>
-                          <Label>Last Name</Label>
-                          <Input
-                            value={dependant.lastName}
-                            onChange={(event) =>
-                              updateDependant(dependant.id, {
-                                lastName: event.target.value,
-                              })
-                            }
-                          />
-                        </Field>
-                        <Field>
-                          <Label>Date of Birth<Required>*</Required></Label>
-                          <Input
-                            type="date"
-                            value={dependant.dateOfBirth}
-                            onChange={(event) =>
-                              updateDependant(dependant.id, {
-                                dateOfBirth: event.target.value,
-                              })
-                            }
-                          />
-                        </Field>
-                        <FieldBlock>
-                          <Label id={`${dependant.id}-gender-label`}>
-                            Gender<Required>*</Required>
-                          </Label>
-                          <SelectField
-                            ariaLabelledBy={`${dependant.id}-gender-label`}
-                            value={dependant.gender}
-                            placeholder="Select gender"
-                            options={[
-                              { value: 'Male', label: 'Male' },
-                              { value: 'Female', label: 'Female' },
-                              { value: 'Other', label: 'Other' },
-                            ]}
-                            onChange={(value) =>
-                              updateDependant(dependant.id, {
-                                gender: value as Gender,
-                              })
-                            }
-                          />
-                        </FieldBlock>
-                      </DependantGrid>
-                    </DependantCard>
-                  ))}
-                </DependantList>
-              )}
             </Section>
           ) : null}
 
@@ -858,21 +754,30 @@ export function EmployeeOnboardingPage({
               disabled={
                 currentStep.kind === 'details'
                   ? !detailsValid
-                  : currentStep.kind === 'group'
-                    ? !isGroupValid(currentStep.group)
+                  : currentStep.kind === 'policies'
+                    ? !policiesValid
                     : !dependantsValid
               }
               onClick={() => {
                 if (!isLastStep) {
-                  // Carry the rule-assigned covers in so each group opens
-                  // pre-filled with what the employee already qualifies for.
                   if (currentStep.kind === 'details') {
-                    setSelections((current) => {
+                    setSelectedBenefitIds((current) => {
+                      if (current.length > 0) return current
+                      return recommendedBenefitIds
+                    })
+                    setPolicySlabIds((current) => {
                       const next = { ...current }
-                      for (const group of deal.purchaseGroups) {
-                        if ((next[group.id] ?? []).length > 0) continue
-                        const recommended = recommendedSelections[group.id]
-                        if (recommended?.length) next[group.id] = recommended
+                      const ids =
+                        selectedBenefitIds.length > 0
+                          ? selectedBenefitIds
+                          : recommendedBenefitIds
+                      for (const benefitId of ids) {
+                        const cover = policyCovers.find(
+                          (item) => item.id === benefitId,
+                        )
+                        if (cover?.policySlabs?.length && !next[benefitId]) {
+                          next[benefitId] = cover.policySlabs[0].id
+                        }
                       }
                       return next
                     })
@@ -881,22 +786,16 @@ export function EmployeeOnboardingPage({
                   return
                 }
                 if (!dependantsValid) return
-                const matchesRecommendation = deal.purchaseGroups.every(
-                  (group) => {
-                    const chosen = [...(selections[group.id] ?? [])].sort()
-                    const suggested = [
-                      ...(recommendedSelections[group.id] ?? []),
-                    ].sort()
-                    return (
-                      chosen.length === suggested.length &&
-                      chosen.every((id, index) => id === suggested[index])
-                    )
-                  },
-                )
+                const matchesRecommendation =
+                  selectedBenefitIds.length === recommendedBenefitIds.length &&
+                  recommendedBenefitIds.every((id) =>
+                    selectedBenefitIds.includes(id),
+                  )
                 onSave({
                   employee,
                   planId,
-                  purchaseGroupSelections: selections,
+                  purchaseGroupSelections: {},
+                  policySlabIds,
                   assignmentSource:
                     matchesRecommendation && recommendation
                       ? recommendation.source
@@ -911,6 +810,80 @@ export function EmployeeOnboardingPage({
           </Footer>
         </Content>
       </Card>
+      <AddDependantModal
+        open={Boolean(dependantModal)}
+        relationship={dependantModal?.relationship ?? 'Spouse'}
+        initial={dependantModal?.dependant ?? null}
+        onClose={() => setDependantModal(null)}
+        onSave={(dependant) => {
+          const relationship = dependantModal?.relationship ?? dependant.relationship
+          const withCovers = {
+            ...dependant,
+            relationship,
+            id: dependantModal?.dependant?.id ?? nextDependantId(),
+            selectedBenefitIds: availableBenefitsForRelationship(
+              familySummary,
+              relationship,
+            ),
+          }
+          setDependants((current) => {
+            const exists = current.some((item) => item.id === withCovers.id)
+            return exists
+              ? current.map((item) =>
+                  item.id === withCovers.id ? withCovers : item,
+                )
+              : [...current, withCovers]
+          })
+          setDependantModal(null)
+        }}
+      />
+      {cancelConfirmOpen ? (
+        <ConfirmOverlay
+          role="presentation"
+          onClick={() => setCancelConfirmOpen(false)}
+        >
+          <ConfirmDialog
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cancel-confirm-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <ConfirmHeader>
+              <ConfirmTitle id="cancel-confirm-title">
+                Cancel adding this employee?
+              </ConfirmTitle>
+              <ConfirmClose
+                type="button"
+                aria-label="Close"
+                onClick={() => setCancelConfirmOpen(false)}
+              >
+                <img src={assets.modalDismiss} alt="" width={24} height={24} />
+              </ConfirmClose>
+            </ConfirmHeader>
+            <ConfirmBody>
+              Any details you&apos;ve entered will be lost. Are you sure you
+              want to cancel?
+            </ConfirmBody>
+            <ConfirmActions>
+              <ConfirmStay
+                type="button"
+                onClick={() => setCancelConfirmOpen(false)}
+              >
+                Stay
+              </ConfirmStay>
+              <ConfirmLeave
+                type="button"
+                onClick={() => {
+                  setCancelConfirmOpen(false)
+                  onCancel()
+                }}
+              >
+                Cancel
+              </ConfirmLeave>
+            </ConfirmActions>
+          </ConfirmDialog>
+        </ConfirmOverlay>
+      ) : null}
     </Page>
   )
 }
@@ -975,6 +948,11 @@ function DateInput({
   )
 }
 
+function insurerLogoSrc(logo: InsurerLogo) {
+  if (logo === 'icici' || logo === 'aditya-birla') return assets.iciciLogo
+  return assets.digitLogo
+}
+
 const Page = styled.div`
   position: fixed;
   inset: 0;
@@ -983,6 +961,15 @@ const Page = styled.div`
   padding: 36px 48px 48px;
   background: ${({ theme }) => theme.colors.surface0};
   box-sizing: border-box;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
+    padding: 24px ${({ theme }) => theme.layout.contentPadXTablet};
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    padding: 0;
+    background: ${({ theme }) => theme.colors.surface1};
+  }
 `
 
 const GreenBackdrop = styled.div`
@@ -990,6 +977,10 @@ const GreenBackdrop = styled.div`
   inset: 0 0 auto;
   height: 227px;
   background: ${({ theme }) => theme.colors.emerald};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    height: 76px;
+  }
 `
 
 const Header = styled.header`
@@ -1000,6 +991,12 @@ const Header = styled.header`
   max-width: 1344px;
   height: 36px;
   margin: 0 auto 36px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    height: 76px;
+    margin: 0;
+    padding: 0 ${({ theme }) => theme.layout.contentPadXMobile};
+  }
 `
 
 const Logo = styled.img`
@@ -1021,6 +1018,101 @@ const CancelButton = styled.button`
   cursor: pointer;
 `
 
+const ConfirmOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 420;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(45, 55, 72, 0.45);
+`
+
+const ConfirmDialog = styled.div`
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  border-radius: 16px;
+  background: ${({ theme }) => theme.colors.surface1};
+  box-shadow: 0 16px 48px rgba(16, 24, 40, 0.16);
+  box-sizing: border-box;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    padding: 20px;
+  }
+`
+
+const ConfirmHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+`
+
+const ConfirmTitle = styled.h2`
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 24px;
+  color: ${({ theme }) => theme.colors.textPrimary};
+`
+
+const ConfirmClose = styled.button`
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+`
+
+const ConfirmBody = styled.p`
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+`
+
+const ConfirmActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+`
+
+const ConfirmStay = styled.button`
+  min-width: 96px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid ${({ theme }) => theme.colors.emerald};
+  border-radius: ${({ theme }) => theme.radii.md};
+  background: transparent;
+  color: ${({ theme }) => theme.colors.emerald};
+  font-family: ${({ theme }) => theme.fontFamily};
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+`
+
+const ConfirmLeave = styled.button`
+  min-width: 96px;
+  height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-radius: ${({ theme }) => theme.radii.md};
+  background: ${({ theme }) => theme.colors.fillRed};
+  color: ${({ theme }) => theme.colors.surface1};
+  font-family: ${({ theme }) => theme.fontFamily};
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+`
+
 const Card = styled.div`
   position: relative;
   display: flex;
@@ -1031,6 +1123,12 @@ const Card = styled.div`
   border-radius: 16px;
   background: ${({ theme }) => theme.colors.surface1};
   box-shadow: ${({ theme }) => theme.shadows.smooth};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    min-height: calc(100vh - 76px);
+    border-radius: 0;
+    box-shadow: none;
+  }
 `
 
 const Rail = styled.ol`
@@ -1042,7 +1140,7 @@ const Rail = styled.ol`
   box-sizing: border-box;
   list-style: none;
 
-  @media (max-width: 900px) {
+  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
     display: none;
   }
 `
@@ -1105,6 +1203,49 @@ const Content = styled.div`
   gap: 24px;
   padding: 24px;
   box-sizing: border-box;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    gap: 20px;
+    padding: 20px ${({ theme }) => theme.layout.contentPadXMobile};
+  }
+`
+
+const MobileProgress = styled.div`
+  display: none;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+`
+
+const MobileProgressMeta = styled.span`
+  font-size: 12px;
+  line-height: 18px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+`
+
+const MobileProgressLabel = styled.strong`
+  font-size: 14px;
+  line-height: 20px;
+  color: ${({ theme }) => theme.colors.textPrimary};
+`
+
+const MobileProgressTrack = styled.span`
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: ${({ theme }) => theme.colors.disableFill};
+`
+
+const MobileProgressFill = styled.span<{ $progress: number }>`
+  display: block;
+  width: ${({ $progress }) => `${$progress}%`};
+  height: 100%;
+  border-radius: inherit;
+  background: ${({ theme }) => theme.colors.emerald};
 `
 
 const SectionLabel = styled.h2`
@@ -1121,8 +1262,13 @@ const FieldGrid = styled.div`
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 24px;
 
-  @media (max-width: 1100px) {
+  @media (max-width: ${({ theme }) => theme.breakpoints.xl}) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
 `
 
@@ -1286,90 +1432,101 @@ const Badge = styled.span`
   font-weight: 600;
 `
 
-const PlanList = styled.div`
+const PolicyList = styled.div`
   display: flex;
   flex-direction: column;
   gap: 12px;
 `
 
-const PlanCard = styled.button<{ $selected: boolean }>`
+const PolicyCard = styled.div<{ $selected: boolean; $disabled: boolean }>`
   display: flex;
-  align-items: center;
-  gap: 14px;
+  flex-direction: column;
+  gap: 16px;
   width: 100%;
-  padding: 16px;
-  border: 1.5px solid
+  padding: 16px 20px;
+  border: 1px solid
     ${({ theme, $selected }) =>
       $selected ? theme.colors.emerald : theme.colors.defaultBorder};
   border-radius: 12px;
-  background: ${({ theme, $selected }) =>
-    $selected ? theme.colors.planeGreenLight : theme.colors.surface1};
-  font-family: ${({ theme }) => theme.fontFamily};
-  text-align: left;
+  background: ${({ theme }) => theme.colors.surface1};
+  opacity: ${({ $disabled }) => ($disabled ? 0.55 : 1)};
+  box-sizing: border-box;
+`
+
+const PolicyHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    gap: 10px;
+  }
+`
+
+const Checkbox = styled.input`
+  width: 18px;
+  height: 18px;
+  margin-top: 4px;
+  flex-shrink: 0;
+  accent-color: ${({ theme }) => theme.colors.emerald};
   cursor: pointer;
 
   &:disabled {
-    opacity: 0.5;
     cursor: not-allowed;
   }
 `
 
-const Radio = styled.span<{ $selected: boolean }>`
-  width: 18px;
-  height: 18px;
+const LogoBox = styled.span`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 36px;
   flex-shrink: 0;
-  border: 2px solid
-    ${({ theme, $selected }) =>
-      $selected ? theme.colors.emerald : theme.colors.defaultBorder};
-  border-radius: 50%;
-  background: ${({ theme, $selected }) =>
-    $selected ? theme.colors.emerald : theme.colors.surface1};
-  box-shadow: ${({ theme, $selected }) =>
-    $selected ? `inset 0 0 0 4px ${theme.colors.surface1}` : 'none'};
+  padding: 4px;
+  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
+  border-radius: 6px;
+  background: ${({ theme }) => theme.colors.surface1};
+  box-sizing: border-box;
 `
 
-const Checkbox = styled.span<{ $selected: boolean }>`
-  position: relative;
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  border: 2px solid
-    ${({ theme, $selected }) =>
-      $selected ? theme.colors.emerald : theme.colors.defaultBorder};
-  border-radius: 5px;
-  background: ${({ theme, $selected }) =>
-    $selected ? theme.colors.emerald : theme.colors.surface1};
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: 1px;
-    left: 4px;
-    width: 4px;
-    height: 8px;
-    border: solid ${({ theme }) => theme.colors.surface1};
-    border-width: 0 2px 2px 0;
-    transform: rotate(45deg);
-    opacity: ${({ $selected }) => ($selected ? 1 : 0)};
-  }
+const LogoImg = styled.img`
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 `
 
-const PlanCopy = styled.span`
+const PolicyCopy = styled.div`
   display: flex;
   min-width: 0;
   flex: 1;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 `
 
-const PlanName = styled.strong`
-  font-size: 15px;
+const PolicyName = styled.strong`
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
   color: ${({ theme }) => theme.colors.textPrimary};
 `
 
-const PlanMeta = styled.span`
-  font-size: 12px;
+const PolicyMeta = styled.span`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 18px;
   color: ${({ theme }) => theme.colors.textSecondary};
+  overflow-wrap: anywhere;
+`
+
+const PolicyDot = styled.span`
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: ${({ theme }) => theme.colors.textSecondary};
 `
 
 const PlanError = styled.span`
@@ -1377,63 +1534,22 @@ const PlanError = styled.span`
   color: ${({ theme }) => theme.colors.textError};
 `
 
-const PlanLimit = styled.span`
-  font-size: 12px;
-  color: ${({ theme }) => theme.colors.textSecondary};
+const SlabField = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 34px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    padding-left: 0;
+  }
 `
 
-const OutlineButton = styled.button`
-  padding: 8px 12px;
-  border: 1px solid ${({ theme }) => theme.colors.emerald};
-  border-radius: 8px;
-  background: transparent;
-  color: ${({ theme }) => theme.colors.emerald};
-  font-family: ${({ theme }) => theme.fontFamily};
-  font-weight: 600;
-  cursor: pointer;
-`
-
-const EmptyNotice = styled.div`
-  padding: 18px;
-  border-radius: 10px;
-  background: ${({ theme }) => theme.colors.surface0};
-  color: ${({ theme }) => theme.colors.textSecondary};
+const SlabLabel = styled.span`
   font-size: 14px;
-`
-
-const DependantList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-`
-
-const DependantCard = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 16px;
-  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
-  border-radius: 12px;
-`
-
-const DependantHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
+  font-weight: 500;
+  line-height: 20px;
   color: ${({ theme }) => theme.colors.textPrimary};
-  font-size: 14px;
-`
-
-const RemoveButton = styled.button`
-  border: 0;
-  background: transparent;
-  color: ${({ theme }) => theme.colors.textError};
-  cursor: pointer;
-`
-
-const DependantGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
 `
 
 const Footer = styled.footer`
@@ -1443,6 +1559,17 @@ const Footer = styled.footer`
   gap: 16px;
   margin-top: auto;
   padding-top: 24px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    position: sticky;
+    bottom: -20px;
+    z-index: 5;
+    width: calc(100% + 32px);
+    margin: auto -16px -20px;
+    padding: 12px 16px 20px;
+    border-top: 1px solid ${({ theme }) => theme.colors.defaultBorder};
+    background: ${({ theme }) => theme.colors.surface1};
+  }
 `
 
 const BackButton = styled.button`
@@ -1456,6 +1583,12 @@ const BackButton = styled.button`
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    width: auto;
+    min-width: 0;
+    flex: 1;
+  }
 `
 
 const PrimaryButton = styled(BackButton)`

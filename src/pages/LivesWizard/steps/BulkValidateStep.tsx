@@ -63,12 +63,12 @@ export function BulkValidateStep() {
           <tbody>
             {bulkDeleteRows.map((r) => (
               <tr key={r.id}>
-                <td>
+                <td data-label="Employee">
                   {r.name} ({r.employeeId})
                 </td>
-                <td>{r.dateOfLeaving}</td>
-                <td>{r.status}</td>
-                <td>{'error' in r ? r.error : '—'}</td>
+                <td data-label="DOL">{r.dateOfLeaving}</td>
+                <td data-label="Status">{r.status}</td>
+                <td data-label="Error">{'error' in r ? r.error : '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -182,13 +182,13 @@ export function BulkValidateStep() {
         <tbody>
           {filtered.map((row) => (
             <tr key={row.id}>
-              <td>
+              <td data-label="Member">
                 {row.name}
                 <Sub>
                   {row.employeeId} · {row.relationship}
                 </Sub>
               </td>
-              <td>
+              <td data-label="Deal / PG">
                 {flexDeal.name}
                 <Sub>
                   Core:{' '}
@@ -196,8 +196,8 @@ export function BulkValidateStep() {
                     '—'}
                 </Sub>
               </td>
-              <td>{row.status}</td>
-              <td>
+              <td data-label="Status">{row.status}</td>
+              <td data-label="Error / action">
                 {row.validationError ? (
                   <Err>
                     {row.validationField
@@ -236,6 +236,10 @@ const Stats = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+
+  @media (max-width: 640px) {
+    gap: 8px;
+  }
 `
 
 const Stat = styled.div`
@@ -248,6 +252,13 @@ const Stat = styled.div`
   strong {
     color: ${({ theme }) => theme.colors.emerald};
   }
+
+  @media (max-width: 640px) {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+    padding: 10px 12px;
+    font-size: 12px;
+  }
 `
 
 const Prompt = styled.div`
@@ -255,6 +266,10 @@ const Prompt = styled.div`
   border-radius: 12px;
   background: ${({ theme }) => theme.colors.surface1};
   border: 1px solid ${({ theme }) => theme.colors.disableFill};
+
+  @media (max-width: 640px) {
+    padding: 12px;
+  }
 `
 
 const PromptTitle = styled.div`
@@ -284,6 +299,11 @@ const RadioRow = styled.div`
   input {
     accent-color: ${({ theme }) => theme.colors.emerald};
   }
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+    gap: 10px;
+  }
 `
 
 const Chips = styled.div`
@@ -310,11 +330,13 @@ const Chip = styled.button<{ $active: boolean }>`
 
 const Table = styled.table`
   width: 100%;
+  max-width: 100%;
   border-collapse: collapse;
   font-size: 13px;
   background: ${({ theme }) => theme.colors.surface1};
   border-radius: 12px;
   overflow: hidden;
+  box-sizing: border-box;
 
   th,
   td {
@@ -328,6 +350,49 @@ const Table = styled.table`
     font-size: 12px;
     color: ${({ theme }) => theme.colors.textSecondary};
     background: ${({ theme }) => theme.colors.surface0};
+  }
+
+  @media (max-width: 640px) {
+    display: block;
+    overflow: hidden;
+
+    thead {
+      display: none;
+    }
+
+    tbody {
+      display: block;
+    }
+
+    tbody tr {
+      display: block;
+      padding: 12px;
+      border-bottom: 1px solid ${({ theme }) => theme.colors.disableFill};
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+
+    tbody td {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 8px 0;
+      border-bottom: none;
+
+      &::before {
+        content: attr(data-label);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+        color: ${({ theme }) => theme.colors.textSecondary};
+      }
+
+      &:not(:last-child) {
+        border-bottom: 1px solid ${({ theme }) => theme.colors.disableFill};
+      }
+    }
   }
 `
 
@@ -348,4 +413,10 @@ const Select = styled.select`
   border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
   font-family: ${({ theme }) => theme.fontFamily};
   font-size: 12px;
+
+  @media (max-width: 640px) {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
 `

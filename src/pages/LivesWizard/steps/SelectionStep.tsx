@@ -524,6 +524,11 @@ const PolicyCard = styled.div<{ $disabled: boolean }>`
   border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
   box-sizing: border-box;
   opacity: ${({ $disabled }) => ($disabled ? 0.65 : 1)};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    gap: 16px;
+    padding: 16px;
+  }
 `
 
 const CardHeader = styled.div`
@@ -532,6 +537,11 @@ const CardHeader = styled.div`
   gap: 16px;
   width: 100%;
   min-width: 0;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    align-items: flex-start;
+    gap: 10px;
+  }
 `
 
 const Checkbox = styled.input`

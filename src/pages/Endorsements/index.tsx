@@ -97,6 +97,21 @@ const Content = styled.div`
   gap: 40px;
   padding: 40px 0 64px;
   width: 100%;
+
+  @media (max-width: 900px) {
+    gap: 32px;
+    padding: 32px 0 48px;
+  }
+
+  @media (max-width: 720px) {
+    gap: 28px;
+    padding: 28px 0 40px;
+  }
+
+  @media (max-width: 560px) {
+    gap: 24px;
+    padding: 24px 0 32px;
+  }
 `
 
 const Intro = styled.div`
@@ -104,6 +119,10 @@ const Intro = styled.div`
   flex-direction: column;
   gap: 8px;
   padding: 0 ${({ theme }) => theme.layout.contentPadX};
+
+  @media (max-width: 560px) {
+    padding: 0 16px;
+  }
 `
 
 const Title = styled.h1`
@@ -128,4 +147,16 @@ const List = styled.div`
   flex-direction: column;
   gap: 56px;
   width: 100%;
+
+  @media (max-width: 900px) {
+    gap: 40px;
+  }
+
+  @media (max-width: 720px) {
+    gap: 32px;
+  }
+
+  @media (max-width: 560px) {
+    gap: 24px;
+  }
 `

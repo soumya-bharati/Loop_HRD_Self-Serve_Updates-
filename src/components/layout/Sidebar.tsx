@@ -12,11 +12,17 @@ const navItems = [
   { to: '/cd-accounts', label: 'CD Accounts', icon: assets.navCd },
 ]
 
-export function Sidebar() {
+export function Sidebar({
+  open = false,
+  onClose,
+}: {
+  open?: boolean
+  onClose?: () => void
+}) {
   return (
-    <Aside>
+    <Aside $open={open} aria-hidden={!open ? undefined : false}>
       {navItems.map(({ to, label, icon }) => (
-        <Item key={to} to={to}>
+        <Item key={to} to={to} onClick={onClose}>
           <ActiveBar />
           <ItemInner>
             <Icon src={icon} alt="" width={24} height={24} />
@@ -28,7 +34,7 @@ export function Sidebar() {
   )
 }
 
-const Aside = styled.aside`
+const Aside = styled.aside<{ $open: boolean }>`
   width: ${({ theme }) => theme.layout.sidebarWidth};
   min-width: ${({ theme }) => theme.layout.sidebarWidth};
   background: ${({ theme }) => theme.colors.emerald};
@@ -38,6 +44,25 @@ const Aside = styled.aside`
   padding: 20px 0;
   align-self: stretch;
   min-height: calc(100vh - ${({ theme }) => theme.layout.topNavHeight});
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
+    position: fixed;
+    top: ${({ theme }) => theme.layout.topNavHeight};
+    bottom: 0;
+    left: 0;
+    z-index: 30;
+    width: min(300px, 82vw);
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    transform: translateX(${({ $open }) => ($open ? '0' : '-105%')});
+    visibility: ${({ $open }) => ($open ? 'visible' : 'hidden')};
+    transition:
+      transform 180ms ease,
+      visibility 180ms ease;
+    box-shadow: ${({ $open }) =>
+      $open ? '12px 0 30px rgba(17, 24, 39, 0.18)' : 'none'};
+  }
 `
 
 const ActiveBar = styled.span`
@@ -73,6 +98,7 @@ const Item = styled(NavLink)`
   line-height: 18px;
   letter-spacing: -0.28px;
   padding-right: 16px;
+  min-height: 48px;
 
   &.active {
     background: ${({ theme }) => theme.colors.planeGreenDark};

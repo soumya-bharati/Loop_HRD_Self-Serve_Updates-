@@ -1067,6 +1067,10 @@ const Summary = styled.div`
   border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
   background: ${({ theme }) => theme.colors.surface1};
   box-sizing: border-box;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    flex-direction: column;
+  }
 `
 
 const SummaryMain = styled.button`
@@ -1119,6 +1123,11 @@ const SummaryActions = styled.div`
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    width: 100%;
+    justify-content: flex-end;
+  }
 `
 
 const SummaryEdit = styled.button`
@@ -1224,12 +1233,27 @@ const DrawerFooter = styled.div`
   padding: 16px 24px;
   border-top: 1px solid ${({ theme }) => theme.colors.disableFill};
   flex-shrink: 0;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+  }
 `
 
 const DrawerActions = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    width: 100%;
+
+    > * {
+      min-width: 0;
+      flex: 1;
+    }
+  }
 `
 
 const DrawerSecondary = styled.button`
@@ -1276,6 +1300,10 @@ const FilledGrid = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    grid-template-columns: 1fr;
+  }
 `
 
 const BenefitsBlock = styled.div`

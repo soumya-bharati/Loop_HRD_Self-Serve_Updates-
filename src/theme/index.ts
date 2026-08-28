@@ -32,6 +32,14 @@ export const theme = {
     sidebarWidth: '190px',
     topNavHeight: '64px',
     contentPadX: '56px',
+    contentPadXTablet: '32px',
+    contentPadXMobile: '16px',
+  },
+  breakpoints: {
+    sm: '560px',
+    md: '720px',
+    lg: '900px',
+    xl: '1100px',
   },
 } as const
 

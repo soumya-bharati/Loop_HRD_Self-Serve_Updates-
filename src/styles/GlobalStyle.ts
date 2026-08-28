@@ -12,9 +12,11 @@ export const GlobalStyle = createGlobalStyle`
   #root {
     margin: 0;
     min-height: 100%;
+    max-width: 100%;
   }
 
   body {
+    overflow-x: hidden;
     font-family: ${({ theme }) => theme.fontFamily};
     background: ${({ theme }) => theme.colors.surface0};
     color: ${({ theme }) => theme.colors.textPrimary};
@@ -24,7 +26,18 @@ export const GlobalStyle = createGlobalStyle`
 
   button,
   input,
-  select {
+  select,
+  textarea {
     font: inherit;
+  }
+
+  img,
+  svg {
+    max-width: 100%;
+  }
+
+  button,
+  [role='button'] {
+    touch-action: manipulation;
   }
 `

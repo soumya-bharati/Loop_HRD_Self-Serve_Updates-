@@ -216,8 +216,16 @@ const Wrap = styled.div`
   gap: 24px;
   flex: 1;
   max-width: 800px;
+  width: 100%;
   margin: 0 auto;
   padding: 48px 24px;
+  box-sizing: border-box;
+  overflow-x: hidden;
+
+  @media (max-width: 640px) {
+    padding: 24px 16px;
+    gap: 16px;
+  }
 `
 
 const Hero = styled.div`
@@ -246,6 +254,10 @@ const Title = styled.h1`
   font-size: 22px;
   font-weight: 600;
   color: ${({ theme }) => theme.colors.beyondGrey};
+
+  @media (max-width: 640px) {
+    font-size: 20px;
+  }
 `
 
 const Subtitle = styled.p`
@@ -259,6 +271,11 @@ const PolicyGrid = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
 `
 
 const PolicyCard = styled.div`
@@ -266,6 +283,10 @@ const PolicyCard = styled.div`
   border-radius: 12px;
   background: ${({ theme }) => theme.colors.surface1};
   border: 1px solid ${({ theme }) => theme.colors.disableFill};
+
+  @media (max-width: 640px) {
+    padding: 12px;
+  }
 `
 
 const PolicyName = styled.div`
@@ -287,16 +308,29 @@ const Totals = styled.div`
   padding: 16px 20px;
   border-radius: 12px;
   background: ${({ theme }) => theme.colors.planeGreenLight};
+
+  @media (max-width: 640px) {
+    padding: 12px 14px;
+    gap: 8px;
+  }
 `
 
 const TotalRow = styled.div`
   display: flex;
   justify-content: space-between;
+  gap: 12px;
   font-size: 14px;
   color: ${({ theme }) => theme.colors.textPrimary};
 
   strong {
     color: ${({ theme }) => theme.colors.emerald};
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 640px) {
+    font-size: 13px;
+    flex-wrap: wrap;
   }
 `
 
@@ -306,12 +340,24 @@ const ErrorSheet = styled.div`
   background: #fdecec;
   font-size: 13px;
   color: ${({ theme }) => theme.colors.textPrimary};
+  word-break: break-word;
+
+  @media (max-width: 640px) {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
 `
 
 const Actions = styled.div`
   display: flex;
   justify-content: center;
   gap: 12px;
+
+  @media (max-width: 640px) {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 10px;
+  }
 `
 
 const Secondary = styled.button`
@@ -323,6 +369,11 @@ const Secondary = styled.button`
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
+
+  @media (max-width: 640px) {
+    width: 100%;
+    box-sizing: border-box;
+  }
 `
 
 const Primary = styled.button`
@@ -335,4 +386,9 @@ const Primary = styled.button`
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+
+  @media (max-width: 640px) {
+    width: 100%;
+    box-sizing: border-box;
+  }
 `

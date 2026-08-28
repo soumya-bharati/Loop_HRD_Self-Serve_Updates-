@@ -99,6 +99,21 @@ const Card = styled.article`
   gap: 36px;
   padding: 36px ${({ theme }) => theme.layout.contentPadX};
   width: 100%;
+
+  @media (max-width: 900px) {
+    gap: 28px;
+    padding: 28px 24px;
+  }
+
+  @media (max-width: 720px) {
+    gap: 24px;
+    padding: 24px 20px;
+  }
+
+  @media (max-width: 560px) {
+    gap: 20px;
+    padding: 20px 16px;
+  }
 `
 
 const Header = styled.div`
@@ -106,6 +121,17 @@ const Header = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+
+  @media (max-width: 900px) {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  @media (max-width: 720px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
 `
 
 const Identity = styled.div`
@@ -175,6 +201,20 @@ const TrackButton = styled.button`
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
+
+  @media (max-width: 900px) {
+    margin-left: auto;
+  }
+
+  @media (max-width: 720px) {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  @media (max-width: 560px) {
+    height: 44px;
+    padding: 12px 16px;
+  }
 `
 
 const Divider = styled.div`
@@ -188,12 +228,36 @@ const Stats = styled.div`
   align-items: flex-start;
   gap: 40px;
   flex-wrap: wrap;
+
+  @media (max-width: 900px) {
+    gap: 24px 32px;
+  }
+
+  @media (max-width: 720px) {
+    gap: 20px;
+  }
+
+  @media (max-width: 560px) {
+    flex-direction: column;
+    gap: 16px;
+  }
 `
 
 const Stat = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
+
+  @media (max-width: 900px) {
+    flex: 1 1 calc(50% - 16px);
+    min-width: 180px;
+  }
+
+  @media (max-width: 560px) {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+  }
 `
 
 const MetricIcon = styled.img`

@@ -6,8 +6,10 @@ import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
 
 export function WizardChrome({
   title,
+  hideTitle = false,
   onBack,
   onExit,
+  exitLabel = 'Exit',
   children,
   footerLeft,
   primaryLabel,
@@ -19,8 +21,10 @@ export function WizardChrome({
   primaryHint,
 }: {
   title: string
+  hideTitle?: boolean
   onBack?: () => void
   onExit: () => void
+  exitLabel?: string
   children: ReactNode
   footerLeft?: ReactNode
   primaryLabel: string
@@ -55,9 +59,9 @@ export function WizardChrome({
     <Page>
       <Content>
         <HeaderRow>
-          <PageTitle>{title}</PageTitle>
+          {hideTitle ? <span /> : <PageTitle>{title}</PageTitle>}
           <ExitButton type="button" onClick={() => setExitConfirmOpen(true)}>
-            Exit
+            {exitLabel}
           </ExitButton>
         </HeaderRow>
         {children}
@@ -217,6 +221,16 @@ const Content = styled.div`
   flex: 1;
   padding: 32px 48px 120px;
   box-sizing: border-box;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
+    padding-right: ${({ theme }) => theme.layout.contentPadXTablet};
+    padding-left: ${({ theme }) => theme.layout.contentPadXTablet};
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    gap: 16px;
+    padding: 20px ${({ theme }) => theme.layout.contentPadXMobile} 150px;
+  }
 `
 
 const HeaderRow = styled.div`
@@ -233,15 +247,20 @@ const PageTitle = styled.h1`
   font-weight: 500;
   line-height: 24px;
   color: ${({ theme }) => theme.colors.textPrimary};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    font-size: 16px;
+    line-height: 22px;
+  }
 `
 
 const ExitButton = styled.button`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 96px;
+  min-width: 96px;
   height: 36px;
-  padding: 8px 16px;
+  padding: 8px 20px;
   border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
   border-radius: ${({ theme }) => theme.radii.sm};
   background: transparent;
@@ -371,6 +390,14 @@ const BottomBar = styled.div`
   border-top: 1px solid ${({ theme }) => theme.colors.defaultBorder};
   background: ${({ theme }) => theme.colors.surface1};
   box-sizing: border-box;
+  z-index: 10;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px ${({ theme }) => theme.layout.contentPadXMobile};
+  }
 `
 
 const Context = styled.div`
@@ -378,6 +405,10 @@ const Context = styled.div`
   align-items: center;
   gap: 8px;
   min-width: 0;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    min-height: 20px;
+  }
 `
 
 const CompanyIcon = styled.img`
@@ -398,6 +429,14 @@ const ContextText = styled.p`
     font-weight: 600;
     color: ${({ theme }) => theme.colors.beyondGrey};
   }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    overflow: hidden;
+    font-size: 12px;
+    line-height: 18px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 `
 
 const Actions = styled.div`
@@ -405,11 +444,26 @@ const Actions = styled.div`
   align-items: center;
   gap: 16px;
   flex-shrink: 0;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    width: 100%;
+    gap: 10px;
+
+    > * {
+      min-width: 0;
+      flex: 1;
+    }
+  }
 `
 
 const PrimaryWrap = styled.div`
   position: relative;
   display: inline-flex;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    min-width: 0;
+    flex: 1;
+  }
 `
 
 const SubmitHint = styled.div`
@@ -423,6 +477,14 @@ const SubmitHint = styled.div`
   box-shadow: 0 8px 24px rgba(55, 65, 81, 0.12);
   box-sizing: border-box;
   z-index: 4;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    position: fixed;
+    right: 16px;
+    bottom: 140px;
+    left: 16px;
+    width: auto;
+  }
 `
 
 const SubmitHintClose = styled.button`
@@ -481,6 +543,12 @@ const SecondaryButton = styled.button`
   color: ${({ theme }) => theme.colors.emerald};
   cursor: pointer;
   box-sizing: border-box;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    width: 100%;
+    min-width: 0;
+    padding: 0 14px;
+  }
 `
 
 const PrimaryButton = styled.button<{ $width?: number }>`
@@ -505,6 +573,12 @@ const PrimaryButton = styled.button<{ $width?: number }>`
     color: ${({ theme }) => theme.colors.textSecondary};
     cursor: not-allowed;
   }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    width: 100%;
+    min-width: 0;
+    padding: 0 14px;
+  }
 `
 
 const Stepper = styled.div<{ $bare?: boolean }>`
@@ -520,6 +594,11 @@ const Stepper = styled.div<{ $bare?: boolean }>`
     $bare ? 'none' : `1px solid ${theme.colors.disableFill}`};
   box-sizing: border-box;
   overflow-x: auto;
+  scrollbar-width: thin;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    padding: ${({ $bare }) => ($bare ? '4px 0 8px' : '12px')};
+  }
 `
 
 const StepFragment = styled.div`
@@ -578,6 +657,10 @@ const StepLabel = styled.span<{ $active: boolean; $bare?: boolean }>`
     return $active ? theme.colors.emerald : theme.colors.textSecondary
   }};
   white-space: nowrap;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    font-size: 12px;
+  }
 `
 
 const StepLine = styled.span<{ $done: boolean; $bare?: boolean }>`
@@ -597,4 +680,10 @@ const StepLine = styled.span<{ $done: boolean; $bare?: boolean }>`
   `}
   background: ${({ theme, $done }) =>
     $done ? theme.colors.emerald : theme.colors.defaultBorder};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    width: 32px;
+    min-width: 20px;
+    margin: 0 8px;
+  }
 `

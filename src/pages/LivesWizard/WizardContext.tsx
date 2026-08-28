@@ -153,6 +153,7 @@ interface LivesWizardContextValue {
       AddEmployeeMember,
       'planId'
         | 'purchaseGroupSelections'
+        | 'policySlabIds'
         | 'assignmentSource'
         | 'selectedBenefitIds'
         | 'dependants'
@@ -486,6 +487,7 @@ export function LivesWizardProvider({
         AddEmployeeMember,
         'planId'
         | 'purchaseGroupSelections'
+        | 'policySlabIds'
         | 'assignmentSource'
         | 'selectedBenefitIds'
         | 'dependants'

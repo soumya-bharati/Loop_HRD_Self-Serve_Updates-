@@ -37,11 +37,38 @@ const Banner = styled.section`
   border-bottom: 1px solid ${({ theme }) => theme.colors.defaultBorder};
   padding: 0 57px 0 24px;
   overflow: hidden;
+
+  @media (max-width: 900px) {
+    flex-wrap: wrap;
+    gap: 12px 16px;
+    padding: 16px 24px;
+    min-height: 0;
+  }
+
+  @media (max-width: 720px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 20px;
+  }
+
+  @media (max-width: 560px) {
+    padding: 14px 16px;
+    gap: 10px;
+  }
 `
 
 const IllustrationWrap = styled.div`
   margin: -2px 0;
   flex-shrink: 0;
+
+  @media (max-width: 720px) {
+    margin: 0;
+  }
+
+  @media (max-width: 560px) {
+    display: none;
+  }
 `
 
 const Copy = styled.div`
@@ -51,6 +78,16 @@ const Copy = styled.div`
   margin-left: 13px;
   min-width: 0;
   flex: 1;
+
+  @media (max-width: 900px) {
+    margin-left: 0;
+    flex: 1 1 220px;
+  }
+
+  @media (max-width: 720px) {
+    flex: none;
+    width: 100%;
+  }
 `
 
 const Title = styled.h2`
@@ -89,4 +126,23 @@ const Cta = styled.button`
   letter-spacing: 0.2px;
   cursor: pointer;
   white-space: nowrap;
+
+  @media (max-width: 900px) {
+    margin-left: auto;
+  }
+
+  @media (max-width: 720px) {
+    margin-left: 0;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  @media (max-width: 560px) {
+    height: 44px;
+    padding: 12px 16px;
+    white-space: normal;
+    text-align: center;
+  }
 `

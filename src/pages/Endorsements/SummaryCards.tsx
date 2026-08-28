@@ -32,6 +32,19 @@ const Grid = styled.div`
   display: flex;
   gap: 14px;
   padding: 0 ${({ theme }) => theme.layout.contentPadX};
+
+  @media (max-width: 900px) {
+    gap: 12px;
+  }
+
+  @media (max-width: 720px) {
+    flex-direction: column;
+  }
+
+  @media (max-width: 560px) {
+    gap: 10px;
+    padding: 0 16px;
+  }
 `
 
 const Card = styled.div<{ $variant: 'ongoing' | 'completed' }>`
@@ -44,6 +57,15 @@ const Card = styled.div<{ $variant: 'ongoing' | 'completed' }>`
   box-shadow: ${({ theme, $variant }) =>
     $variant === 'completed' ? theme.shadows.smooth : 'none'};
   overflow: hidden;
+
+  @media (max-width: 720px) {
+    flex: none;
+    width: 100%;
+  }
+
+  @media (max-width: 560px) {
+    padding: ${({ $variant }) => ($variant === 'ongoing' ? '14px 16px' : '14px 16px')};
+  }
 `
 
 const Row = styled.div`

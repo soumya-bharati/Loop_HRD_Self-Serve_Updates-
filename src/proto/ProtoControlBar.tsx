@@ -42,6 +42,23 @@ const Bar = styled.div`
   padding: 6px 24px;
   background: #111111;
   box-sizing: border-box;
+
+  @media (max-width: 900px) {
+    padding: 6px 20px;
+    gap: 12px;
+  }
+
+  @media (max-width: 720px) {
+    flex-wrap: wrap;
+    padding: 8px 16px;
+  }
+
+  @media (max-width: 560px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 12px;
+  }
 `
 
 const Left = styled.div`
@@ -49,6 +66,10 @@ const Left = styled.div`
   align-items: center;
   gap: 10px;
   min-width: 0;
+
+  @media (max-width: 560px) {
+    flex-wrap: wrap;
+  }
 `
 
 const Tag = styled.span`
@@ -76,6 +97,12 @@ const Summary = styled.span`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+
+  @media (max-width: 720px) {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+  }
 `
 
 const Cta = styled.button`
@@ -93,6 +120,12 @@ const Cta = styled.button`
   font-weight: 500;
   letter-spacing: 0.2px;
   cursor: pointer;
+
+  @media (max-width: 560px) {
+    width: 100%;
+    justify-content: center;
+    height: 32px;
+  }
 
   &:hover {
     background: rgba(255, 255, 255, 0.12);
