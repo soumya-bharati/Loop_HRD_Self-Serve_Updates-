@@ -12,8 +12,6 @@ export const SINGLE_ADD_STEPS = [
   'Review',
 ] as const
 
-export const FORM_ADD_STEPS = ['Employee', 'Review'] as const
-
 /** Stepper labels for Add new dependant (unchanged path). */
 export const SINGLE_DEPENDANT_STEPS = [
   'Select employee',

@@ -7,7 +7,6 @@ import { EnrolmentSettings } from '@/pages/LivesWizard/components/EnrolmentSetti
 import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
 import {
-  FORM_ADD_STEPS,
   SINGLE_ADD_STEPS,
   SINGLE_DEPENDANT_STEPS,
 } from '@/pages/LivesWizard/singleAddSteps'
@@ -71,13 +70,11 @@ export function EnrolmentStep() {
     : enrolment.runEnrolment === false ||
       (enrolment.runEnrolment === true && Boolean(enrolment.dueDate))
 
+  const hideStepper = isAddEmployees && intakeMode === 'form'
   const stepperSteps = isBulk
     ? ['Upload', 'Validate', 'Review', 'Enrolment']
     : isAddEmployees
-      ? [
-          ...(intakeMode === 'form' ? FORM_ADD_STEPS : SINGLE_ADD_STEPS),
-          'Enrolment',
-        ]
+      ? [...SINGLE_ADD_STEPS, 'Enrolment']
       : isSingleDependant
         ? [...SINGLE_DEPENDANT_STEPS, 'Enrolment']
         : [...SINGLE_ADD_STEPS]
@@ -102,7 +99,9 @@ export function EnrolmentStep() {
         else completeFlow()
       }}
     >
-      <FlowStepper steps={stepperSteps} activeIndex={stepperIndex} bare />
+      {hideStepper ? null : (
+        <FlowStepper steps={stepperSteps} activeIndex={stepperIndex} bare />
+      )}
 
       <Card>
         <Lead>

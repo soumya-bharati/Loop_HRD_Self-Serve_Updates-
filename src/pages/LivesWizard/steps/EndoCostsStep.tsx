@@ -4,13 +4,9 @@ import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
 import { type PolicyCostBreakdown } from '@/data/flexDeal'
-import { getBenefitConfig } from '@/domain/flex'
 import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
-import {
-  FORM_ADD_STEPS,
-  SINGLE_ADD_STEPS,
-} from '@/pages/LivesWizard/singleAddSteps'
+import { SINGLE_ADD_STEPS } from '@/pages/LivesWizard/singleAddSteps'
 
 function formatINRExact(amount: number) {
   return new Intl.NumberFormat('en-IN', {
@@ -45,14 +41,14 @@ type InsurerGroup = {
 
 export function EndoCostsStep() {
   const navigate = useNavigate()
-  const {
-    activeDeal,
-    addEmployees,
-    costEstimate,
-    intakeMode,
-    setStep,
-  } = useLivesWizard()
+  const { addEmployees, costEstimate, intakeMode, setStep } = useLivesWizard()
   const isFormEntry = intakeMode === 'form'
+  const employeeCount = addEmployees.length
+  const dependantCount = addEmployees.reduce(
+    (sum, member) => sum + member.dependants.length,
+    0,
+  )
+  const totalLives = employeeCount + dependantCount
 
   const insurerGroups = useMemo(() => {
     const map = new Map<string, InsurerGroup>()
@@ -89,49 +85,32 @@ export function EndoCostsStep() {
         body: 'If everything looks good click below to submit your endo!',
       }}
     >
-      <FlowStepper
-        steps={isFormEntry ? [...FORM_ADD_STEPS] : [...SINGLE_ADD_STEPS]}
-        activeIndex={isFormEntry ? 1 : 3}
-        bare
-      />
+      {isFormEntry ? null : (
+        <FlowStepper
+          steps={[...SINGLE_ADD_STEPS]}
+          activeIndex={3}
+          bare
+        />
+      )}
 
-      <PeopleReview>
-        <ReviewTitle>Members and benefits</ReviewTitle>
-        {addEmployees.map((member) => (
-          <FamilyReview key={member.id}>
-            <ReviewPerson>
-              <strong>
-                {member.employee.firstName} {member.employee.lastName}
-              </strong>
-              <span>{member.employee.employeeId} · Employee</span>
-              <ReviewChips>
-                {member.selectedBenefitIds.map((id) => (
-                  <ReviewChip key={id}>
-                    {activeDeal ? getBenefitConfig(activeDeal, id)?.name ?? id : id}
-                  </ReviewChip>
-                ))}
-              </ReviewChips>
-            </ReviewPerson>
-            {member.dependants.map((dependant) => (
-              <ReviewPerson key={dependant.id}>
-                <strong>
-                  {dependant.firstName} {dependant.lastName}
-                </strong>
-                <span>{dependant.relationship}</span>
-                <ReviewChips>
-                  {dependant.selectedBenefitIds.map((id) => (
-                    <ReviewChip key={id}>
-                      {activeDeal
-                        ? getBenefitConfig(activeDeal, id)?.name ?? id
-                        : id}
-                    </ReviewChip>
-                  ))}
-                </ReviewChips>
-              </ReviewPerson>
-            ))}
-          </FamilyReview>
-        ))}
-      </PeopleReview>
+      <LivesSummary>
+        <SummaryStat>
+          <SummaryValue>{totalLives}</SummaryValue>
+          <SummaryLabel>Total lives</SummaryLabel>
+        </SummaryStat>
+        <SummaryStat>
+          <SummaryValue>{employeeCount}</SummaryValue>
+          <SummaryLabel>
+            {employeeCount === 1 ? 'Employee' : 'Employees'}
+          </SummaryLabel>
+        </SummaryStat>
+        <SummaryStat>
+          <SummaryValue>{dependantCount}</SummaryValue>
+          <SummaryLabel>
+            {dependantCount === 1 ? 'Dependant' : 'Dependants'}
+          </SummaryLabel>
+        </SummaryStat>
+      </LivesSummary>
 
       <Layout>
         <InsurerColumn>
@@ -207,69 +186,49 @@ export function EndoCostsStep() {
   )
 }
 
-const PeopleReview = styled.section`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 18px;
-  border-radius: 14px;
-  background: ${({ theme }) => theme.colors.surface1};
-  border: 1px solid ${({ theme }) => theme.colors.disableFill};
-  max-width: 100%;
-  box-sizing: border-box;
-
-  @media (max-width: 640px) {
-    padding: 12px;
-    gap: 10px;
-  }
-`
-
-const ReviewTitle = styled.h2`
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.beyondGrey};
-`
-
-const FamilyReview = styled.div`
+const LivesSummary = styled.section`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 
-  @media (max-width: 640px) {
-    grid-template-columns: 1fr;
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    gap: 8px;
   }
 `
 
-const ReviewPerson = styled.div`
+const SummaryStat = styled.div`
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 12px;
-  border-radius: 10px;
-  background: ${({ theme }) => theme.colors.surface0};
-  font-size: 12px;
-  color: ${({ theme }) => theme.colors.textSecondary};
+  min-width: 0;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: ${({ theme }) => theme.colors.surface1};
+  border: 1px solid ${({ theme }) => theme.colors.disableFill};
+  box-sizing: border-box;
 
-  strong {
-    font-size: 13px;
-    color: ${({ theme }) => theme.colors.textPrimary};
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    padding: 12px;
   }
 `
 
-const ReviewChips = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 4px;
+const SummaryValue = styled.strong`
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 32px;
+  color: ${({ theme }) => theme.colors.emerald};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    font-size: 20px;
+    line-height: 26px;
+  }
 `
 
-const ReviewChip = styled.span`
-  padding: 3px 7px;
-  border-radius: 999px;
-  background: ${({ theme }) => theme.colors.planeGreenLight};
-  font-size: 10px;
-  color: ${({ theme }) => theme.colors.emerald};
+const SummaryLabel = styled.span`
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  color: ${({ theme }) => theme.colors.textSecondary};
 `
 
 function ReceiptIcon() {
