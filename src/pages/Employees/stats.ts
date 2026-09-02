@@ -141,7 +141,8 @@ function relationshipLabel(relationship: string) {
 
 function initialsFor(firstName: string, lastName: string) {
   const first = firstName.trim().charAt(0)
-  return (first || '?').toUpperCase()
+  const last = lastName.trim().charAt(0)
+  return `${first}${last}`.toUpperCase() || '?'
 }
 
 /** Prototype: every active life is treated as having an e-card. */

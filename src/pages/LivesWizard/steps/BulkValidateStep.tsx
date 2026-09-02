@@ -522,7 +522,7 @@ const Table = styled.table`
 `
 
 const Tr = styled.tr<{ $highlight: boolean }>`
-  background: ${({ theme, $highlight }) =>
+  background: ${({ $highlight }) =>
     $highlight ? 'rgba(255, 107, 107, 0.08)' : 'transparent'};
 
   td:first-child {
