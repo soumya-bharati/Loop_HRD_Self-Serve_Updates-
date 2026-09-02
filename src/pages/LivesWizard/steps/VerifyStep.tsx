@@ -17,6 +17,7 @@ import { CostAndCdSummary } from '@/pages/LivesWizard/components/CostAndCdSummar
 import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
 import { SINGLE_ADD_STEPS, SINGLE_DEPENDANT_STEPS } from '@/pages/LivesWizard/singleAddSteps'
+import { isWorkspaceReturn, wizardExitPath } from '@/pages/ManageLives/launchWizard'
 
 function upsertMember(
   map: Map<string, CoverageGroup>,
@@ -185,7 +186,7 @@ export function VerifyStep() {
       <WizardChrome
         title="Correction blocked"
         onBack={() => setStep('edit-form')}
-        onExit={() => navigate('/endorsements')}
+        onExit={() => navigate(wizardExitPath())}
         primaryLabel="Back to edit"
         onPrimary={() => setStep('edit-form')}
       >
@@ -212,16 +213,18 @@ export function VerifyStep() {
     <WizardChrome
       title={isEdit ? 'Review correction' : 'Review Addition Cost'}
       onBack={() => setStep(backStep)}
-      onExit={() => navigate('/endorsements')}
+      onExit={() => navigate(wizardExitPath())}
       secondaryLabel="Back"
       onSecondary={() => setStep(backStep)}
-      primaryLabel={isEdit ? 'Confirm correction' : 'Continue to enrolment'}
+      primaryLabel={
+        isEdit
+          ? 'Confirm correction'
+          : isWorkspaceReturn()
+            ? 'Add to Pending Changes'
+            : 'Continue to enrolment'
+      }
       onPrimary={() => {
-        if (isEdit) {
-          completeFlow()
-          return
-        }
-        if (isSingleDependant) {
+        if (isEdit || isSingleDependant || isWorkspaceReturn()) {
           completeFlow()
           return
         }

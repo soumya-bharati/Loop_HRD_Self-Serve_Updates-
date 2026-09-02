@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
@@ -36,6 +37,8 @@ export function WizardChrome({
   primaryHint?: { title: string; body: string }
 }) {
   const { action, organisationEntityName } = useLivesWizard()
+  const navigate = useNavigate()
+  const [params] = useSearchParams()
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false)
   const [hintDismissed, setHintDismissed] = useState(false)
 
@@ -159,6 +162,10 @@ export function WizardChrome({
                 type="button"
                 onClick={() => {
                   setExitConfirmOpen(false)
+                  if (params.get('returnTo') === 'manage-lives') {
+                    navigate('/manage-lives')
+                    return
+                  }
                   onExit()
                 }}
               >

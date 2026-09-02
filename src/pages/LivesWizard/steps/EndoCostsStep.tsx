@@ -4,6 +4,7 @@ import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
 import { type PolicyCostBreakdown } from '@/data/flexDeal'
+import { isWorkspaceReturn, wizardExitPath } from '@/pages/ManageLives/launchWizard'
 import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
 import { SINGLE_ADD_STEPS } from '@/pages/LivesWizard/singleAddSteps'
@@ -41,7 +42,9 @@ type InsurerGroup = {
 
 export function EndoCostsStep() {
   const navigate = useNavigate()
-  const { addEmployees, costEstimate, intakeMode, setStep } = useLivesWizard()
+  const { addEmployees, costEstimate, intakeMode, setStep, completeFlow } =
+    useLivesWizard()
+  const returning = isWorkspaceReturn()
   const isFormEntry = intakeMode === 'form'
   const employeeCount = addEmployees.length
   const dependantCount = addEmployees.reduce(
@@ -74,12 +77,12 @@ export function EndoCostsStep() {
     <WizardChrome
       title="Submit Addition Request"
       onBack={() => setStep(isFormEntry ? 'user-details' : 'family')}
-      onExit={() => navigate('/endorsements')}
+      onExit={() => navigate(wizardExitPath())}
       secondaryLabel="Go Back"
       onSecondary={() => setStep(isFormEntry ? 'user-details' : 'family')}
-      primaryLabel="Continue to enrolment"
+      primaryLabel={returning ? 'Add to Pending Changes' : 'Continue to enrolment'}
       primaryDisabled={livesCount === 0}
-      onPrimary={() => setStep('enrolment')}
+      onPrimary={() => (returning ? completeFlow() : setStep('enrolment'))}
       primaryHint={{
         title: 'Submit Your Endo! ⚡',
         body: 'If everything looks good click below to submit your endo!',

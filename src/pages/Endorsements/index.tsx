@@ -1,48 +1,18 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { endorsementsSummary, monthGroups } from '@/data/endorsements'
 import { flexDeal } from '@/data/flexDeal'
-import { DeadlineBanner } from '@/pages/Endorsements/DeadlineBanner'
-import {
-  LivesActionModal,
-  type LifeAction,
-} from '@/pages/Endorsements/LivesActionModal'
 import { MonthAccordion } from '@/pages/Endorsements/MonthAccordion'
 import { SummaryCards } from '@/pages/Endorsements/SummaryCards'
-import type { LifeMethod } from '@/pages/LivesWizard/WizardContext'
 
 export function EndorsementsPage() {
-  const navigate = useNavigate()
   const [expandedIds, setExpandedIds] = useState<string[]>(() =>
     monthGroups.map((g) => g.id),
   )
-  const [modalOpen, setModalOpen] = useState(false)
-
-  const handleConfirm = (
-    action: LifeAction,
-    method: LifeMethod,
-    entityId: string,
-    dealId?: string,
-  ) => {
-    setModalOpen(false)
-    const params = new URLSearchParams({
-      method,
-      entity: entityId,
-    })
-    if (dealId) params.set('deal', dealId)
-    navigate(`/endorsements/lives/${action}?${params.toString()}`)
-  }
 
   return (
     <Page>
-      <DeadlineBanner
-        monthLabel={endorsementsSummary.deadlineMonth}
-        deadline={endorsementsSummary.deadlineDate}
-        onAddLives={() => setModalOpen(true)}
-      />
-
       <Content>
         <Intro>
           <Title>Endorsements</Title>
@@ -76,11 +46,6 @@ export function EndorsementsPage() {
         </List>
       </Content>
 
-      <LivesActionModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onConfirm={handleConfirm}
-      />
     </Page>
   )
 }

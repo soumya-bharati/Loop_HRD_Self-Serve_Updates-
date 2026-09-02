@@ -4,13 +4,47 @@ import { assets } from '@/assets/figma'
 import type { DependantFormData, EmployeeFormData } from '@/data/employees'
 import type { FamilyRelationship, FamilySlotSummary } from '@/domain/flex'
 
+function isFamilyRelationship(
+  value: string,
+): value is FamilyRelationship {
+  return (
+    value === 'Spouse' ||
+    value === 'Child' ||
+    value === 'Parent' ||
+    value === 'Parent-in-law' ||
+    value === 'Sibling' ||
+    value === 'Other'
+  )
+}
+
+function samePerson(left: DependantFormData, right: DependantFormData) {
+  const name = (person: DependantFormData) =>
+    `${person.firstName} ${person.lastName}`.trim().toLowerCase()
+  if (name(left) && name(left) === name(right)) return true
+  return left.id === right.id
+}
+
+function uncoveredKnown(
+  covered: DependantFormData[],
+  known: DependantFormData[],
+  relationship: string,
+) {
+  return known.filter(
+    (person) =>
+      person.relationship === relationship &&
+      !covered.some((item) => samePerson(item, person)),
+  )
+}
+
 export function DependantSlotSelector({
   summary,
   selected,
   onSelect,
   benefitLabels,
   employee,
+  employeeBenefitIds = [],
   dependants = [],
+  knownDependants = [],
   onAddSlot,
   onEditDependant,
   onEditSelf,
@@ -20,7 +54,9 @@ export function DependantSlotSelector({
   onSelect?: (relationship: FamilyRelationship) => void
   benefitLabels: Record<string, string>
   employee?: EmployeeFormData
+  employeeBenefitIds?: string[]
   dependants?: DependantFormData[]
+  knownDependants?: DependantFormData[]
   onAddSlot?: (relationship: FamilyRelationship) => void
   onEditDependant?: (dependant: DependantFormData) => void
   onEditSelf?: () => void
@@ -30,7 +66,10 @@ export function DependantSlotSelector({
       <FamilyBoard
         summary={summary}
         employee={employee}
+        employeeBenefitIds={employeeBenefitIds}
         dependants={dependants}
+        knownDependants={knownDependants}
+        benefitLabels={benefitLabels}
         onAddSlot={onAddSlot}
         onEditDependant={onEditDependant}
         onEditSelf={onEditSelf}
@@ -86,26 +125,72 @@ export function DependantSlotSelector({
 function FamilyBoard({
   summary,
   employee,
+  employeeBenefitIds,
   dependants,
+  knownDependants,
+  benefitLabels,
   onAddSlot,
   onEditDependant,
   onEditSelf,
 }: {
   summary: FamilySlotSummary
   employee: EmployeeFormData
+  employeeBenefitIds: string[]
   dependants: DependantFormData[]
+  knownDependants: DependantFormData[]
+  benefitLabels: Record<string, string>
   onAddSlot?: (relationship: FamilyRelationship) => void
   onEditDependant?: (dependant: DependantFormData) => void
   onEditSelf?: () => void
 }) {
   const spouseSlot = summary.slots.find((slot) => slot.relationship === 'Spouse')
   const childSlot = summary.slots.find((slot) => slot.relationship === 'Child')
+  const listedRelationships = new Set([
+    'Spouse',
+    'Child',
+    ...summary.slots.map((slot) => slot.relationship),
+  ])
   const extraSlots = summary.slots.filter(
     (slot) => slot.relationship !== 'Spouse' && slot.relationship !== 'Child',
   )
+  const extraRelationships = [
+    ...extraSlots.map((slot) => slot.relationship),
+    ...dependants
+      .map((item) => item.relationship)
+      .filter(isFamilyRelationship)
+      .filter(
+        (relationship) =>
+          relationship !== 'Spouse' &&
+          relationship !== 'Child' &&
+          !extraSlots.some((slot) => slot.relationship === relationship),
+      ),
+    ...knownDependants
+      .map((item) => item.relationship)
+      .filter(isFamilyRelationship)
+      .filter(
+        (relationship) =>
+          relationship !== 'Spouse' &&
+          relationship !== 'Child' &&
+          !listedRelationships.has(relationship),
+      ),
+  ].filter((relationship, index, all) => all.indexOf(relationship) === index)
+
   const spouses = dependants.filter((item) => item.relationship === 'Spouse')
+  const uncoveredSpouses = uncoveredKnown(spouses, knownDependants, 'Spouse')
   const children = dependants.filter((item) => item.relationship === 'Child')
-  const childCount = childSlot?.maxSlots ?? 0
+  const uncoveredChildren = uncoveredKnown(children, knownDependants, 'Child')
+  const childCount = Math.max(
+    childSlot?.maxSlots ?? 0,
+    children.length + uncoveredChildren.length,
+  )
+  const spouseEmptyCount = Math.max(
+    0,
+    (spouseSlot?.remainingSlots ?? 0) - uncoveredSpouses.length,
+  )
+  const childEmptyCount = Math.max(
+    0,
+    (childSlot?.remainingSlots ?? 0) - uncoveredChildren.length,
+  )
 
   return (
     <Board>
@@ -141,31 +226,41 @@ function FamilyBoard({
                   {employee.dateOfBirth}
                 </MetaItem>
               ) : null}
-              {employee.mobile ? (
-                <MetaItem>
-                  <img src={assets.iconPhoneFamily} alt="" width={20} height={20} />
-                  {employee.mobile}
-                </MetaItem>
-              ) : null}
+              <MetaItem>
+                <img src={assets.iconPhoneFamily} alt="" width={20} height={20} />
+                {employee.mobile.trim() || 'NA'}
+              </MetaItem>
             </MetaRow>
+            <CoverList
+              benefitIds={employeeBenefitIds}
+              benefitLabels={benefitLabels}
+            />
           </FilledCard>
           {spouses.map((dependant) => (
             <FilledMemberCard
               key={dependant.id}
               dependant={dependant}
+              benefitLabels={benefitLabels}
               onEdit={onEditDependant}
             />
           ))}
-          {spouseSlot
-            ? Array.from({ length: spouseSlot.remainingSlots }, (_, index) => (
-                <EmptySlot
-                  key={`spouse-empty-${index}`}
-                  label="Add spouse"
-                  disabled={!onAddSlot}
-                  onClick={() => onAddSlot?.('Spouse')}
-                />
-              ))
-            : null}
+          {uncoveredSpouses.map((dependant) => (
+            <FilledMemberCard
+              key={dependant.id}
+              dependant={dependant}
+              benefitLabels={benefitLabels}
+              priorYear
+              onEdit={onEditDependant}
+            />
+          ))}
+          {Array.from({ length: spouseEmptyCount }, (_, index) => (
+            <EmptySlot
+              key={`spouse-empty-${index}`}
+              label="Add spouse"
+              disabled={!onAddSlot}
+              onClick={() => onAddSlot?.('Spouse')}
+            />
+          ))}
         </Row>
       </Section>
 
@@ -174,7 +269,8 @@ function FamilyBoard({
           <SectionHeading>
             <SectionTitle>{childCount} Kids</SectionTitle>
             <SectionHint>
-              This insures {childCount} kids, with maximum age of 25 years.
+              This insures {childSlot?.maxSlots ?? childCount} kids, with
+              maximum age of 25 years.
             </SectionHint>
           </SectionHeading>
           <Row>
@@ -182,44 +278,68 @@ function FamilyBoard({
               <FilledMemberCard
                 key={dependant.id}
                 dependant={dependant}
+                benefitLabels={benefitLabels}
                 onEdit={onEditDependant}
               />
             ))}
-            {childSlot
-              ? Array.from({ length: childSlot.remainingSlots }, (_, index) => (
-                  <EmptySlot
-                    key={`child-empty-${index}`}
-                    label="Add child"
-                    disabled={!onAddSlot}
-                    onClick={() => onAddSlot?.('Child')}
-                  />
-                ))
-              : null}
+            {uncoveredChildren.map((dependant) => (
+              <FilledMemberCard
+                key={dependant.id}
+                dependant={dependant}
+                benefitLabels={benefitLabels}
+                priorYear
+                onEdit={onEditDependant}
+              />
+            ))}
+            {Array.from({ length: childEmptyCount }, (_, index) => (
+              <EmptySlot
+                key={`child-empty-${index}`}
+                label="Add child"
+                disabled={!onAddSlot}
+                onClick={() => onAddSlot?.('Child')}
+              />
+            ))}
           </Row>
         </Section>
       ) : null}
 
-      {extraSlots.map((slot) => {
+      {extraRelationships.map((relationship) => {
+        const slot = extraSlots.find((item) => item.relationship === relationship)
         const members = dependants.filter(
-          (item) => item.relationship === slot.relationship,
+          (item) => item.relationship === relationship,
+        )
+        const uncovered = uncoveredKnown(members, knownDependants, relationship)
+        const emptyCount = Math.max(
+          0,
+          (slot?.remainingSlots ?? 0) - uncovered.length,
         )
         return (
-          <Section key={slot.relationship}>
-            <SectionTitle>{slot.relationship}</SectionTitle>
+          <Section key={relationship}>
+            <SectionTitle>{relationship}</SectionTitle>
             <Row>
               {members.map((dependant) => (
                 <FilledMemberCard
                   key={dependant.id}
                   dependant={dependant}
+                  benefitLabels={benefitLabels}
                   onEdit={onEditDependant}
                 />
               ))}
-              {Array.from({ length: slot.remainingSlots }, (_, index) => (
+              {uncovered.map((dependant) => (
+                <FilledMemberCard
+                  key={dependant.id}
+                  dependant={dependant}
+                  benefitLabels={benefitLabels}
+                  priorYear
+                  onEdit={onEditDependant}
+                />
+              ))}
+              {Array.from({ length: emptyCount }, (_, index) => (
                 <EmptySlot
-                  key={`${slot.relationship}-empty-${index}`}
-                  label={`Add ${slot.relationship.toLowerCase()}`}
+                  key={`${relationship}-empty-${index}`}
+                  label={`Add ${relationship.toLowerCase()}`}
                   disabled={!onAddSlot}
-                  onClick={() => onAddSlot?.(slot.relationship)}
+                  onClick={() => onAddSlot?.(relationship)}
                 />
               ))}
             </Row>
@@ -232,13 +352,17 @@ function FamilyBoard({
 
 function FilledMemberCard({
   dependant,
+  benefitLabels,
+  priorYear = false,
   onEdit,
 }: {
   dependant: DependantFormData
+  benefitLabels: Record<string, string>
+  priorYear?: boolean
   onEdit?: (dependant: DependantFormData) => void
 }) {
   return (
-    <FilledCard>
+    <FilledCard $muted={priorYear}>
       <CardTop>
         <Identity>
           <Avatar>
@@ -251,7 +375,10 @@ function FilledMemberCard({
                 .filter(Boolean)
                 .join(' ') || dependant.relationship}
             </PersonName>
-            <Relationship>{dependant.relationship}</Relationship>
+            <Relationship>
+              {dependant.relationship}
+              {priorYear ? ' · Last year' : ''}
+            </Relationship>
           </div>
         </Identity>
         {onEdit ? (
@@ -271,14 +398,48 @@ function FilledMemberCard({
             {dependant.dateOfBirth}
           </MetaItem>
         ) : null}
-        {dependant.mobile ? (
-          <MetaItem>
-            <img src={assets.iconPhoneFamily} alt="" width={20} height={20} />
-            {dependant.mobile}
-          </MetaItem>
-        ) : null}
+        <MetaItem>
+          <img src={assets.iconPhoneFamily} alt="" width={20} height={20} />
+          {dependant.mobile.trim() || 'NA'}
+        </MetaItem>
       </MetaRow>
+      <CoverList
+        benefitIds={dependant.selectedBenefitIds}
+        benefitLabels={benefitLabels}
+        priorYear={priorYear}
+      />
     </FilledCard>
+  )
+}
+
+function CoverList({
+  benefitIds,
+  benefitLabels,
+  priorYear = false,
+}: {
+  benefitIds: string[]
+  benefitLabels: Record<string, string>
+  priorYear?: boolean
+}) {
+  if (benefitIds.length === 0) {
+    return (
+      <CoverEmpty>
+        {priorYear
+          ? 'On file from last year · not covered this year'
+          : 'Not covered on any selected policy'}
+      </CoverEmpty>
+    )
+  }
+
+  return (
+    <Covers>
+      <CoverCaption>Covered in</CoverCaption>
+      <ChipRow>
+        {benefitIds.map((id) => (
+          <Chip key={id}>{benefitLabels[id] ?? id}</Chip>
+        ))}
+      </ChipRow>
+    </Covers>
   )
 }
 
@@ -350,16 +511,19 @@ const Row = styled.div`
   }
 `
 
-const FilledCard = styled.div`
+const FilledCard = styled.div<{ $muted?: boolean }>`
   display: flex;
   flex-direction: column;
   gap: 16px;
   min-height: 116px;
   padding: 16px;
-  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
+  border: 1px ${({ $muted }) => ($muted ? 'dashed' : 'solid')}
+    ${({ theme }) => theme.colors.defaultBorder};
   border-radius: 12px;
-  background: ${({ theme }) => theme.colors.surface1};
+  background: ${({ theme, $muted }) =>
+    $muted ? theme.colors.surface0 : theme.colors.surface1};
   box-sizing: border-box;
+  opacity: ${({ $muted }) => ($muted ? 0.92 : 1)};
 
   @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
     padding: 14px;
@@ -455,6 +619,43 @@ const MetaItem = styled.span`
   font-weight: 500;
   line-height: 20px;
   color: ${({ theme }) => theme.colors.textPrimary};
+`
+
+const Covers = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+const CoverCaption = styled.span`
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+`
+
+const ChipRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`
+
+const Chip = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: ${({ theme }) => theme.colors.planeGreenLight};
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  color: ${({ theme }) => theme.colors.emerald};
+`
+
+const CoverEmpty = styled.span`
+  font-size: 12px;
+  line-height: 16px;
+  color: ${({ theme }) => theme.colors.textSecondary};
 `
 
 const EmptyCard = styled.button`

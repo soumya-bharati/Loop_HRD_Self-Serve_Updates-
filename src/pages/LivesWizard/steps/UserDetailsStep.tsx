@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
 
@@ -10,11 +10,9 @@ import {
   validateAttributeValues,
 } from '@/domain/flex'
 import {
-  ADD_EMPLOYEES_CSV_TEMPLATE,
   areMembersValid,
   emptyAddEmployeeMember,
   isEmployeeValid,
-  parseEmployeesCsv,
 } from '@/pages/LivesWizard/addEmployees'
 import { WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { DealSelector } from '@/pages/LivesWizard/components/DealSelector'
@@ -57,8 +55,6 @@ export function UserDetailsStep() {
     setAddEmployeeEditing,
     setAddEmployees,
     fileName,
-    setFileName,
-    setTemplateDownloaded,
     activeDeal,
     activeDealId,
     selectDeal,
@@ -66,9 +62,6 @@ export function UserDetailsStep() {
     setStep,
   } = useLivesWizard()
 
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [parseError, setParseError] = useState<string | null>(null)
-  const [uploadSummary, setUploadSummary] = useState<string | null>(null)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
   const [manualStarted, setManualStarted] = useState(false)
   const [assignmentMemberId, setAssignmentMemberId] = useState<string | null>(
@@ -151,41 +144,6 @@ export function UserDetailsStep() {
     0,
   )
 
-  const downloadTemplate = () => {
-    setTemplateDownloaded(true)
-    const blob = new Blob([ADD_EMPLOYEES_CSV_TEMPLATE], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'add-employees-template.csv'
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const handleFile = async (file: File) => {
-    setParseError(null)
-    setUploadSummary(null)
-    setFileName(file.name)
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      setParseError(
-        'Please upload a CSV file (export your Excel sheet as CSV). Template download is CSV.',
-      )
-      return
-    }
-    const text = await file.text()
-    const result = parseEmployeesCsv(text)
-    if (result.error) {
-      setParseError(result.error)
-      setAddEmployees([])
-      return
-    }
-    setAddEmployees(result.members)
-    const deps = result.members.reduce((s, m) => s + m.dependants.length, 0)
-    setUploadSummary(
-      `${result.members.length} employee${result.members.length === 1 ? '' : 's'} · ${deps} dependant${deps === 1 ? '' : 's'} detected`,
-    )
-  }
-
   return (
     <WizardChrome
       title={addEmployeesPageTitle(activeDeal?.name)}
@@ -233,56 +191,6 @@ export function UserDetailsStep() {
         </DealPrompt>
       ) : (
         <>
-          <BulkPanel>
-            <BulkIllustration src={assets.bulkUpload} alt="" aria-hidden />
-            <BulkCopy>
-              <BulkTitle>Add employees in bulk</BulkTitle>
-              <BulkDescription>
-                Upload an Excel file to add multiple employees at once. Download
-                the template, fill in the employee details, and upload it when
-                you&apos;re ready.
-              </BulkDescription>
-              <TutorialButton type="button">
-                <PlayIcon
-                  src={assets.iconPlayEmerald}
-                  alt=""
-                  width={16}
-                  height={16}
-                  aria-hidden
-                />
-                Watch Tutorial
-              </TutorialButton>
-            </BulkCopy>
-            <BulkActions>
-              <DownloadButton type="button" onClick={downloadTemplate}>
-                Download Template
-              </DownloadButton>
-              <UploadButton
-                type="button"
-                onClick={() => inputRef.current?.click()}
-              >
-                Upload An Excel
-              </UploadButton>
-              <input
-                ref={inputRef}
-                type="file"
-                accept=".csv,.xlsx,.xls,text/csv"
-                hidden
-                onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  if (!file) return
-                  setIntakeMode('excel')
-                  void handleFile(file)
-                }}
-              />
-            </BulkActions>
-          </BulkPanel>
-
-          <SectionDivider />
-          <ManualIntro>
-            Or you can manually add one or more employees.
-          </ManualIntro>
-
           <EmployeeList>
             <EmployeeListHeader>
               <NumberHeading>#</NumberHeading>
@@ -693,7 +601,6 @@ export function UserDetailsStep() {
             type="button"
             onClick={() => {
               setIntakeMode('form')
-              setParseError(null)
               const availableBlank = addEmployees.find(
                 (member) =>
                   !member.assignmentCompleted &&
@@ -721,9 +628,7 @@ export function UserDetailsStep() {
           </AddEmployeeBtn>
           </EmployeeList>
 
-          {parseError ? <ErrorText>{parseError}</ErrorText> : null}
-          {uploadSummary ? <SummaryBanner>{uploadSummary}</SummaryBanner> : null}
-          {!uploadSummary && employeeCount > 0 && fileName ? (
+          {employeeCount > 0 && fileName ? (
             <SummaryBanner>
               {employeeCount} employee{employeeCount === 1 ? '' : 's'} ·{' '}
               {dependantCount} dependant{dependantCount === 1 ? '' : 's'}{' '}
@@ -764,147 +669,6 @@ export function UserDetailsStep() {
     </WizardChrome>
   )
 }
-
-const BulkPanel = styled.section`
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  min-height: 124px;
-  padding: 16px 24px;
-  border-radius: 12px;
-  background: ${({ theme }) => theme.colors.planeGreenLight};
-  box-sizing: border-box;
-  max-width: 100%;
-
-  @media (max-width: 900px) {
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  @media (max-width: 640px) {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-    min-height: 0;
-    padding: 12px 16px;
-  }
-`
-
-const BulkIllustration = styled.img`
-  width: 96px;
-  height: 82px;
-  flex-shrink: 0;
-  object-fit: contain;
-
-  @media (max-width: 640px) {
-    width: 72px;
-    height: 62px;
-    align-self: center;
-  }
-`
-
-const BulkCopy = styled.div`
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  flex-direction: column;
-  gap: 6px;
-
-  @media (max-width: 640px) {
-    min-width: 0;
-  }
-`
-
-const BulkTitle = styled.h2`
-  margin: 0;
-  font-size: 18px;
-  font-weight: 500;
-  line-height: 24px;
-  color: ${({ theme }) => theme.colors.textPrimary};
-`
-
-const BulkDescription = styled.p`
-  max-width: 600px;
-  margin: 0;
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 20px;
-  letter-spacing: 0.2px;
-  color: ${({ theme }) => theme.colors.textPrimary};
-`
-
-const TutorialButton = styled.button`
-  display: inline-flex;
-  align-items: center;
-  align-self: flex-start;
-  gap: 8px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  font-family: ${({ theme }) => theme.fontFamily};
-  font-size: 13px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.emerald};
-  cursor: pointer;
-`
-
-const PlayIcon = styled.img`
-  display: block;
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-`
-
-const BulkActions = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-shrink: 0;
-
-  @media (max-width: 560px) {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-  }
-`
-
-const DownloadButton = styled.button`
-  height: 48px;
-  padding: 0 24px;
-  border: 1px solid ${({ theme }) => theme.colors.emerald};
-  border-radius: 12px;
-  background: transparent;
-  font-family: ${({ theme }) => theme.fontFamily};
-  font-size: 14px;
-  font-weight: 500;
-  color: ${({ theme }) => theme.colors.emerald};
-  cursor: pointer;
-
-  @media (max-width: 560px) {
-    width: 100%;
-    box-sizing: border-box;
-  }
-`
-
-const UploadButton = styled(DownloadButton)`
-  border-color: ${({ theme }) => theme.colors.fillGreen};
-  background: ${({ theme }) => theme.colors.fillGreen};
-`
-
-const SectionDivider = styled.hr`
-  width: 100%;
-  margin: -8px 0 -8px;
-  border: 0;
-  border-top: 1px dashed ${({ theme }) => theme.colors.defaultBorder};
-`
-
-const ManualIntro = styled.p`
-  margin: 0;
-  font-size: 14px;
-  line-height: 20px;
-  letter-spacing: 0.2px;
-  color: ${({ theme }) => theme.colors.textSecondary};
-`
 
 const EmployeeList = styled.section`
   display: flex;
@@ -1520,7 +1284,7 @@ const PhoneInput = styled.input`
 `
 
 const AddEmployeeBtn = styled.button`
-  align-self: flex-start;
+  align-self: center;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1548,12 +1312,6 @@ const AddEmployeeBtn = styled.button`
     align-self: stretch;
     width: 100%;
   }
-`
-
-const ErrorText = styled.p`
-  margin: 0;
-  font-size: 13px;
-  color: ${({ theme }) => theme.colors.textError};
 `
 
 const SummaryBanner = styled.div`

@@ -70,18 +70,15 @@ export function EnrolmentStep() {
     : enrolment.runEnrolment === false ||
       (enrolment.runEnrolment === true && Boolean(enrolment.dueDate))
 
-  const hideStepper = isAddEmployees && intakeMode === 'form'
-  const stepperSteps = isBulk
-    ? ['Upload', 'Validate', 'Review', 'Enrolment']
-    : isAddEmployees
-      ? [...SINGLE_ADD_STEPS, 'Enrolment']
-      : isSingleDependant
-        ? [...SINGLE_DEPENDANT_STEPS, 'Enrolment']
-        : [...SINGLE_ADD_STEPS]
+  const hideStepper = isBulk || (isAddEmployees && intakeMode === 'form')
+  const stepperSteps = isAddEmployees
+    ? [...SINGLE_ADD_STEPS, 'Enrolment']
+    : isSingleDependant
+      ? [...SINGLE_DEPENDANT_STEPS, 'Enrolment']
+      : [...SINGLE_ADD_STEPS]
 
-  const stepperIndex = isBulk
-    ? 3
-    : isAddEmployees || isSingleDependant
+  const stepperIndex =
+    isAddEmployees || isSingleDependant
       ? stepperSteps.length - 1
       : SINGLE_ADD_STEPS.length - 1
 

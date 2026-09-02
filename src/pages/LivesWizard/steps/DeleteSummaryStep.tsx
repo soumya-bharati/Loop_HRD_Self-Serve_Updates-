@@ -5,6 +5,7 @@ import { sampleEmployees } from '@/data/employees'
 import { RefundSummary } from '@/pages/LivesWizard/components/RefundSummary'
 import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
+import { wizardExitPath } from '@/pages/ManageLives/launchWizard'
 
 export function DeleteSummaryStep() {
   const navigate = useNavigate()
@@ -29,21 +30,19 @@ export function DeleteSummaryStep() {
     <WizardChrome
       title={isBulk ? 'Bulk delete refund estimate' : 'Deletion & refund summary'}
       onBack={() => setStep(isBulk ? 'bulk-validate' : 'offboard-coverage')}
-      onExit={() => navigate('/endorsements')}
+      onExit={() => navigate(wizardExitPath())}
       secondaryLabel="Back"
       onSecondary={() => setStep(isBulk ? 'bulk-validate' : 'offboard-coverage')}
       primaryLabel={isBulk ? 'Confirm deletion' : 'Off-board employee'}
       onPrimary={completeFlow}
     >
-      <FlowStepper
-        steps={
-          isBulk
-            ? ['Upload', 'Validate', 'Refund estimate']
-            : ['Search', 'Leaving date', 'Coverage', 'Refund']
-        }
-        activeIndex={isBulk ? 2 : 3}
-        bare
-      />
+      {isBulk ? null : (
+        <FlowStepper
+          steps={['Search', 'Leaving date', 'Coverage', 'Refund']}
+          activeIndex={3}
+          bare
+        />
+      )}
 
       {!isBulk && employee ? (
         <Banner>

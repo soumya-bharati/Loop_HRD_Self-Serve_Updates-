@@ -2,8 +2,9 @@ import { useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
-import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
+import { WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
+import { wizardExitPath } from '@/pages/ManageLives/launchWizard'
 
 export function MidtermProofStep() {
   const navigate = useNavigate()
@@ -20,19 +21,13 @@ export function MidtermProofStep() {
     <WizardChrome
       title="Mid-term supporting certificate"
       onBack={() => setStep('bulk-validate')}
-      onExit={() => navigate('/endorsements')}
+      onExit={() => navigate(wizardExitPath())}
       secondaryLabel="Back"
       onSecondary={() => setStep('bulk-validate')}
       primaryLabel="Continue to review"
       primaryDisabled={!midtermProofUploaded}
       onPrimary={() => setStep('bulk-review')}
     >
-      <FlowStepper
-        steps={['Upload', 'Validate', 'Review', 'Enrolment']}
-        activeIndex={1}
-        bare
-      />
-
       <Lead>
         Some dependants have coverage start dates after the employee start date,
         and the backing endorsement has already been sent. Upload a supporting

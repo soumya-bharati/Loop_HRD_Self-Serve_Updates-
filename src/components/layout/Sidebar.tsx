@@ -1,15 +1,25 @@
 import styled from 'styled-components'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 
 import { assets } from '@/assets/figma'
 
 const navItems = [
-  { to: '/policies', label: 'Policies', icon: assets.navPolicies },
+  { to: '/ask-loop', label: 'Ask Loop', icon: assets.navAskLoop },
+  {
+    to: '/policies',
+    label: 'Policies & Benefits',
+    icon: assets.navPoliciesBenefits,
+  },
+  { to: '/enrollments', label: 'Enrollments', icon: assets.navEnrollments },
   { to: '/employees', label: 'Employees', icon: assets.navEmployees },
-  { to: '/claim-details', label: 'Claim Details', icon: assets.navClaims },
-  { to: '/claim-analytics', label: 'Claim Analytics', icon: assets.navAnalytics },
-  { to: '/endorsements', label: 'Endorsements', icon: assets.navEndorsements },
-  { to: '/cd-accounts', label: 'CD Accounts', icon: assets.navCd },
+  {
+    to: '/endorsements',
+    label: 'Endorsements',
+    icon: assets.navEndorsementsNew,
+  },
+  { to: '/healthcare', label: 'Healthcare', icon: assets.navHealthcare },
+  { to: '/claim-details', label: 'Claims', icon: assets.navClaimsNew },
+  { to: '/cd-accounts', label: 'CD Accounts', icon: assets.navCdAccounts },
 ]
 
 export function Sidebar({
@@ -19,17 +29,37 @@ export function Sidebar({
   open?: boolean
   onClose?: () => void
 }) {
+  const { pathname } = useLocation()
+  const onManageLives = pathname.startsWith('/manage-lives')
+
   return (
     <Aside $open={open} aria-hidden={!open ? undefined : false}>
-      {navItems.map(({ to, label, icon }) => (
-        <Item key={to} to={to} onClick={onClose}>
-          <ActiveBar />
-          <ItemInner>
-            <Icon src={icon} alt="" width={24} height={24} />
-            <span>{label}</span>
-          </ItemInner>
-        </Item>
-      ))}
+      <NavList>
+        {navItems.map(({ to, label, icon }) => (
+          <Item
+            key={to}
+            to={to}
+            onClick={onClose}
+            className={({ isActive }) =>
+              isActive || (to === '/endorsements' && onManageLives)
+                ? 'active'
+                : ''
+            }
+          >
+            <ActiveBar />
+            <ItemInner>
+              <Icon src={icon} alt="" width={24} height={24} />
+              <span>{label}</span>
+            </ItemInner>
+          </Item>
+        ))}
+      </NavList>
+      <HelpWrap>
+        <HelpButton type="button">
+          Get Help
+          <img src={assets.navGetHelpChevron} alt="" width={20} height={20} />
+        </HelpButton>
+      </HelpWrap>
     </Aside>
   )
 }
@@ -40,6 +70,7 @@ const Aside = styled.aside<{ $open: boolean }>`
   background: ${({ theme }) => theme.colors.emerald};
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: 8px;
   padding: 20px 0;
   align-self: stretch;
@@ -63,6 +94,12 @@ const Aside = styled.aside<{ $open: boolean }>`
     box-shadow: ${({ $open }) =>
       $open ? '12px 0 30px rgba(17, 24, 39, 0.18)' : 'none'};
   }
+`
+
+const NavList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 `
 
 const ActiveBar = styled.span`
@@ -89,7 +126,7 @@ const Icon = styled.img`
 const Item = styled(NavLink)`
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 12px;
   width: 100%;
   text-decoration: none;
   color: rgba(255, 255, 255, 0.5);
@@ -98,7 +135,7 @@ const Item = styled(NavLink)`
   line-height: 18px;
   letter-spacing: -0.28px;
   padding-right: 16px;
-  min-height: 48px;
+  min-height: 44px;
 
   &.active {
     background: ${({ theme }) => theme.colors.planeGreenDark};
@@ -107,6 +144,27 @@ const Item = styled(NavLink)`
     ${ActiveBar} {
       background: ${({ theme }) => theme.colors.surface1};
     }
-
   }
+`
+
+const HelpWrap = styled.div`
+  padding: 0 12px 0;
+  margin-top: auto;
+`
+
+const HelpButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: ${({ theme }) => theme.colors.planeGreenDark};
+  color: ${({ theme }) => theme.colors.fillGreen};
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.28px;
+  cursor: pointer;
 `

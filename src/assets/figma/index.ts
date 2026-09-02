@@ -17,6 +17,8 @@ import iconCake from '@/assets/figma/icon-cake.svg'
 import iconCall from '@/assets/figma/icon-call.svg'
 import iconEditPencil from '@/assets/figma/icon-edit-pencil.svg'
 import iconGender from '@/assets/figma/icon-gender-male.svg'
+import iconGenderFemale from '@/assets/figma/icon-gender-female.svg'
+import searchPerson from '@/assets/figma/employees/search-person.svg'
 import iconDocumentCopy from '@/assets/figma/icon-document-copy.svg'
 import iconCheckWhite from '@/assets/figma/icon-check-white.svg'
 import iconMail from '@/assets/figma/icon-mail.svg'
@@ -83,6 +85,47 @@ import iconEditGreen from '@/assets/figma/icon-edit-green.svg'
 import iconCakeFamily from '@/assets/figma/icon-cake-family.svg'
 import iconPhoneFamily from '@/assets/figma/icon-phone-family.svg'
 import policyCardLoopIcon from '@/assets/figma/policy-card-loop-icon.png'
+import employeesMetricPeople from '@/assets/figma/employees/metric-people.svg'
+import employeesMetricMental from '@/assets/figma/employees/metric-mental.svg'
+import employeesIconDownload from '@/assets/figma/employees/icon-download.svg'
+import employeesChevronDown from '@/assets/figma/employees/chevron-down-24.svg'
+import employeesPayrollDownload from '@/assets/figma/employees/icon-download-payroll.svg'
+import employeesClock from '@/assets/figma/employees/icon-clock.svg'
+import employeesSort from '@/assets/figma/employees/icon-sort.svg'
+import mlShowingForDot from '@/assets/figma/manage-lives/showing-for-dot.svg'
+import mlChevronDownWhite from '@/assets/figma/manage-lives/chevron-down-white.svg'
+import mlIconInstructions from '@/assets/figma/manage-lives/icon-instructions.svg'
+import mlIconDownload from '@/assets/figma/manage-lives/icon-download.svg'
+import mlIconPdf from '@/assets/figma/manage-lives/icon-pdf.svg'
+import mlIconUploadPlus from '@/assets/figma/manage-lives/icon-upload-plus.svg'
+import mlArrowBack from '@/assets/figma/manage-lives/icon-arrow-back.svg'
+import mlChevronDown24 from '@/assets/figma/manage-lives/chevron-down-24.svg'
+import mlIconPdfUpload from '@/assets/figma/manage-lives/icon-pdf-upload.svg'
+import mlIconUploadPlusSmall from '@/assets/figma/manage-lives/icon-upload-plus-small.svg'
+import mlActionIllustration from '@/assets/figma/manage-lives/action-illustration.svg'
+import mlChevronRight from '@/assets/figma/manage-lives/chevron-right.svg'
+import navAskLoop from '@/assets/figma/nav/ask-loop.svg'
+import navPoliciesBenefits from '@/assets/figma/nav/policies.svg'
+import navEnrollments from '@/assets/figma/nav/enrollments.svg'
+import navEndorsementsNew from '@/assets/figma/nav/endorsements.svg'
+import navHealthcare from '@/assets/figma/nav/healthcare.svg'
+import navClaimsNew from '@/assets/figma/nav/claims.svg'
+import navCdAccounts from '@/assets/figma/nav/cd-accounts.svg'
+import navGetHelpChevron from '@/assets/figma/nav/chevron-right.svg'
+import filterEntity from '@/assets/figma/nav/filter-entity.svg'
+import filterDeal from '@/assets/figma/nav/filter-deal.svg'
+import payrollDownload from '@/assets/figma/nav/payroll-download.svg'
+import edIconEdit from '@/assets/figma/employee-details/icon-edit.svg'
+import edIconAddDependant from '@/assets/figma/employee-details/icon-add-dependant.svg'
+import edIconDelete from '@/assets/figma/employee-details/icon-delete.svg'
+import edIconDownload from '@/assets/figma/employee-details/icon-download.svg'
+import edIconShare from '@/assets/figma/employee-details/icon-share.svg'
+import edIconDocCopy from '@/assets/figma/employee-details/icon-doc-copy.svg'
+import edIconCalendar from '@/assets/figma/employee-details/icon-calendar.svg'
+import edIconPerson from '@/assets/figma/employee-details/icon-person.svg'
+import edIconMoneys from '@/assets/figma/employee-details/icon-moneys.svg'
+import edIconMobileBadge from '@/assets/figma/employee-details/icon-mobile-badge.svg'
+import edPlanShield from '@/assets/figma/employee-details/plan-shield.png'
 
 export const assets = {
   bannerCal1,
@@ -110,6 +153,8 @@ export const assets = {
   iconCall,
   iconEditPencil,
   iconGender,
+  iconGenderFemale,
+  searchPerson,
   iconDocumentCopy,
   iconCheckWhite,
   iconMail,
@@ -170,4 +215,45 @@ export const assets = {
   modalPencil5,
   modalPencil6,
   policyCardLoopIcon,
+  employeesMetricPeople,
+  employeesMetricMental,
+  employeesIconDownload,
+  employeesChevronDown,
+  employeesPayrollDownload,
+  employeesClock,
+  employeesSort,
+  mlShowingForDot,
+  mlChevronDownWhite,
+  mlIconInstructions,
+  mlIconDownload,
+  mlIconPdf,
+  mlIconUploadPlus,
+  mlArrowBack,
+  mlChevronDown24,
+  mlIconPdfUpload,
+  mlIconUploadPlusSmall,
+  mlActionIllustration,
+  mlChevronRight,
+  navAskLoop,
+  navPoliciesBenefits,
+  navEnrollments,
+  navEndorsementsNew,
+  navHealthcare,
+  navClaimsNew,
+  navCdAccounts,
+  navGetHelpChevron,
+  filterEntity,
+  filterDeal,
+  payrollDownload,
+  edIconEdit,
+  edIconAddDependant,
+  edIconDelete,
+  edIconDownload,
+  edIconShare,
+  edIconDocCopy,
+  edIconCalendar,
+  edIconPerson,
+  edIconMoneys,
+  edIconMobileBadge,
+  edPlanShield,
 }

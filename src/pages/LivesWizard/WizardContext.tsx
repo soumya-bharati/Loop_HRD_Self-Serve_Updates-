@@ -198,6 +198,8 @@ interface LivesWizardContextValue {
 
   rows: BulkMemberRow[]
   updateRowPlan: (rowId: string, planId: string) => void
+  /** Prototype: clear a validation error after inline field edit. */
+  resolveRowValidation: (rowId: string, fieldValue?: string) => void
   bulkAssignMode: BulkAssignMode
   setBulkAssignMode: (mode: BulkAssignMode) => void
   bulkFilter: string
@@ -257,6 +259,67 @@ function initialStepFor(action: LifeAction, method: LifeMethod): WizardStep {
   return 'search-employee'
 }
 
+function hydrateFromRoster(
+  employeeKey: string | null | undefined,
+  dependantKey: string | null | undefined,
+  action: LifeAction,
+  method: LifeMethod,
+) {
+  if (!employeeKey) return null
+  const emp = sampleEmployees.find(
+    (item) => item.id === employeeKey || item.employeeId === employeeKey,
+  )
+  if (!emp) return null
+  const dependant = dependantKey
+    ? emp.dependants.find((item) => item.id === dependantKey)
+    : undefined
+
+  let step = initialStepFor(action, method)
+  if (action === 'add' && method === 'single-dependant') step = 'dependant-details'
+  if (action === 'delete' && method === 'single') step = 'date-of-leaving'
+  if (action === 'edit' && method === 'single') step = 'edit-form'
+  if (action === 'edit' && method === 'single-dependant' && dependant) {
+    step = 'edit-form'
+  }
+
+  const employeeForm =
+    dependant && action === 'edit' && method === 'single-dependant'
+      ? {
+          ...emptyEmployeeForm(),
+          employeeId: emp.employeeId,
+          firstName: dependant.firstName,
+          lastName: dependant.lastName,
+          gender: dependant.gender,
+          dateOfBirth: dependant.dateOfBirth,
+          email: dependant.email,
+          mobile: dependant.mobile,
+          relationship: dependant.relationship,
+        }
+      : {
+          ...emptyEmployeeForm(),
+          employeeId: emp.employeeId,
+          firstName: emp.firstName,
+          lastName: emp.lastName,
+          gender: emp.gender,
+          dateOfBirth: emp.dateOfBirth,
+          email: emp.email,
+          mobile: emp.mobile,
+          dateOfJoining: emp.dateOfJoining,
+          relationship: 'Self' as const,
+        }
+
+  return {
+    emp,
+    step,
+    employeeForm,
+    dependants:
+      action === 'add' && method === 'single-dependant'
+        ? [emptyDependantForm('dep-1')]
+        : [],
+    dependantId: dependant?.id ?? null,
+  }
+}
+
 function applyPlanToRow(row: BulkMemberRow, planId: string): BulkMemberRow {
   const planBenefits =
     planId === 'plan-parental'
@@ -300,16 +363,34 @@ export function LivesWizardProvider({
   initialMethod,
   organisationEntityId: organisationEntityIdProp,
   initialDealId,
+  initialEmployeeId,
+  initialDependantId,
+  initialLeavingDate,
+  initialFileName,
   children,
 }: {
   action: LifeAction
   initialMethod: LifeMethod
   organisationEntityId?: string | null
   initialDealId?: string | null
+  initialEmployeeId?: string | null
+  initialDependantId?: string | null
+  initialLeavingDate?: string | null
+  /** Sheet already attached upstream — skip the wizard's own upload step. */
+  initialFileName?: string | null
   children: ReactNode
 }) {
   const { entities: protoEntities, deals: protoDeals } = useProtoConfig()
-  const initialStep = initialStepFor(action, initialMethod)
+  const hydrated = hydrateFromRoster(
+    initialEmployeeId,
+    initialDependantId,
+    action,
+    initialMethod,
+  )
+  const skipUpload = Boolean(initialFileName) && initialMethod === 'bulk'
+  const initialStep = skipUpload
+    ? 'bulk-validate'
+    : (hydrated?.step ?? initialStepFor(action, initialMethod))
   const organisationEntity = getOrganisationEntity(
     organisationEntityIdProp,
     protoEntities,
@@ -319,14 +400,18 @@ export function LivesWizardProvider({
 
   const [step, setStep] = useState<WizardStep>(initialStep)
   const [method, setMethod] = useState<LifeMethod>(initialMethod)
-  const [employee, setEmployee] = useState<EmployeeFormData>(emptyEmployeeForm)
+  const [employee, setEmployee] = useState<EmployeeFormData>(
+    () => hydrated?.employeeForm ?? emptyEmployeeForm(),
+  )
   const [addDependants, setAddDependants] = useState<boolean | null>(null)
-  const [dependants, setDependants] = useState<DependantFormData[]>([])
+  const [dependants, setDependants] = useState<DependantFormData[]>(
+    () => hydrated?.dependants ?? [],
+  )
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(
-    null,
+    hydrated?.emp.id ?? null,
   )
   const [selectedDependantId, setSelectedDependantId] = useState<string | null>(
-    null,
+    hydrated?.dependantId ?? null,
   )
   const [selectedDependantPlanId, setSelectedDependantPlanId] = useState<
     string | null
@@ -341,14 +426,19 @@ export function LivesWizardProvider({
     Record<string, string[]>
   >({})
   const [activeDealId, setActiveDealId] = useState<string | null>(() => {
+    if (hydrated?.emp.dealId && getDealConfig(hydrated.emp.dealId, protoDeals)) {
+      return hydrated.emp.dealId
+    }
     if (initialDealId && getDealConfig(initialDealId, protoDeals)) {
       return initialDealId
     }
     return resolveInitialDealId(protoDeals)
   })
-  const [fileName, setFileName] = useState<string | null>(null)
-  const [templateDownloaded, setTemplateDownloaded] = useState(false)
-  const [deleteConfirmed, setDeleteConfirmed] = useState(false)
+  const [fileName, setFileName] = useState<string | null>(
+    initialFileName ?? null,
+  )
+  const [templateDownloaded, setTemplateDownloaded] = useState(skipUpload)
+  const [deleteConfirmed, setDeleteConfirmed] = useState(skipUpload)
   const [rows, setRows] = useState<BulkMemberRow[]>(() =>
     sampleBulkRows.map((r) => ({ ...r })),
   )
@@ -356,7 +446,7 @@ export function LivesWizardProvider({
   const [bulkFilter, setBulkFilter] = useState('all')
   const [midtermProofUploaded, setMidtermProofUploaded] = useState(false)
   const [processingProgress, setProcessingProgress] = useState(0)
-  const [dateOfLeaving, setDateOfLeaving] = useState('')
+  const [dateOfLeaving, setDateOfLeaving] = useState(initialLeavingDate ?? '')
   const [bulkDeleteRows] = useState(() =>
     sampleBulkDeleteRows.map((r) => ({ ...r })),
   )
@@ -834,6 +924,40 @@ export function LivesWizardProvider({
     )
   }, [])
 
+  const resolveRowValidation = useCallback(
+    (rowId: string, fieldValue?: string) => {
+      setRows((current) =>
+        current.map((row) => {
+          if (row.id !== rowId) return row
+          const field = (row.validationField ?? '').toLowerCase()
+          const nextEmail =
+            fieldValue !== undefined &&
+            (field.includes('email') || field === 'email')
+              ? fieldValue.trim() || row.email
+              : row.email
+          // Plan pick is handled by updateRowPlan; keep manual flag if still open.
+          if (row.needsManualAssignment && !row.assignedPlanId) {
+            return {
+              ...row,
+              email: nextEmail,
+              validationError: undefined,
+              validationField: undefined,
+            }
+          }
+          return {
+            ...row,
+            email: nextEmail,
+            validationError: undefined,
+            validationField: undefined,
+            needsManualAssignment: false,
+            status: 'pass',
+          }
+        }),
+      )
+    },
+    [],
+  )
+
   const startProcessing = useCallback(() => {
     setProcessingProgress(0)
     setStep('processing')
@@ -1133,6 +1257,7 @@ export function LivesWizardProvider({
       setDeleteConfirmed,
       rows,
       updateRowPlan,
+      resolveRowValidation,
       bulkAssignMode,
       setBulkAssignMode,
       bulkFilter,
@@ -1219,6 +1344,7 @@ export function LivesWizardProvider({
       deleteConfirmed,
       rows,
       updateRowPlan,
+      resolveRowValidation,
       bulkAssignMode,
       bulkFilter,
       midtermProofUploaded,

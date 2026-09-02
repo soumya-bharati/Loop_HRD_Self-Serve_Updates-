@@ -4,6 +4,7 @@ import styled from 'styled-components'
 import { emptyEmployeeForm } from '@/data/employees'
 import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
+import { wizardExitPath } from '@/pages/ManageLives/launchWizard'
 
 export function CorrectionBatchStep() {
   const navigate = useNavigate()
@@ -28,7 +29,7 @@ export function CorrectionBatchStep() {
     <WizardChrome
       title="Corrections to Submit"
       onBack={() => setStep('edit-form')}
-      onExit={() => navigate('/endorsements')}
+      onExit={() => navigate(wizardExitPath())}
       secondaryLabel="Add another correction"
       onSecondary={addAnother}
       primaryLabel={`Submit ${correctionBatch.length} correction${

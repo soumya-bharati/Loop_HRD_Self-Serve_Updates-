@@ -1,6 +1,8 @@
 import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
 
+import { CaptureWorkspaceChange } from '@/pages/ManageLives/CaptureWorkspaceChange'
+
 import {
   LivesWizardProvider,
   useLivesWizard,
@@ -39,10 +41,11 @@ function LivesWizardInner() {
   const { step } = useLivesWizard()
 
   if (step === 'success') {
+    const returning = new URLSearchParams(window.location.search).get('returnTo') === 'manage-lives'
     return (
       <Page>
         <Body>
-          <SuccessStep />
+          {returning ? <CaptureWorkspaceChange /> : <SuccessStep />}
         </Body>
       </Page>
     )
@@ -93,30 +96,40 @@ export function LivesWizardPage() {
   const methodParam = searchParams.get('method') as LifeMethod | null
   const entityParam = searchParams.get('entity')
   const dealParam = searchParams.get('deal')
+  const employeeParam = searchParams.get('employee')
+  const dependantParam = searchParams.get('dependant')
+  const leavingParam = searchParams.get('leaving')
+  const fileParam = searchParams.get('file')
+
+  const fallback = searchParams.get('returnTo') === 'manage-lives' ? '/manage-lives' : '/endorsements'
 
   if (!action || !VALID_ACTIONS.includes(action)) {
-    return <Navigate to="/endorsements" replace />
+    return <Navigate to={fallback} replace />
   }
 
   if (!methodParam || !VALID_METHODS.includes(methodParam)) {
-    return <Navigate to="/endorsements" replace />
+    return <Navigate to={fallback} replace />
   }
 
   // Edit/delete do not support every method combo from the modal, but routes are validated upstream.
   if (action === 'edit' && methodParam === 'bulk') {
-    return <Navigate to="/endorsements" replace />
+    return <Navigate to={fallback} replace />
   }
   if (action === 'delete' && methodParam === 'single-dependant') {
-    return <Navigate to="/endorsements" replace />
+    return <Navigate to={fallback} replace />
   }
 
   return (
     <LivesWizardProvider
-      key={`${action}-${methodParam}-${entityParam ?? 'default'}-${dealParam ?? 'default'}`}
+      key={`${action}-${methodParam}-${entityParam ?? 'default'}-${dealParam ?? 'default'}-${employeeParam ?? ''}-${dependantParam ?? ''}-${fileParam ?? ''}`}
       action={action}
       initialMethod={methodParam}
       organisationEntityId={entityParam}
       initialDealId={dealParam}
+      initialEmployeeId={employeeParam}
+      initialDependantId={dependantParam}
+      initialLeavingDate={leavingParam}
+      initialFileName={fileParam}
     >
       <LivesWizardInner />
     </LivesWizardProvider>

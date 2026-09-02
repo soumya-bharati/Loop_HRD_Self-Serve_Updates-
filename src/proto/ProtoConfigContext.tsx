@@ -13,6 +13,13 @@ import {
   type OrganisationEntity,
 } from '@/data/flexDeal'
 import { listActiveDeals, type FlexDealConfig } from '@/domain/flex'
+import {
+  DEFAULT_PROTO_VERSION_ID,
+  PROTO_VERSIONS,
+  resolveProtoVersion,
+  type ProtoVersion,
+  type ProtoVersionId,
+} from '@/proto/versions'
 
 const STORAGE_KEY = 'loop-proto-config'
 
@@ -21,6 +28,7 @@ export type ProtoCardinality = 'single' | 'multiple'
 interface StoredProtoConfig {
   entityIds: string[]
   dealIds: string[]
+  versionId?: string
 }
 
 interface ProtoConfigValue {
@@ -38,6 +46,11 @@ interface ProtoConfigValue {
   toggleDeal: (id: string) => void
   selectOnlyEntity: (id: string) => void
   selectOnlyDeal: (id: string) => void
+  /** Active prototype iteration — drives Manage Lives layouts. */
+  versionId: ProtoVersionId
+  version: ProtoVersion
+  versions: ProtoVersion[]
+  setVersionId: (id: ProtoVersionId) => void
   reset: () => void
 }
 
@@ -51,7 +64,12 @@ function readStored(): StoredProtoConfig | null {
     if (!Array.isArray(parsed.entityIds) || !Array.isArray(parsed.dealIds)) {
       return null
     }
-    return { entityIds: parsed.entityIds, dealIds: parsed.dealIds }
+    return {
+      entityIds: parsed.entityIds,
+      dealIds: parsed.dealIds,
+      versionId:
+        typeof parsed.versionId === 'string' ? parsed.versionId : undefined,
+    }
   } catch {
     return null
   }
@@ -81,17 +99,21 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
     const stored = readStored()
     return sanitise(stored?.dealIds ?? allDeals.map((deal) => deal.id), allDeals)
   })
+  const [versionId, setVersionIdState] = useState<ProtoVersionId>(() => {
+    const stored = readStored()
+    return resolveProtoVersion(stored?.versionId).id
+  })
 
   useEffect(() => {
     try {
       window.localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ entityIds, dealIds }),
+        JSON.stringify({ entityIds, dealIds, versionId }),
       )
     } catch {
       // Prototype-only preference — safe to lose when storage is unavailable.
     }
-  }, [entityIds, dealIds])
+  }, [entityIds, dealIds, versionId])
 
   const entities = useMemo(
     () => allEntities.filter((entity) => entityIds.includes(entity.id)),
@@ -101,6 +123,11 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
     () => allDeals.filter((deal) => dealIds.includes(deal.id)),
     [allDeals, dealIds],
   )
+  const version = useMemo(() => resolveProtoVersion(versionId), [versionId])
+
+  const setVersionId = useCallback((id: ProtoVersionId) => {
+    setVersionIdState(resolveProtoVersion(id).id)
+  }, [])
 
   const setEntityMode = useCallback(
     (mode: ProtoCardinality) => {
@@ -167,6 +194,7 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
   const reset = useCallback(() => {
     setEntityIds(allEntities.map((entity) => entity.id))
     setDealIds(allDeals.map((deal) => deal.id))
+    setVersionIdState(DEFAULT_PROTO_VERSION_ID)
   }, [allEntities, allDeals])
 
   const value = useMemo<ProtoConfigValue>(
@@ -183,6 +211,10 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
       toggleDeal,
       selectOnlyEntity,
       selectOnlyDeal,
+      versionId,
+      version,
+      versions: PROTO_VERSIONS,
+      setVersionId,
       reset,
     }),
     [
@@ -196,6 +228,9 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
       toggleDeal,
       selectOnlyEntity,
       selectOnlyDeal,
+      versionId,
+      version,
+      setVersionId,
       reset,
     ],
   )

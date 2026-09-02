@@ -1,4 +1,11 @@
-import type { Gender, Relationship } from '@/data/employees'
+import {
+  emptyDependantForm,
+  sampleEmployees,
+  type DependantFormData,
+  type EmployeeFormData,
+  type Gender,
+  type Relationship,
+} from '@/data/employees'
 import type { AttributeDefinition } from '@/domain/flex'
 
 export interface DemoFamilyMember {
@@ -231,6 +238,64 @@ export const demoPersonas: DemoPersona[] = [
 export function personaAt(index: number): DemoPersona {
   const size = demoPersonas.length
   return demoPersonas[((index % size) + size) % size]
+}
+
+/**
+ * Family members already on file (last year's enrolment or the demo
+ * persona roster) for this employee. They are not treated as covered
+ * this year until HR adds them to the current request.
+ */
+export function priorFamilyForEmployee(
+  employee: Pick<EmployeeFormData, 'employeeId' | 'firstName' | 'lastName'>,
+): DependantFormData[] {
+  const employeeId = employee.employeeId.trim().toLowerCase()
+  const fullName = `${employee.firstName} ${employee.lastName}`
+    .trim()
+    .toLowerCase()
+
+  const persona = demoPersonas.find(
+    (item) =>
+      (employeeId && item.employeeId.toLowerCase() === employeeId) ||
+      (fullName &&
+        `${item.firstName} ${item.lastName}`.toLowerCase() === fullName),
+  )
+  if (persona) {
+    return persona.family.map((member, index) =>
+      toPriorDependant(`prior-${persona.id}-${index}`, member),
+    )
+  }
+
+  const roster = sampleEmployees.find(
+    (item) => employeeId && item.employeeId.toLowerCase() === employeeId,
+  )
+  if (!roster) return []
+
+  return roster.dependants.map((member) => ({
+    ...emptyDependantForm(member.id),
+    firstName: member.firstName,
+    lastName: member.lastName,
+    gender: member.gender,
+    dateOfBirth: toDisplayDate(member.dateOfBirth),
+    relationship: member.relationship,
+    mobile: member.mobile,
+    email: member.email,
+    selectedBenefitIds: [],
+  }))
+}
+
+function toPriorDependant(
+  id: string,
+  member: DemoFamilyMember,
+): DependantFormData {
+  return {
+    ...emptyDependantForm(id),
+    firstName: member.firstName,
+    lastName: member.lastName,
+    gender: member.gender,
+    dateOfBirth: toDisplayDate(member.dateOfBirth),
+    relationship: member.relationship,
+    selectedBenefitIds: [],
+  }
 }
 
 export function randomPersonaIndex() {

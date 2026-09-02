@@ -32,6 +32,7 @@ import { useRegisterFormAutofill } from '@/pages/LivesWizard/autofill/activeForm
 import {
   attributeValueFor,
   personaAt,
+  priorFamilyForEmployee,
   toDisplayDate,
 } from '@/pages/LivesWizard/autofill/personas'
 import { AddDependantModal } from '@/pages/LivesWizard/components/AddDependantModal'
@@ -84,7 +85,7 @@ export function EmployeeOnboardingPage({
   const steps = useMemo<OnboardingStep[]>(
     () => [
       { kind: 'details', label: 'Add Employee Details' },
-      { kind: 'policies', label: 'Choose policies for the employee' },
+      { kind: 'policies', label: 'Assigned policies for the employee' },
       { kind: 'dependants', label: 'Add Dependant Details' },
     ],
     [],
@@ -95,6 +96,7 @@ export function EmployeeOnboardingPage({
 
   const sessionId = open && member ? member.id : null
   const seededSessionId = useRef<string | null>(null)
+  const assignedKeyRef = useRef<string | null>(null)
 
   // Seed the draft once per open session; later context updates to the member
   // must not reset the stage the user is on.
@@ -105,6 +107,7 @@ export function EmployeeOnboardingPage({
     }
     if (seededSessionId.current === sessionId) return
     seededSessionId.current = sessionId
+    assignedKeyRef.current = null
     setStepIndex(0)
     setCancelConfirmOpen(false)
     setEmployee({
@@ -167,6 +170,34 @@ export function EmployeeOnboardingPage({
         eligibility?.benefits[benefitId]?.eligible !== false,
     )
   }, [eligibility, policyCovers, recommendation])
+  const assignedCovers = useMemo(
+    () =>
+      policyCovers.filter((cover) =>
+        recommendedBenefitIds.includes(cover.id),
+      ),
+    [policyCovers, recommendedBenefitIds],
+  )
+  const assignedKey = recommendedBenefitIds.slice().sort().join('|')
+
+  useEffect(() => {
+    if (!open || !employee) return
+    const slabs: Record<string, string> = {}
+    for (const benefitId of recommendedBenefitIds) {
+      const cover = policyCovers.find((item) => item.id === benefitId)
+      if (cover?.policySlabs?.length) {
+        slabs[benefitId] = cover.policySlabs[0].id
+      }
+    }
+    setSelectedBenefitIds(recommendedBenefitIds)
+    setPolicySlabIds(slabs)
+    if (
+      assignedKeyRef.current !== null &&
+      assignedKeyRef.current !== assignedKey
+    ) {
+      setDependants([])
+    }
+    assignedKeyRef.current = assignedKey
+  }, [assignedKey, employee, open, policyCovers, recommendedBenefitIds])
   const planId =
     deal.plans.find((plan) =>
       plan.benefitIds.every((benefitId) =>
@@ -272,37 +303,13 @@ export function EmployeeOnboardingPage({
   )
 
   const fillPolicies = useCallback(() => {
-    if (selectedBenefitIds.length > 0) {
-      return 'Policies are already selected.'
+    if (recommendedBenefitIds.length === 0) {
+      return 'No policy is auto assigned for this employee.'
     }
-    const picked = recommendedBenefitIds.length
-      ? recommendedBenefitIds
-      : policyCovers
-          .filter(
-            (cover) => eligibility?.benefits[cover.id]?.eligible !== false,
-          )
-          .map((cover) => cover.id)
-    if (picked.length === 0) {
-      return 'No policy is available for this employee.'
-    }
-    const slabs: Record<string, string> = { ...policySlabIds }
-    for (const benefitId of picked) {
-      const cover = policyCovers.find((item) => item.id === benefitId)
-      if (cover?.policySlabs?.length && !slabs[benefitId]) {
-        slabs[benefitId] = cover.policySlabs[0].id
-      }
-    }
-    setSelectedBenefitIds(picked)
-    setPolicySlabIds(slabs)
-    setDependants([])
-    return `Selected ${picked.length} ${picked.length === 1 ? 'policy' : 'policies'}.`
-  }, [
-    eligibility,
-    policyCovers,
-    policySlabIds,
-    recommendedBenefitIds,
-    selectedBenefitIds.length,
-  ])
+    return `Showing ${recommendedBenefitIds.length} auto assigned ${
+      recommendedBenefitIds.length === 1 ? 'policy' : 'policies'
+    }.`
+  }, [recommendedBenefitIds])
 
   const fillDependants = useCallback(
     (personaIndex: number) => {
@@ -426,13 +433,13 @@ export function EmployeeOnboardingPage({
                 currentStep.kind === 'details'
                   ? 'Employee details'
                   : currentStep.kind === 'policies'
-                    ? 'Choose policies'
+                    ? 'Assigned policies'
                     : 'Dependant details',
               hint:
                 currentStep.kind === 'details'
                   ? 'Fills the empty fields on this employee form.'
                   : currentStep.kind === 'policies'
-                    ? 'Selects the assigned policies for this employee.'
+                    ? 'Assigned policies are already applied for this employee.'
                     : 'Adds demo dependants that fit the remaining slots.',
               run: (personaIndex: number) =>
                 currentStep.kind === 'details'
@@ -450,20 +457,6 @@ export function EmployeeOnboardingPage({
 
   const updateEmployee = (patch: Partial<EmployeeFormData>) =>
     setEmployee((current) => (current ? { ...current, ...patch } : current))
-  const toggleCover = (benefitId: string) => {
-    const selected = selectedBenefitIds.includes(benefitId)
-    const next = selected
-      ? selectedBenefitIds.filter((id) => id !== benefitId)
-      : [...selectedBenefitIds, benefitId]
-    setSelectedBenefitIds(next)
-    if (selected) {
-      setPolicySlabIds((current) => {
-        const { [benefitId]: _removed, ...rest } = current
-        return rest
-      })
-    }
-    setDependants([])
-  }
 
   return (
     <Page role="dialog" aria-modal="true" aria-label="Add employee">
@@ -623,38 +616,22 @@ export function EmployeeOnboardingPage({
             <Section>
               <SectionHeading>
                 <div>
-                  <SectionTitle>Choose policies for the employee</SectionTitle>
+                  <SectionTitle>
+                    Assigned policies for the employee
+                  </SectionTitle>
                   <SectionCopy>
-                    Select every cover this employee should be enrolled on.
+                    These covers were auto assigned and cannot be changed.
                   </SectionCopy>
                 </div>
-                {recommendedBenefitIds.length > 0 ? (
+                {assignedCovers.length > 0 ? (
                   <Badge>Auto assigned</Badge>
                 ) : null}
               </SectionHeading>
-              <PolicyList>
-                {policyCovers.map((cover) => {
-                  const status = eligibility?.benefits[cover.id]
-                  const disabled = status?.eligible === false
-                  const selected = selectedBenefitIds.includes(cover.id)
-                  const slabs = cover.policySlabs ?? []
-                  return (
-                    <PolicyCard
-                      key={cover.id}
-                      $selected={selected}
-                      $disabled={disabled}
-                    >
+              {assignedCovers.length > 0 ? (
+                <PolicyList>
+                  {assignedCovers.map((cover) => (
+                    <PolicyCard key={cover.id}>
                       <PolicyHeader>
-                        <Checkbox
-                          type="checkbox"
-                          checked={selected}
-                          disabled={disabled}
-                          aria-label={`Select ${cover.name}`}
-                          onChange={() => {
-                            if (disabled) return
-                            toggleCover(cover.id)
-                          }}
-                        />
                         <LogoBox>
                           <LogoImg
                             src={insurerLogoSrc(cover.insurerLogo)}
@@ -678,37 +655,16 @@ export function EmployeeOnboardingPage({
                               </>
                             ) : null}
                           </PolicyMeta>
-                          {disabled ? (
-                            <PlanError>{status?.reason}</PlanError>
-                          ) : null}
                         </PolicyCopy>
                       </PolicyHeader>
-                      {selected && slabs.length > 0 ? (
-                        <SlabField>
-                          <SlabLabel id={`${cover.id}-slab-label`}>
-                            Choose Policy Slab<Required>*</Required>
-                          </SlabLabel>
-                          <SelectField
-                            ariaLabelledBy={`${cover.id}-slab-label`}
-                            value={policySlabIds[cover.id] ?? ''}
-                            placeholder="Select Policy Slab"
-                            options={slabs.map((slab) => ({
-                              value: slab.id,
-                              label: slab.label,
-                            }))}
-                            onChange={(value) =>
-                              setPolicySlabIds((current) => ({
-                                ...current,
-                                [cover.id]: value,
-                              }))
-                            }
-                          />
-                        </SlabField>
-                      ) : null}
                     </PolicyCard>
-                  )
-                })}
-              </PolicyList>
+                  ))}
+                </PolicyList>
+              ) : (
+                <EmptyPolicies>
+                  No cover could be auto assigned for this employee.
+                </EmptyPolicies>
+              )}
             </Section>
           ) : selectedBenefitIds.length > 0 ? (
             <Section>
@@ -725,7 +681,9 @@ export function EmployeeOnboardingPage({
                 summary={familySummary}
                 benefitLabels={benefitLabels}
                 employee={employee}
+                employeeBenefitIds={selectedBenefitIds}
                 dependants={dependants}
+                knownDependants={priorFamilyForEmployee(employee)}
                 onAddSlot={(relationship) =>
                   setDependantModal({ relationship })
                 }
@@ -760,46 +718,16 @@ export function EmployeeOnboardingPage({
               }
               onClick={() => {
                 if (!isLastStep) {
-                  if (currentStep.kind === 'details') {
-                    setSelectedBenefitIds((current) => {
-                      if (current.length > 0) return current
-                      return recommendedBenefitIds
-                    })
-                    setPolicySlabIds((current) => {
-                      const next = { ...current }
-                      const ids =
-                        selectedBenefitIds.length > 0
-                          ? selectedBenefitIds
-                          : recommendedBenefitIds
-                      for (const benefitId of ids) {
-                        const cover = policyCovers.find(
-                          (item) => item.id === benefitId,
-                        )
-                        if (cover?.policySlabs?.length && !next[benefitId]) {
-                          next[benefitId] = cover.policySlabs[0].id
-                        }
-                      }
-                      return next
-                    })
-                  }
                   setStepIndex(activeIndex + 1)
                   return
                 }
                 if (!dependantsValid) return
-                const matchesRecommendation =
-                  selectedBenefitIds.length === recommendedBenefitIds.length &&
-                  recommendedBenefitIds.every((id) =>
-                    selectedBenefitIds.includes(id),
-                  )
                 onSave({
                   employee,
                   planId,
                   purchaseGroupSelections: {},
                   policySlabIds,
-                  assignmentSource:
-                    matchesRecommendation && recommendation
-                      ? recommendation.source
-                      : 'manual',
+                  assignmentSource: recommendation?.source ?? 'manual',
                   selectedBenefitIds,
                   dependants,
                 })
@@ -1438,18 +1366,15 @@ const PolicyList = styled.div`
   gap: 12px;
 `
 
-const PolicyCard = styled.div<{ $selected: boolean; $disabled: boolean }>`
+const PolicyCard = styled.div`
   display: flex;
   flex-direction: column;
   gap: 16px;
   width: 100%;
   padding: 16px 20px;
-  border: 1px solid
-    ${({ theme, $selected }) =>
-      $selected ? theme.colors.emerald : theme.colors.defaultBorder};
+  border: 1px solid ${({ theme }) => theme.colors.emerald};
   border-radius: 12px;
   background: ${({ theme }) => theme.colors.surface1};
-  opacity: ${({ $disabled }) => ($disabled ? 0.55 : 1)};
   box-sizing: border-box;
 `
 
@@ -1460,19 +1385,6 @@ const PolicyHeader = styled.div`
 
   @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
     gap: 10px;
-  }
-`
-
-const Checkbox = styled.input`
-  width: 18px;
-  height: 18px;
-  margin-top: 4px;
-  flex-shrink: 0;
-  accent-color: ${({ theme }) => theme.colors.emerald};
-  cursor: pointer;
-
-  &:disabled {
-    cursor: not-allowed;
   }
 `
 
@@ -1529,27 +1441,11 @@ const PolicyDot = styled.span`
   background: ${({ theme }) => theme.colors.textSecondary};
 `
 
-const PlanError = styled.span`
-  font-size: 11px;
-  color: ${({ theme }) => theme.colors.textError};
-`
-
-const SlabField = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-left: 34px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
-    padding-left: 0;
-  }
-`
-
-const SlabLabel = styled.span`
+const EmptyPolicies = styled.p`
+  margin: 0;
   font-size: 14px;
-  font-weight: 500;
   line-height: 20px;
-  color: ${({ theme }) => theme.colors.textPrimary};
+  color: ${({ theme }) => theme.colors.textSecondary};
 `
 
 const Footer = styled.footer`

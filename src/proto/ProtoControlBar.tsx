@@ -10,7 +10,8 @@ function countLabel(count: number, singular: string, plural: string) {
 
 export function ProtoControlBar() {
   const [open, setOpen] = useState(false)
-  const { entities, deals } = useProtoConfig()
+  const { entities, deals, versionId, versions, setVersionId, version } =
+    useProtoConfig()
 
   return (
     <>
@@ -19,12 +20,28 @@ export function ProtoControlBar() {
           <Tag>Prototype</Tag>
           <Summary>
             {countLabel(entities.length, 'entity', 'entities')} ·{' '}
-            {countLabel(deals.length, 'flex deal', 'flex deals')}
+            {countLabel(deals.length, 'flex deal', 'flex deals')} ·{' '}
+            {version.label}
           </Summary>
         </Left>
-        <Cta type="button" onClick={() => setOpen(true)}>
-          Configure account
-        </Cta>
+        <Right>
+          {versions.length > 1 ? (
+            <VersionSelect
+              aria-label="Prototype version"
+              value={versionId}
+              onChange={(event) => setVersionId(event.target.value)}
+            >
+              {versions.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </VersionSelect>
+          ) : null}
+          <Cta type="button" onClick={() => setOpen(true)}>
+            Configure account
+          </Cta>
+        </Right>
       </Bar>
 
       <ProtoConfigModal open={open} onClose={() => setOpen(false)} />
@@ -72,6 +89,19 @@ const Left = styled.div`
   }
 `
 
+const Right = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+
+  @media (max-width: 560px) {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+`
+
 const Tag = styled.span`
   flex-shrink: 0;
   display: inline-flex;
@@ -102,6 +132,38 @@ const Summary = styled.span`
     white-space: normal;
     overflow: visible;
     text-overflow: unset;
+  }
+`
+
+const VersionSelect = styled.select`
+  height: 28px;
+  max-width: 200px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: ${({ theme }) => theme.radii.full};
+  background: #1a1a1a;
+  color: ${({ theme }) => theme.colors.textTertiary};
+  font-family: ${({ theme }) => theme.fontFamily};
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+
+  @media (max-width: 560px) {
+    max-width: none;
+    width: 100%;
+    height: 32px;
+  }
+
+  &:hover,
+  &:focus {
+    border-color: #ffffff;
+    outline: none;
+  }
+
+  option {
+    background: #1a1a1a;
+    color: #ffffff;
   }
 `
 

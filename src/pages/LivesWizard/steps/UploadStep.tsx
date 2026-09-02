@@ -7,7 +7,7 @@ import {
   bulkTemplateFileName,
 } from '@/data/employees'
 import { flexDeal } from '@/data/flexDeal'
-import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
+import { WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
 
 export function UploadStep() {
@@ -34,16 +34,6 @@ export function UploadStep() {
       primaryDisabled={!fileName || (isDelete && !deleteConfirmed)}
       onPrimary={() => setStep('bulk-validate')}
     >
-      <FlowStepper
-        steps={
-          isDelete
-            ? ['Upload', 'Validate', 'Refund estimate']
-            : ['Upload', 'Validate', 'Review', 'Enrolment']
-        }
-        activeIndex={0}
-        bare
-      />
-
       <Intro>
         {isDelete ? (
           <>

@@ -9,7 +9,11 @@ import { ProtoControlBar } from '@/proto/ProtoControlBar'
 export function AppShell() {
   const { pathname } = useLocation()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const onEndorsementsDashboard = pathname.replace(/\/+$/, '') === '/endorsements'
+  const normalized = pathname.replace(/\/+$/, '') || '/'
+  const showProtoBar =
+    normalized === '/endorsements' ||
+    normalized === '/manage-lives' ||
+    normalized.startsWith('/manage-lives/')
 
   useEffect(() => setMobileNavOpen(false), [pathname])
 
@@ -24,7 +28,7 @@ export function AppShell() {
 
   return (
     <Shell>
-      {onEndorsementsDashboard ? <ProtoControlBar /> : null}
+      {showProtoBar ? <ProtoControlBar /> : null}
       <TopNav
         mobileNavOpen={mobileNavOpen}
         onMenuClick={() => setMobileNavOpen((current) => !current)}

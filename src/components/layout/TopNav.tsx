@@ -1,9 +1,11 @@
+import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
 import { LoopLogo } from '@/components/brand/LoopLogo'
 import { ChevronIcon } from '@/components/icons/ChevronIcon'
 import { endorsementsSummary } from '@/data/endorsements'
+import { usePendingChanges } from '@/pages/ManageLives/PendingChangesContext'
 
 export function TopNav({
   mobileNavOpen,
@@ -12,6 +14,9 @@ export function TopNav({
   mobileNavOpen: boolean
   onMenuClick: () => void
 }) {
+  const { changes } = usePendingChanges()
+  const changeCount = changes.length
+
   return (
     <Bar>
       <LogoCell>
@@ -40,6 +45,10 @@ export function TopNav({
             </SearchButton>
           </SearchFrame>
         </SearchArea>
+
+        <ChangesLink to="/manage-lives/review">
+          Changes · {changeCount}
+        </ChangesLink>
 
         <AlertsButton type="button">
           <AlertsContent>
@@ -222,6 +231,28 @@ const Handle = styled.img`
   position: absolute;
   right: 2px;
   bottom: 2px;
+`
+
+const ChangesLink = styled(Link)`
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: ${({ theme }) => theme.radii.sm};
+  background: ${({ theme }) => theme.colors.planeGreenLight};
+  color: ${({ theme }) => theme.colors.emerald};
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  letter-spacing: 0.2px;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    padding: 0 10px;
+    font-size: 11px;
+  }
 `
 
 const AlertsButton = styled.button`

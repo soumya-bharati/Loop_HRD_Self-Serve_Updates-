@@ -3,12 +3,14 @@ import styled from 'styled-components'
 
 import { flexDeal, formatINR, getPlanById } from '@/data/flexDeal'
 import { CostAndCdSummary } from '@/pages/LivesWizard/components/CostAndCdSummary'
-import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
+import { WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
+import { isWorkspaceReturn, wizardExitPath } from '@/pages/ManageLives/launchWizard'
 
 export function BulkReviewStep() {
   const navigate = useNavigate()
-  const { rows, costEstimate, setStep } = useLivesWizard()
+  const { rows, costEstimate, setStep, completeFlow } = useLivesWizard()
+  const returning = isWorkspaceReturn()
 
   const valid = rows.filter((r) => r.status === 'pass')
   const byAssignment = new Map<
@@ -35,25 +37,13 @@ export function BulkReviewStep() {
   return (
     <WizardChrome
       title="Bulk review & cost"
-      onBack={() =>
-        setStep(
-          rows.some((r) => r.needsMidtermProof)
-            ? 'midterm-proof'
-            : 'bulk-validate',
-        )
-      }
-      onExit={() => navigate('/endorsements')}
+      onBack={() => setStep('bulk-validate')}
+      onExit={() => navigate(wizardExitPath())}
       secondaryLabel="Back"
       onSecondary={() => setStep('bulk-validate')}
-      primaryLabel="Continue to enrolment"
-      onPrimary={() => setStep('enrolment')}
+      primaryLabel={returning ? 'Add to Pending Changes' : 'Continue to enrolment'}
+      onPrimary={() => (returning ? completeFlow() : setStep('enrolment'))}
     >
-      <FlowStepper
-        steps={['Upload', 'Validate', 'Review', 'Enrolment']}
-        activeIndex={2}
-        bare
-      />
-
       <Actions>
         <Download
           type="button"
