@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import styled, { keyframes } from 'styled-components'
 
 import { assets } from '@/assets/figma'
@@ -23,6 +23,12 @@ export function EnrollmentSettingsModal({
 }: Props) {
   const [launchEnrolment, setLaunchEnrolment] = useState(true)
   const [inviteSchedule, setInviteSchedule] = useState<'now' | 'later'>('later')
+
+  useEffect(() => {
+    if (open) return
+    setLaunchEnrolment(true)
+    setInviteSchedule('later')
+  }, [open])
 
   if (!open) return null
 
@@ -228,6 +234,10 @@ const CloseButton = styled.button`
   }
 `
 
+/**
+ * Children must not shrink: the tall email preview would otherwise be squeezed
+ * to fit this box instead of overflowing it, leaving nothing to scroll.
+ */
 const Body = styled.div`
   display: flex;
   min-height: 0;
@@ -235,6 +245,11 @@ const Body = styled.div`
   flex-direction: column;
   gap: 20px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+
+  > * {
+    flex-shrink: 0;
+  }
 `
 
 const Field = styled.div`
