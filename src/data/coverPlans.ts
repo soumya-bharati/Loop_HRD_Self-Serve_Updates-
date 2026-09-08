@@ -44,7 +44,7 @@ export const coverCatalog: CoverDefinition[] = [
       { id: 'health-platinum', label: 'Platinum', unitCost: 2400 },
     ],
     assignmentNote:
-      'Every life gets Health Insurance. Employees get Gold (Platinum on the Parental Plan), spouses Silver, children and parents Base.',
+      'Every employee gets Health Insurance, and their dependants join the same plan. Gold on Standard, Platinum on the Parental Plan.',
   },
   {
     id: 'cover-health-topup',
@@ -60,7 +60,7 @@ export const coverCatalog: CoverDefinition[] = [
       { id: 'topup-exclusive', label: 'Exclusive', unitCost: 1100 },
     ],
     assignmentNote:
-      'Employees and spouses only. Employees get Advance (Exclusive on the Parental Plan), spouses get General.',
+      'Employees and spouses only. Dependants follow the employee: Advance on Standard, Exclusive on the Parental Plan.',
   },
   {
     id: 'cover-opd',
@@ -75,7 +75,7 @@ export const coverCatalog: CoverDefinition[] = [
       { id: 'opd-complete', label: 'Complete Cover', unitCost: 560 },
     ],
     assignmentNote:
-      'Employees, spouses and children. Complete Cover on the Parental Plan, Essential otherwise.',
+      'Employees, spouses and children. Dependants follow the employee: Complete Cover on the Parental Plan, Essential otherwise.',
   },
   {
     id: 'cover-term-life',
@@ -119,7 +119,17 @@ export interface CoverAssignment {
 
 type Relationship = BulkMemberRow['relationship']
 
-/** Which plan of each cover a life lands on, given its relationship and assigned plan. */
+function linkedEmployee(row: BulkMemberRow, rows: BulkMemberRow[]) {
+  if (row.relationship === 'Self') return row
+  return (
+    rows.find(
+      (item) =>
+        item.employeeId === row.employeeId && item.relationship === 'Self',
+    ) ?? null
+  )
+}
+
+/** Which plan of each cover a life lands on. Dependants always share the employee's plan. */
 function planIdFor(
   coverId: CoverId,
   relationship: Relationship,
@@ -127,18 +137,11 @@ function planIdFor(
 ): string | null {
   switch (coverId) {
     case 'cover-health':
-      if (relationship === 'Self') {
-        return parentalPlan ? 'health-platinum' : 'health-gold'
-      }
-      if (relationship === 'Spouse') return 'health-silver'
-      return 'health-base'
+      return parentalPlan ? 'health-platinum' : 'health-gold'
 
     case 'cover-health-topup':
-      if (relationship === 'Self') {
-        return parentalPlan ? 'topup-exclusive' : 'topup-advance'
-      }
-      if (relationship === 'Spouse') return 'topup-general'
-      return null
+      if (relationship === 'Child' || relationship === 'Parent') return null
+      return parentalPlan ? 'topup-exclusive' : 'topup-advance'
 
     case 'cover-opd':
       if (relationship === 'Parent') return null
@@ -152,12 +155,19 @@ function planIdFor(
 
 /** A life counts towards the breakup once it has a plan and is not failing validation. */
 export function isRowAssigned(row: BulkMemberRow) {
-  return row.status !== 'fail' && Boolean(row.assignedPlanId)
+  return !row.ignored && row.status !== 'fail' && Boolean(row.assignedPlanId)
 }
 
-export function coverAssignmentsForRow(row: BulkMemberRow): CoverAssignment[] {
+export function coverAssignmentsForRow(
+  row: BulkMemberRow,
+  rows: BulkMemberRow[] = [row],
+): CoverAssignment[] {
   if (!isRowAssigned(row)) return []
-  const parentalPlan = row.assignedPlanId === 'plan-parental'
+  const employee = linkedEmployee(row, rows)
+  if (row.relationship !== 'Self' && (!employee || !isRowAssigned(employee))) {
+    return []
+  }
+  const parentalPlan = (employee ?? row).assignedPlanId === 'plan-parental'
 
   const assignments: CoverAssignment[] = []
   for (const cover of coverCatalog) {
@@ -177,8 +187,11 @@ export function coverAssignmentsForRow(row: BulkMemberRow): CoverAssignment[] {
 }
 
 /** Short label for a life's assignment, e.g. "Health Insurance · Gold". */
-export function rowAssignmentLabel(row: BulkMemberRow) {
-  const assignments = coverAssignmentsForRow(row)
+export function rowAssignmentLabel(
+  row: BulkMemberRow,
+  rows: BulkMemberRow[] = [row],
+) {
+  const assignments = coverAssignmentsForRow(row, rows)
   if (assignments.length === 0) return 'Unassigned'
   const health = assignments.find((a) => a.coverId === 'cover-health')
   const lead = health ?? assignments[0]
@@ -204,7 +217,7 @@ export function buildCoverBreakup(rows: BulkMemberRow[]): CoverBreakup[] {
   const byCover = new Map<CoverId, Map<string, number>>()
 
   for (const row of rows) {
-    for (const assignment of coverAssignmentsForRow(row)) {
+    for (const assignment of coverAssignmentsForRow(row, rows)) {
       const plans = byCover.get(assignment.coverId) ?? new Map<string, number>()
       plans.set(assignment.planId, (plans.get(assignment.planId) ?? 0) + 1)
       byCover.set(assignment.coverId, plans)

@@ -1,110 +1,188 @@
-import { useState } from 'react'
-import styled, { css, keyframes } from 'styled-components'
+import { useEffect, useState } from 'react'
+import styled, { keyframes } from 'styled-components'
 
 import { assets } from '@/assets/figma'
 import type { ColumnMapping } from '@/pages/ManageLives/bulk/parseAndValidate'
+
+/** How long the scanner "reads" each Loop field before revealing its match. */
+const ROW_SCAN_MS = 520
 
 interface ColumnMappingPanelProps {
   mappings: ColumnMapping[]
   uploadedColumns: string[]
   sampleValues: Record<string, string>
-  activeIndex: number
   onMap: (mappingId: string, sourceColumn: string) => void
+  onConfirm: () => void
 }
 
 export function ColumnMappingPanel({
   mappings,
   uploadedColumns,
   sampleValues,
-  activeIndex,
   onMap,
+  onConfirm,
 }: ColumnMappingPanelProps) {
-  const [mismatch, setMismatch] = useState<string | null>(null)
-  const unresolved = mappings.filter(
-    (mapping, index) => index <= activeIndex && !mapping.sourceColumn,
-  )
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
+  const [scannedCount, setScannedCount] = useState(0)
+  const scanning = scannedCount < mappings.length
+  const mappedCount = mappings
+    .slice(0, scannedCount)
+    .filter((mapping) => mapping.sourceColumn).length
   const usedColumns = new Set(
     mappings
       .map((mapping) => mapping.sourceColumn)
       .filter((column): column is string => Boolean(column)),
   )
-  const visibleMappings = mappings.slice(
-    0,
-    Math.min(activeIndex + 1, mappings.length),
-  )
-  const complete = activeIndex >= mappings.length
+
+  useEffect(() => {
+    if (!scanning) return
+    const timer = window.setTimeout(
+      () => setScannedCount((current) => current + 1),
+      ROW_SCAN_MS,
+    )
+    return () => window.clearTimeout(timer)
+  }, [scanning, scannedCount])
+
+  function confirmMapping() {
+    if (scanning) return
+    const nextErrors: Record<string, string> = {}
+
+    for (const mapping of mappings) {
+      if (!mapping.sourceColumn) {
+        nextErrors[mapping.id] = `Select an uploaded column for ${mapping.loopField}.`
+        continue
+      }
+      if (
+        mapping.expectedSourceColumn &&
+        mapping.sourceColumn !== mapping.expectedSourceColumn
+      ) {
+        nextErrors[mapping.id] =
+          `“${mapping.sourceColumn}” doesn’t match ${mapping.loopField}. Select “${mapping.expectedSourceColumn}”.`
+      }
+    }
+
+    setRowErrors(nextErrors)
+    if (Object.keys(nextErrors).length > 0) return
+    onConfirm()
+  }
+
+  const errorCount = Object.keys(rowErrors).length
 
   return (
     <MappingCard>
       <MappingHeading>
         <div>
           <MappingTitle>
-            {unresolved.length > 0
-              ? 'Help us map the missing column'
-              : complete
-                ? 'Columns mapped successfully'
-                : 'Detecting and mapping columns'}
+            {scanning ? 'Scanning column headers' : 'Review column mapping'}
           </MappingTitle>
           <MappingDescription>
-            {unresolved.length > 0
-              ? 'Select the matching column from your uploaded document.'
-              : 'Matching your document headers to Loop’s format.'}
+            {scanning
+              ? `Matching your uploaded columns to Loop fields — ${scannedCount} of ${mappings.length} checked.`
+              : 'Loop fields are on the left. Match each one to a column from your uploaded document, then confirm to continue.'}
           </MappingDescription>
         </div>
-        <ProgressCount>
-          {Math.min(activeIndex, mappings.length)}/{mappings.length}
+        <ProgressCount $scanning={scanning}>
+          {scanning ? (
+            <LoaderSpin
+              src={assets.mlIconLoaderSm}
+              alt=""
+              width={12}
+              height={12}
+            />
+          ) : null}
+          {mappedCount}/{mappings.length}
         </ProgressCount>
       </MappingHeading>
 
       <ColumnLabels aria-hidden>
-        <span>Uploaded document</span>
         <span>Loop format</span>
+        <span>Uploaded document</span>
       </ColumnLabels>
 
       <MappingList>
-        {visibleMappings.map((mapping, index) => {
-          const detecting =
-            index === activeIndex && Boolean(mapping.sourceColumn) && !complete
-          const needsInput = index === activeIndex && !mapping.sourceColumn
-          const mapped = index < activeIndex || complete
+        {mappings.map((mapping, index) => {
+          const error = rowErrors[mapping.id]
           const options = uploadedColumns.filter(
             (column) =>
               !usedColumns.has(column) || column === mapping.sourceColumn,
           )
+          const state = error
+            ? 'error'
+            : mapping.sourceColumn
+              ? 'mapped'
+              : 'needs-input'
+
+          if (index >= scannedCount) {
+            return (
+              <MappingRow key={mapping.id} $state="scanning">
+                <LoopColumn>
+                  <span>{mapping.loopField}</span>
+                </LoopColumn>
+
+                <MappingArrow aria-hidden>
+                  <img
+                    src={assets.mlIconMappingArrow}
+                    alt=""
+                    width={64}
+                    height={12}
+                  />
+                </MappingArrow>
+
+                <ScanningCell>
+                  <ScanningBar aria-hidden />
+                  <ScanningLabel>
+                    {index === scannedCount
+                      ? 'Looking for a match…'
+                      : 'Waiting to scan'}
+                  </ScanningLabel>
+                </ScanningCell>
+
+                <RowStatus aria-hidden>
+                  {index === scannedCount ? (
+                    <LoaderSpin
+                      src={assets.mlIconLoaderSm}
+                      alt=""
+                      width={12}
+                      height={12}
+                    />
+                  ) : (
+                    <PendingDot />
+                  )}
+                </RowStatus>
+              </MappingRow>
+            )
+          }
 
           return (
-            <MappingRow
-              key={mapping.id}
-              $state={
-                needsInput
-                  ? mismatch
-                    ? 'error'
-                    : 'needs-input'
-                  : detecting
-                    ? 'detecting'
-                    : 'mapped'
-              }
-            >
+            <MappingRow key={mapping.id} $state={state}>
+              <LoopColumn>
+                <span>{mapping.loopField}</span>
+              </LoopColumn>
+
+              <MappingArrow aria-hidden>
+                <img
+                  src={assets.mlIconMappingArrow}
+                  alt=""
+                  width={64}
+                  height={12}
+                />
+              </MappingArrow>
+
               <SourceColumn>
-                {needsInput ? (
+                <SelectWrap>
                   <ColumnSelect
-                    value=""
-                    $invalid={Boolean(mismatch)}
+                    value={mapping.sourceColumn ?? ''}
+                    $invalid={Boolean(error)}
                     onChange={(event) => {
                       const next = event.target.value
-                      if (
-                        mapping.expectedSourceColumn &&
-                        next !== mapping.expectedSourceColumn
-                      ) {
-                        setMismatch(
-                          `“${next}” doesn’t match ${mapping.loopField}. Select “${mapping.expectedSourceColumn}” to continue.`,
-                        )
-                        return
-                      }
-                      setMismatch(null)
+                      setRowErrors((current) => {
+                        if (!current[mapping.id]) return current
+                        const { [mapping.id]: _removed, ...rest } = current
+                        return rest
+                      })
                       onMap(mapping.id, next)
                     }}
-                    aria-invalid={Boolean(mismatch)}
+                    aria-invalid={Boolean(error)}
                     aria-label={`Uploaded column for ${mapping.loopField}`}
                   >
                     <option value="" disabled>
@@ -116,43 +194,29 @@ export function ColumnMappingPanel({
                       </option>
                     ))}
                   </ColumnSelect>
-                ) : (
-                  <>
-                    <ColumnName>{mapping.sourceColumn}</ColumnName>
-                    {mapping.sourceColumn &&
-                    sampleValues[mapping.sourceColumn] ? (
-                      <SampleValue>
-                        Sample from uploaded file:{' '}
-                        {sampleValues[mapping.sourceColumn]}
-                      </SampleValue>
-                    ) : null}
-                  </>
-                )}
+                  <SelectChevron
+                    src={assets.mlIconChevronDownField}
+                    alt=""
+                    width={16}
+                    height={16}
+                  />
+                </SelectWrap>
+                {mapping.sourceColumn && sampleValues[mapping.sourceColumn] ? (
+                  <SampleValue>
+                    Sample from uploaded file:{' '}
+                    {sampleValues[mapping.sourceColumn]}
+                  </SampleValue>
+                ) : null}
               </SourceColumn>
 
-              <MappingArrow $active={detecting} aria-hidden>
-                <img
-                  src={assets.mlIconMappingArrow}
-                  alt=""
-                  width={64}
-                  height={12}
-                />
-              </MappingArrow>
-
-              <LoopColumn>
-                <span>{mapping.loopField}</span>
-              </LoopColumn>
-
               <RowStatus aria-hidden>
-                {mapped ? (
+                {state === 'mapped' ? (
                   <img
                     src={assets.mlIconCheckEmerald}
                     alt=""
                     width={12}
                     height={12}
                   />
-                ) : detecting ? (
-                  <DetectingDot />
                 ) : (
                   <WarningDot>!</WarningDot>
                 )}
@@ -162,16 +226,27 @@ export function ColumnMappingPanel({
         })}
       </MappingList>
 
-      {mismatch ? (
-        <MappingHint $error>
-          {mismatch}
-        </MappingHint>
-      ) : unresolved.length > 0 ? (
+      {scanning ? (
         <MappingHint>
-          We couldn’t confidently map “{unresolved[0].loopField}”. Your
-          selection will be used for this upload only.
+          Reading your document — you can review and change every mapping once
+          the scan finishes.
         </MappingHint>
-      ) : null}
+      ) : errorCount > 0 ? (
+        <MappingHint $error>
+          {errorCount === 1
+            ? 'One mapping still needs to be corrected before you can continue.'
+            : `${errorCount} mappings still need to be corrected before you can continue.`}
+        </MappingHint>
+      ) : (
+        <MappingHint>
+          Confirm the mapping when every Loop field has the right uploaded
+          column. This selection is used for this upload only.
+        </MappingHint>
+      )}
+
+      <ConfirmButton type="button" disabled={scanning} onClick={confirmMapping}>
+        {scanning ? 'Scanning document…' : 'Confirm mapping'}
+      </ConfirmButton>
     </MappingCard>
   )
 }
@@ -179,21 +254,12 @@ export function ColumnMappingPanel({
 const rowIn = keyframes`
   from {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
     transform: none;
   }
-`
-
-const mappingPulse = keyframes`
-  0%, 100% { transform: scaleX(0.35); opacity: 0.45; }
-  50% { transform: scaleX(1); opacity: 1; }
-`
-
-const dotPulse = keyframes`
-  50% { transform: scale(0.65); opacity: 0.45; }
 `
 
 const MappingCard = styled.section`
@@ -207,6 +273,8 @@ const MappingCard = styled.section`
   background: ${({ theme }) => theme.colors.surface1};
   box-sizing: border-box;
 `
+
+const COLUMN_GRID = 'minmax(0, 148px) 64px minmax(0, 1fr) 24px'
 
 const MappingHeading = styled.div`
   display: flex;
@@ -232,12 +300,17 @@ const MappingDescription = styled.p`
   letter-spacing: 0.2px;
 `
 
-const ProgressCount = styled.span`
+const ProgressCount = styled.span<{ $scanning?: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
   padding: 4px 10px;
   border-radius: 999px;
-  background: ${({ theme }) => theme.colors.planeGreenLight};
-  color: ${({ theme }) => theme.colors.emerald};
+  background: ${({ theme, $scanning }) =>
+    $scanning ? theme.colors.disableFill : theme.colors.planeGreenLight};
+  color: ${({ theme, $scanning }) =>
+    $scanning ? theme.colors.textSecondary : theme.colors.emerald};
   font-size: 12px;
   font-weight: 500;
   line-height: 18px;
@@ -245,7 +318,7 @@ const ProgressCount = styled.span`
 
 const ColumnLabels = styled.div`
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr) 24px;
+  grid-template-columns: ${COLUMN_GRID};
   gap: 12px;
   padding: 0 12px;
   color: ${({ theme }) => theme.colors.textSecondary};
@@ -265,11 +338,12 @@ const MappingList = styled.div`
   gap: 8px;
 `
 
+/** Each row lands as the scanner reaches it, so the entrance needs no stagger. */
 const MappingRow = styled.div<{
-  $state: 'detecting' | 'mapped' | 'needs-input' | 'error'
+  $state: 'mapped' | 'needs-input' | 'error' | 'scanning'
 }>`
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr) 24px;
+  grid-template-columns: ${COLUMN_GRID};
   align-items: center;
   gap: 12px;
   min-height: 56px;
@@ -289,32 +363,102 @@ const MappingRow = styled.div<{
         ? '#FFF9EF'
         : theme.colors.surface0};
   box-sizing: border-box;
-  animation: ${rowIn} 240ms ease-out;
+  transition:
+    border-color 240ms ease,
+    background-color 240ms ease;
+  animation: ${rowIn} 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    transition: none;
+  }
+`
+
+const shimmer = keyframes`
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+`
+
+const spin = keyframes`
+  to {
+    transform: rotate(360deg);
+  }
+`
+
+const LoaderSpin = styled.img`
+  display: block;
+  animation: ${spin} 900ms linear infinite;
 
   @media (prefers-reduced-motion: reduce) {
     animation: none;
   }
 `
 
-const SourceColumn = styled.div`
+const ScanningCell = styled.div`
   display: flex;
   min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-  color: ${({ theme }) => theme.colors.textPrimary};
+  align-items: center;
+  gap: 8px;
 `
 
-const ColumnName = styled.span`
+const ScanningBar = styled.span`
+  width: 168px;
+  height: 32px;
+  flex: 0 0 168px;
+  max-width: 50%;
+  border-radius: 6px;
+  background: linear-gradient(
+      90deg,
+      ${({ theme }) => theme.colors.disableFill} 25%,
+      ${({ theme }) => theme.colors.surface1} 50%,
+      ${({ theme }) => theme.colors.disableFill} 75%
+    )
+    0 0 / 200% 100%;
+  animation: ${shimmer} 1200ms linear infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+`
+
+const ScanningLabel = styled.span`
   overflow: hidden;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 18px;
+  min-width: 0;
+  flex: 1;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.2px;
   text-overflow: ellipsis;
   white-space: nowrap;
 `
 
+const PendingDot = styled.span`
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: ${({ theme }) => theme.colors.disableFill};
+`
+
+const SourceColumn = styled.div`
+  display: flex;
+  min-width: 0;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  color: ${({ theme }) => theme.colors.textPrimary};
+`
+
 const SampleValue = styled.span`
   overflow: hidden;
+  min-width: 0;
+  flex: 1;
   color: ${({ theme }) => theme.colors.textSecondary};
   font-size: 11px;
   font-weight: 400;
@@ -324,20 +468,38 @@ const SampleValue = styled.span`
   white-space: nowrap;
 `
 
+const SelectWrap = styled.div`
+  position: relative;
+  width: 168px;
+  max-width: 50%;
+  flex: 0 0 168px;
+`
+
+const SelectChevron = styled.img`
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+  transform: translateY(-50%);
+`
+
 const ColumnSelect = styled.select<{ $invalid?: boolean }>`
   width: 100%;
   height: 32px;
-  padding: 0 30px 0 10px;
+  padding: 0 28px 0 10px;
   border: 1px solid
     ${({ theme, $invalid }) =>
       $invalid ? theme.colors.textError : theme.colors.defaultBorder};
   border-radius: 6px;
-  background: ${({ theme }) => theme.colors.surface1}
-    url(${assets.mlChevronDown24}) no-repeat right 7px center / 16px 16px;
+  background: ${({ theme }) => theme.colors.surface1};
   color: ${({ theme }) => theme.colors.textPrimary};
   font: inherit;
   font-size: 12px;
   appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
   cursor: pointer;
 
   &:focus {
@@ -346,7 +508,7 @@ const ColumnSelect = styled.select<{ $invalid?: boolean }>`
   }
 `
 
-const MappingArrow = styled.div<{ $active: boolean }>`
+const MappingArrow = styled.div`
   display: flex;
   width: 64px;
   height: 12px;
@@ -359,21 +521,6 @@ const MappingArrow = styled.div<{ $active: boolean }>`
     width: 64px;
     height: 12px;
     object-fit: contain;
-    transform-origin: left center;
-  }
-
-  ${({ $active }) =>
-    $active &&
-    css`
-      img {
-        animation: ${mappingPulse} 850ms ease-in-out infinite;
-      }
-    `}
-
-  @media (prefers-reduced-motion: reduce) {
-    img {
-      animation: none;
-    }
   }
 `
 
@@ -386,6 +533,12 @@ const LoopColumn = styled.div`
   font-size: 12px;
   font-weight: 500;
   line-height: 18px;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 `
 
 const RowStatus = styled.div`
@@ -393,19 +546,6 @@ const RowStatus = styled.div`
   width: 24px;
   height: 24px;
   place-items: center;
-`
-
-const DetectingDot = styled.span`
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: ${({ theme }) => theme.colors.fillGreen};
-  box-shadow: 0 0 0 5px ${({ theme }) => theme.colors.planeGreenLight};
-  animation: ${dotPulse} 850ms ease-in-out infinite;
-
-  @media (prefers-reduced-motion: reduce) {
-    animation: none;
-  }
 `
 
 const WarningDot = styled.span`
@@ -430,4 +570,26 @@ const MappingHint = styled.p<{ $error?: boolean }>`
   font-size: 12px;
   line-height: 18px;
   letter-spacing: 0.2px;
+`
+
+const ConfirmButton = styled.button`
+  align-self: flex-start;
+  height: 48px;
+  padding: 14px 24px;
+  border: 0;
+  border-radius: 12px;
+  background: ${({ theme }) => theme.colors.fillGreen};
+  color: ${({ theme }) => theme.colors.emerald};
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+
+  &:disabled {
+    background: ${({ theme }) => theme.colors.disableFill};
+    color: ${({ theme }) => theme.colors.textSecondary};
+    cursor: progress;
+  }
 `

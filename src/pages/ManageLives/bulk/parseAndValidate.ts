@@ -104,7 +104,7 @@ function employeeCountFor(operation: BulkOperation) {
 export async function detectSheetColumns(
   operation: BulkOperation = 'add',
 ): Promise<ColumnDetectionResult> {
-  await new Promise((resolve) => window.setTimeout(resolve, 500))
+  await new Promise((resolve) => window.setTimeout(resolve, 1600))
 
   if (operation === 'remove') {
     return {
@@ -203,7 +203,7 @@ export async function parseSheet(
   file: File,
   operation: BulkOperation = 'add',
 ): Promise<ParsedSheet> {
-  await new Promise((resolve) => window.setTimeout(resolve, 700))
+  await new Promise((resolve) => window.setTimeout(resolve, 1200))
 
   return {
     fileName: file.name || 'uploaded-file',

@@ -9,19 +9,21 @@ import {
   formatINRExact,
   type CoverDefinition,
 } from '@/data/coverPlans'
-import { sampleBulkRows } from '@/data/flexDeal'
+import type { BulkMemberRow } from '@/data/flexDeal'
 import { downloadAssignmentSheet } from '@/pages/ManageLives/bulk/downloadAssignmentSheet'
 
 export function EndorsementCostPanel({
+  rows,
   isDelete = false,
   onDone,
 }: {
+  rows: BulkMemberRow[]
   isDelete?: boolean
   onDone: () => void
 }) {
   const acceptedRows = useMemo(
-    () => sampleBulkRows.filter((row) => row.status !== 'fail'),
-    [],
+    () => rows.filter((row) => !row.ignored && row.status !== 'fail'),
+    [rows],
   )
   const breakup = useMemo(() => buildCoverBreakup(acceptedRows), [acceptedRows])
   const groups = useMemo(() => buildInsurerGroups(breakup), [breakup])

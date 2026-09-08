@@ -15,16 +15,44 @@ import {
 import { ColumnMappingPanel } from '@/pages/ManageLives/landings/ColumnMappingPanel'
 import { EndorsementCostPanel } from '@/pages/ManageLives/landings/EndorsementCostPanel'
 import { EnrollmentSettingsModal } from '@/pages/ManageLives/landings/EnrollmentSettingsModal'
+import { ValidationIssuesPanel } from '@/pages/ManageLives/landings/ValidationIssuesPanel'
 import { ValidationResultsPanel } from '@/pages/ManageLives/landings/ValidationResultsPanel'
 import { usePendingChanges } from '@/pages/ManageLives/PendingChangesContext'
 import { nextPendingId } from '@/pages/ManageLives/pendingChanges'
-import { sampleBulkRows } from '@/data/flexDeal'
+import { sampleBulkRows, validationIssuesFor, type BulkMemberRow } from '@/data/flexDeal'
 import { useProtoConfig } from '@/proto/ProtoConfigContext'
 
 type BulkMode = 'add' | 'remove'
 
-const COLUMN_DETECTION_MS = 700
+function toggleIgnored(
+  rows: BulkMemberRow[],
+  rowId: string,
+  ignored: boolean,
+) {
+  const target = rows.find((row) => row.id === rowId)
+  if (!target) return rows
+  return rows.map((row) => {
+    if (row.id === rowId) return { ...row, ignored }
+    if (
+      target.relationship === 'Self' &&
+      row.relationship !== 'Self' &&
+      row.employeeId === target.employeeId
+    ) {
+      return { ...row, ignored }
+    }
+    return row
+  })
+}
+
 const ASSIGNING_BENEFITS_MS = 2000
+
+/** Narrates the document scan so the mapping card never appears instantly. */
+const SCAN_STAGES = [
+  'Opening your document...',
+  'Reading the header row...',
+  'Matching columns to Loop fields...',
+]
+const SCAN_STAGE_MS = 900
 
 const WIZARD_STEPS = [
   {
@@ -73,28 +101,34 @@ export function CardsLanding() {
   const { entities, deals } = useProtoConfig()
   const { addChange } = usePendingChanges()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const parseDoneRef = useRef(false)
-  const mappingDoneRef = useRef(false)
+  const workspaceRef = useRef<HTMLElement>(null)
   const pendingFileRef = useRef<File | null>(null)
 
   const [bulkMode, setBulkMode] = useState<BulkMode>('add')
   const [entityId, setEntityId] = useState(entities[0]?.id ?? 'symphony-eyc')
   const [file, setFile] = useState<File | null>(null)
   const [phase, setPhase] = useState<
-    'idle' | 'scanning' | 'results' | 'cost'
+    'idle' | 'scanning' | 'issues' | 'results' | 'cost'
   >('idle')
+  const [validatedRows, setValidatedRows] =
+    useState<BulkMemberRow[]>(sampleBulkRows)
   const [columnDetection, setColumnDetection] =
     useState<ColumnDetectionResult | null>(null)
-  const [mappingIndex, setMappingIndex] = useState(0)
   const [assigningBenefits, setAssigningBenefits] = useState(false)
+  const [scanStage, setScanStage] = useState(0)
   const [enrollmentOpen, setEnrollmentOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const dealId = deals[0]?.id
   const scanning = phase === 'scanning'
+  const showingIssues = phase === 'issues'
   const showingResults = phase === 'results'
   const showingCost = phase === 'cost'
-  const activeWizardStep = showingCost ? 2 : scanning || showingResults ? 1 : 0
+  const activeWizardStep = showingCost
+    ? 2
+    : scanning || showingIssues || showingResults
+      ? 1
+      : 0
   const scanFile = pendingFileRef.current ?? file
 
   function stepStatus(index: number): StepStatus {
@@ -103,41 +137,39 @@ export function CardsLanding() {
     return 'pending'
   }
 
-  function tryShowResults() {
-    if (!pendingFileRef.current || !parseDoneRef.current || !mappingDoneRef.current)
-      return
-    setPhase('results')
-  }
+  useEffect(() => {
+    if (phase !== 'scanning' || !assigningBenefits) return
+
+    const timer = window.setTimeout(() => {
+      setPhase(bulkMode === 'add' ? 'issues' : 'results')
+    }, ASSIGNING_BENEFITS_MS)
+
+    return () => window.clearTimeout(timer)
+  }, [phase, assigningBenefits, bulkMode])
 
   useEffect(() => {
-    if (phase !== 'scanning' || !columnDetection) return
+    if (phase !== 'scanning' || columnDetection || assigningBenefits) return
+    if (scanStage >= SCAN_STAGES.length - 1) return
 
-    const current = columnDetection.mappings[mappingIndex]
-    let timer: number | undefined
+    const timer = window.setTimeout(
+      () => setScanStage((current) => current + 1),
+      SCAN_STAGE_MS,
+    )
 
-    if (mappingIndex >= columnDetection.mappings.length) {
-      mappingDoneRef.current = true
-      setAssigningBenefits(true)
-      timer = window.setTimeout(() => {
-        tryShowResults()
-      }, ASSIGNING_BENEFITS_MS)
-    } else if (current?.sourceColumn) {
-      timer = window.setTimeout(() => {
-        setMappingIndex((index) => index + 1)
-      }, COLUMN_DETECTION_MS)
-    }
+    return () => window.clearTimeout(timer)
+  }, [phase, columnDetection, assigningBenefits, scanStage])
 
-    return () => {
-      if (timer !== undefined) window.clearTimeout(timer)
-    }
-  }, [phase, columnDetection, mappingIndex])
+  /** Each step animates in from the top, so start the scroller there too. */
+  useEffect(() => {
+    workspaceRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [phase])
 
   function selectFile(next: File | null) {
     if (!next || scanning) return
     setError(null)
     setFile(next)
     setColumnDetection(null)
-    setMappingIndex(0)
+    setValidatedRows(sampleBulkRows)
     setAssigningBenefits(false)
   }
 
@@ -146,18 +178,16 @@ export function CardsLanding() {
     setFile(null)
     setError(null)
     setColumnDetection(null)
-    setMappingIndex(0)
     setAssigningBenefits(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   function goBackToSetup() {
     pendingFileRef.current = null
-    parseDoneRef.current = false
-    mappingDoneRef.current = false
     setColumnDetection(null)
-    setMappingIndex(0)
+    setValidatedRows(sampleBulkRows)
     setAssigningBenefits(false)
+    setScanStage(0)
     setPhase('idle')
   }
 
@@ -175,6 +205,86 @@ export function CardsLanding() {
     })
   }
 
+  function confirmColumnMapping() {
+    setAssigningBenefits(true)
+  }
+
+  function ignoreValidationIssue(rowId: string) {
+    setValidatedRows((current) => toggleIgnored(current, rowId, true))
+  }
+
+  function restoreValidationIssue(rowId: string) {
+    setValidatedRows((current) => toggleIgnored(current, rowId, false))
+  }
+
+  function resolveValidationIssue(
+    rowId: string,
+    fixes: { field: string; value: string }[],
+  ) {
+    setValidatedRows((current) =>
+      current.map((row) => {
+        if (row.id !== rowId) return row
+
+        const remaining = validationIssuesFor(row).filter(
+          (issue) =>
+            !fixes.some(
+              (fix) => fix.field.toLowerCase() === issue.field.toLowerCase(),
+            ),
+        )
+
+        let employeeId = row.employeeId
+        let email = row.email
+        let assignedPlanId = row.assignedPlanId
+        let needsManualAssignment = row.needsManualAssignment
+
+        for (const fix of fixes) {
+          const field = fix.field.toLowerCase()
+          if (field.includes('employee id')) employeeId = fix.value
+          if (field.includes('email')) email = fix.value
+          if (field.includes('cover') || field.includes('plan')) {
+            assignedPlanId = fix.value
+            needsManualAssignment = false
+          }
+        }
+
+        const parental = assignedPlanId === 'plan-parental'
+        const originalIssues = validationIssuesFor(row)
+        const resolved = remaining.length === 0
+
+        return {
+          ...row,
+          employeeId,
+          email,
+          assignedPlanId: assignedPlanId ?? (resolved ? 'plan-standard' : null),
+          benefitIds: parental
+            ? ['ben-gmc', 'ben-gpa', 'ben-gmc-parental']
+            : row.benefitIds.length > 0
+              ? row.benefitIds
+              : ['ben-gmc', 'ben-gpa'],
+          purchaseGroupSelections: {
+            'pg-core': [parental ? 'opt-parental' : 'opt-standard'],
+          },
+          assignmentSource: 'manual',
+          needsManualAssignment: resolved ? false : needsManualAssignment,
+          status: resolved ? 'pass' : row.status,
+          payrollDelta: parental ? 2100 : Math.max(row.payrollDelta, 1250),
+          validationIssues: remaining,
+          validationError: remaining[0]?.error,
+          validationField: remaining[0]?.field,
+          resolvedIssues: resolved
+            ? originalIssues.map((issue) => ({
+                ...issue,
+                resolvedValue: fixes.find(
+                  (fix) =>
+                    fix.field.toLowerCase() === issue.field.toLowerCase(),
+                )?.value,
+              }))
+            : row.resolvedIssues,
+        }
+      }),
+    )
+  }
+
   /**
    * Adding lives asks about an enrollment window first; deletions go straight
    * to the cost review.
@@ -190,7 +300,9 @@ export function CardsLanding() {
   function continueToReview() {
     setEnrollmentOpen(false)
     const target = pendingFileRef.current ?? file
-    const lives = sampleBulkRows.filter((row) => row.status !== 'fail').length
+    const lives = validatedRows.filter(
+      (row) => !row.ignored && row.status !== 'fail',
+    ).length
     const entityName =
       entities.find((entity) => entity.id === entityId)?.name ?? entityId
     addChange({
@@ -219,27 +331,23 @@ export function CardsLanding() {
     if (!file || scanning) return
 
     setError(null)
-    parseDoneRef.current = false
-    mappingDoneRef.current = false
     pendingFileRef.current = file
     setPhase('scanning')
     setColumnDetection(null)
-    setMappingIndex(0)
     setAssigningBenefits(false)
+    setScanStage(0)
 
     try {
       const [detection] = await Promise.all([
         detectSheetColumns(bulkMode),
         parseSheet(file, bulkMode),
       ])
-      parseDoneRef.current = true
       setColumnDetection(detection)
     } catch {
       pendingFileRef.current = null
       setError('We could not read that file. Try again with any document.')
       setPhase('idle')
       setColumnDetection(null)
-      setMappingIndex(0)
       setAssigningBenefits(false)
     }
   }
@@ -254,16 +362,7 @@ export function CardsLanding() {
             return (
               <ProgressStep key={step.title}>
                 <StepRail>
-                  <StepDot $status={status} aria-hidden>
-                    {status === 'done' ? (
-                      <img
-                        src={assets.mlIconCheckWhite14}
-                        alt=""
-                        width={14}
-                        height={14}
-                      />
-                    ) : null}
-                  </StepDot>
+                  <StepDot $status={status} aria-hidden />
                   {index < WIZARD_STEPS.length - 1 ? (
                     <StepConnector $done={status === 'done'} />
                   ) : null}
@@ -278,12 +377,13 @@ export function CardsLanding() {
         </ProgressList>
       </ProgressPanel>
 
-      <Workspace>
+      <Workspace ref={workspaceRef}>
         <ExitButton type="button" onClick={() => navigate('/employees')}>
           Exit
         </ExitButton>
 
-        {scanning ? (
+        <PhaseView key={phase}>
+          {scanning ? (
           <Content>
             <AssistantAvatar
               src={assets.mlBulkAssistantAvatar}
@@ -323,8 +423,8 @@ export function CardsLanding() {
                     mappings={columnDetection.mappings}
                     uploadedColumns={columnDetection.uploadedColumns}
                     sampleValues={columnDetection.sampleValues}
-                    activeIndex={mappingIndex}
                     onMap={mapColumn}
+                    onConfirm={confirmColumnMapping}
                   />
                 ) : (
                   <DetectionIntro>
@@ -336,14 +436,26 @@ export function CardsLanding() {
                     />
                     {assigningBenefits
                       ? 'Assigning benefits to employees...'
-                      : 'Reading column headers from your document...'}
+                      : SCAN_STAGES[scanStage]}
                   </DetectionIntro>
                 )}
               </ScanPanel>
             </Setup>
           </Content>
+        ) : showingIssues ? (
+          <ValidationIssuesPanel
+            rows={validatedRows}
+            fileName={scanFile?.name}
+            fileSize={scanFile?.size}
+            onResolve={resolveValidationIssue}
+            onIgnore={ignoreValidationIssue}
+            onRestore={restoreValidationIssue}
+            onReupload={goBackToSetup}
+            onContinue={() => setPhase('results')}
+          />
         ) : showingResults ? (
           <ValidationResultsPanel
+            rows={validatedRows}
             isDelete={bulkMode === 'remove'}
             fileName={scanFile?.name}
             fileSize={scanFile?.size}
@@ -352,6 +464,7 @@ export function CardsLanding() {
           />
         ) : showingCost ? (
           <EndorsementCostPanel
+            rows={validatedRows}
             isDelete={bulkMode === 'remove'}
             onDone={() => navigate('/employees')}
           />
@@ -396,7 +509,6 @@ export function CardsLanding() {
                       setBulkMode('add')
                       setError(null)
                       setColumnDetection(null)
-                      setMappingIndex(0)
                       setAssigningBenefits(false)
                     }}
                   >
@@ -419,7 +531,6 @@ export function CardsLanding() {
                       setBulkMode('remove')
                       setError(null)
                       setColumnDetection(null)
-                      setMappingIndex(0)
                       setAssigningBenefits(false)
                     }}
                   >
@@ -564,14 +675,18 @@ export function CardsLanding() {
               </UploadPanel>
             </Setup>
           </Content>
-        )}
+          )}
+        </PhaseView>
       </Workspace>
 
       <EnrollmentSettingsModal
         open={enrollmentOpen}
         recipientCount={
-          sampleBulkRows.filter(
-            (row) => row.status !== 'fail' && row.relationship === 'Self',
+          validatedRows.filter(
+            (row) =>
+              !row.ignored &&
+              row.status !== 'fail' &&
+              row.relationship === 'Self',
           ).length
         }
         onCancel={() => setEnrollmentOpen(false)}
@@ -605,6 +720,7 @@ const Page = styled.div`
 
 const ProgressPanel = styled.aside`
   position: relative;
+  isolation: isolate;
   width: 330px;
   height: 100%;
   min-height: 0;
@@ -612,16 +728,27 @@ const ProgressPanel = styled.aside`
   padding: 24px;
   border-radius: 16px;
   background-color: ${({ theme }) => theme.colors.emerald};
-  background-image:
-    linear-gradient(180deg, rgba(2, 95, 76, 0.08), rgba(0, 40, 31, 0.9)),
-    url(${assets.mlBulkSidebarNoise});
-  background-position:
-    center,
-    top left;
-  background-repeat: no-repeat, repeat;
-  background-size: cover, 102px 112px;
+  background-image: linear-gradient(
+    180deg,
+    rgba(2, 95, 76, 0.08),
+    rgba(0, 40, 31, 0.9)
+  );
+  background-repeat: no-repeat;
+  background-size: cover;
   box-sizing: border-box;
   overflow: hidden;
+
+  /* Noise sits on the green fill with Overlay, matching Figma. */
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: image-set(url(${assets.mlBulkSidebarNoise}) 2x) top left / 17.36%
+      auto repeat;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+  }
 
   /* Leaf art sits above the stepper content, as in the design. */
   &::after {
@@ -649,6 +776,8 @@ const ProgressPanel = styled.aside`
 `
 
 const Logo = styled.img`
+  position: relative;
+  z-index: 1;
   display: block;
   width: 67px;
   height: 32px;
@@ -656,6 +785,8 @@ const Logo = styled.img`
 `
 
 const ProgressList = styled.div`
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   margin-top: 16px;
@@ -701,12 +832,6 @@ const StepDot = styled.span<{ $status: StepStatus }>`
         : $status === 'active'
           ? theme.colors.textTertiary
           : 'rgba(255, 255, 255, 0.5)'};
-
-  img {
-    display: block;
-    width: 10px;
-    height: 10px;
-  }
 `
 
 const StepConnector = styled.span<{ $done?: boolean }>`
@@ -759,6 +884,8 @@ const ExitButton = styled.button`
   position: absolute;
   top: 18px;
   right: 18px;
+  /* Above PhaseView, whose animation transform makes it paint over this. */
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -784,6 +911,26 @@ const ExitButton = styled.button`
   &:disabled {
     cursor: not-allowed;
     opacity: 0.6;
+  }
+`
+
+const stepIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+`
+
+/** Remounted per phase so every step rises into place like a new chat message. */
+const PhaseView = styled.div`
+  animation: ${stepIn} 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
   }
 `
 

@@ -74,6 +74,13 @@ export interface FlexDeal {
 
 export type AssignmentSource = 'rule' | 'default' | 'manual' | 'sheet'
 
+export interface BulkValidationIssue {
+  id: string
+  field: string
+  error: string
+  resolvedValue?: string
+}
+
 export interface BulkMemberRow {
   id: string
   employeeId: string
@@ -88,7 +95,13 @@ export interface BulkMemberRow {
   needsManualAssignment: boolean
   validationError?: string
   validationField?: string
+  /** All outstanding field issues for this life. */
+  validationIssues?: BulkValidationIssue[]
+  /** Issues that were corrected on this screen; kept so the life stays in the list. */
+  resolvedIssues?: BulkValidationIssue[]
   status: 'pass' | 'fail' | 'needs-review'
+  /** Skipped from this endorsement; not assigned or costed. */
+  ignored?: boolean
   dealId: string
   payrollDelta: number
   /** Mid-term: dependant coverage starts after employee start + endo already sent. */
@@ -1237,6 +1250,33 @@ export function buildRefundEstimate(args: {
   }
 }
 
+export function validationIssuesFor(row: BulkMemberRow): BulkValidationIssue[] {
+  if (row.validationIssues && row.validationIssues.length > 0) {
+    return row.validationIssues
+  }
+  if (row.validationField || row.validationError) {
+    return [
+      {
+        id: `${row.id}-issue`,
+        field: row.validationField ?? 'Validation',
+        error:
+          row.validationError ??
+          'This life could not be assigned to an eligible plan.',
+      },
+    ]
+  }
+  if (row.needsManualAssignment) {
+    return [
+      {
+        id: `${row.id}-plan`,
+        field: 'Core Cover',
+        error: 'No matching assignment rule — pick a plan',
+      },
+    ]
+  }
+  return []
+}
+
 export const sampleBulkRows: BulkMemberRow[] = [
   {
     id: 'row-1',
@@ -1343,7 +1383,7 @@ export const sampleBulkRows: BulkMemberRow[] = [
     id: 'row-7',
     employeeId: 'EMP-1135',
     name: 'Kabir Singh',
-    email: 'kabir.singh@herbalife.com',
+    email: '',
     department: 'Finance',
     relationship: 'Self',
     assignedPlanId: null,
@@ -1356,6 +1396,23 @@ export const sampleBulkRows: BulkMemberRow[] = [
     payrollDelta: 0,
     validationError: 'Date of birth is invalid',
     validationField: 'Date of Birth',
+    validationIssues: [
+      {
+        id: 'row-7-dob',
+        field: 'Date of Birth',
+        error: 'Date of birth is invalid',
+      },
+      {
+        id: 'row-7-email',
+        field: 'Email',
+        error: 'Work email is missing',
+      },
+      {
+        id: 'row-7-gender',
+        field: 'Gender',
+        error: 'Gender is required for insurer submission',
+      },
+    ],
   },
   {
     id: 'row-8',
@@ -1372,6 +1429,102 @@ export const sampleBulkRows: BulkMemberRow[] = [
     status: 'pass',
     dealId: flexDeal.id,
     payrollDelta: 1250,
+  },
+  {
+    id: 'row-9',
+    employeeId: 'EMP-1150',
+    name: 'Meera Iyer',
+    email: '',
+    department: 'Legal',
+    relationship: 'Self',
+    assignedPlanId: 'plan-standard',
+    benefitIds: ['ben-gmc', 'ben-gpa'],
+    purchaseGroupSelections: { 'pg-core': ['opt-standard'] },
+    assignmentSource: 'sheet',
+    needsManualAssignment: false,
+    status: 'fail',
+    dealId: flexDeal.id,
+    payrollDelta: 0,
+    validationError: 'Work email is missing',
+    validationField: 'Email',
+  },
+  {
+    id: 'row-10',
+    employeeId: 'EMP-1162',
+    name: 'Arjun Kapoor',
+    email: 'arjun.kapoor@herbalife.com',
+    department: 'Sales',
+    relationship: 'Child',
+    assignedPlanId: null,
+    benefitIds: [],
+    purchaseGroupSelections: {},
+    assignmentSource: 'manual',
+    needsManualAssignment: false,
+    status: 'fail',
+    dealId: flexDeal.id,
+    payrollDelta: 0,
+    validationError: 'Child covers require age 25 or under',
+    validationField: 'Date of Birth',
+    validationIssues: [
+      {
+        id: 'row-10-dob',
+        field: 'Date of Birth',
+        error: 'Child covers require age 25 or under',
+      },
+      {
+        id: 'row-10-link',
+        field: 'Employee ID',
+        error: 'This dependant is not linked to an employee in the uploaded file',
+      },
+    ],
+  },
+  {
+    id: 'row-11',
+    employeeId: 'EMP-1001',
+    name: 'Sana Qureshi',
+    email: 'sana.qureshi@herbalife.com',
+    department: 'Operations',
+    relationship: 'Self',
+    assignedPlanId: 'plan-standard',
+    benefitIds: ['ben-gmc', 'ben-gpa'],
+    purchaseGroupSelections: { 'pg-core': ['opt-standard'] },
+    assignmentSource: 'sheet',
+    needsManualAssignment: false,
+    status: 'fail',
+    dealId: flexDeal.id,
+    payrollDelta: 0,
+    validationError: 'Employee ID is already used by another life in this sheet',
+    validationField: 'Employee ID',
+  },
+  {
+    id: 'row-12',
+    employeeId: 'EMP-1170',
+    name: 'Vikram Patel',
+    email: 'vikram.patel@herbalife.com',
+    department: 'Finance',
+    relationship: 'Self',
+    assignedPlanId: 'plan-standard',
+    benefitIds: ['ben-gmc', 'ben-gpa'],
+    purchaseGroupSelections: { 'pg-core': ['opt-standard'] },
+    assignmentSource: 'sheet',
+    needsManualAssignment: true,
+    status: 'fail',
+    dealId: flexDeal.id,
+    payrollDelta: 0,
+    validationError: 'Gender is required for insurer submission',
+    validationField: 'Gender',
+    validationIssues: [
+      {
+        id: 'row-12-gender',
+        field: 'Gender',
+        error: 'Gender is required for insurer submission',
+      },
+      {
+        id: 'row-12-plan',
+        field: 'Core Cover',
+        error: 'Coverage tier in the sheet does not match an eligible plan',
+      },
+    ],
   },
 ]
 

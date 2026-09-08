@@ -35,8 +35,8 @@ function statusLabel(status: BulkMemberRow['status']) {
 const COVER_FILTER_PREFIX = 'cover:'
 
 /** Every cover this life lands on, e.g. "Top-up Advance · OPD Essential · GTL General". */
-function coverPlanSummary(row: BulkMemberRow) {
-  const assignments = coverAssignmentsForRow(row).filter(
+function coverPlanSummary(row: BulkMemberRow, rows: BulkMemberRow[]) {
+  const assignments = coverAssignmentsForRow(row, rows).filter(
     (a) => a.coverId !== 'cover-health',
   )
   if (assignments.length === 0) return '—'
@@ -73,7 +73,7 @@ export function BulkValidateStep() {
   const coverBreakup = useMemo(() => buildCoverBreakup(rows), [rows])
   const planBreakdown = useMemo(() => planChips(coverBreakup), [coverBreakup])
   const unassigned = useMemo(
-    () => rows.filter((row) => coverAssignmentsForRow(row).length === 0).length,
+    () => rows.filter((row) => coverAssignmentsForRow(row, rows).length === 0).length,
     [rows],
   )
 
@@ -136,7 +136,7 @@ export function BulkValidateStep() {
 
   const filtered = bulkFilter.startsWith(COVER_FILTER_PREFIX)
     ? rows.filter((r) =>
-        coverAssignmentsForRow(r).some(
+        coverAssignmentsForRow(r, rows).some(
           (a) => a.coverId === bulkFilter.slice(COVER_FILTER_PREFIX.length),
         ),
       )
@@ -282,8 +282,8 @@ export function BulkValidateStep() {
                     </Select>
                   ) : (
                     <>
-                      {rowAssignmentLabel(row)}
-                      <Sub>{coverPlanSummary(row)}</Sub>
+                      {rowAssignmentLabel(row, rows)}
+                      <Sub>{coverPlanSummary(row, rows)}</Sub>
                     </>
                   )}
                 </td>

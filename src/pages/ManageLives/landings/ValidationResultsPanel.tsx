@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
 import { buildCoverBreakup, coverAssignmentsForRow } from '@/data/coverPlans'
-import { sampleBulkRows, type BulkMemberRow } from '@/data/flexDeal'
+import type { BulkMemberRow } from '@/data/flexDeal'
 import { downloadAssignmentSheet } from '@/pages/ManageLives/bulk/downloadAssignmentSheet'
 
 const PLAN_COLORS: Record<string, string> = {
@@ -27,7 +27,7 @@ function assignmentDescription(
   planId: string,
 ) {
   const assigned = rows.filter((row) =>
-    coverAssignmentsForRow(row).some(
+    coverAssignmentsForRow(row, rows).some(
       (item) => item.coverId === coverId && item.planId === planId,
     ),
   )
@@ -43,40 +43,33 @@ function assignmentDescription(
 }
 
 export function ValidationResultsPanel({
+  rows,
   onBack,
   onContinue,
   isDelete = false,
   fileName = 'Uploaded employee list.xlsx',
   fileSize = 0,
 }: {
+  rows: BulkMemberRow[]
   onBack: () => void
   onContinue: () => void
   isDelete?: boolean
   fileName?: string
   fileSize?: number
 }) {
-  const [query, setQuery] = useState('')
   const acceptedRows = useMemo(
-    () => sampleBulkRows.filter((row) => row.status !== 'fail'),
-    [],
+    () => rows.filter((row) => !row.ignored && row.status !== 'fail'),
+    [rows],
   )
   const employees = acceptedRows.filter(
     (row) => row.relationship === 'Self',
   ).length
   const dependents = acceptedRows.length - employees
   const coverBreakup = useMemo(() => buildCoverBreakup(acceptedRows), [acceptedRows])
-  const visibleCovers = coverBreakup.filter((item) => {
-    if (
-      item.cover.id !== 'cover-health' &&
-      item.cover.id !== 'cover-term-life'
-    ) {
-      return false
-    }
-    const searchable = `${item.cover.name} ${item.plans
-      .map((plan) => plan.planLabel)
-      .join(' ')}`.toLowerCase()
-    return searchable.includes(query.trim().toLowerCase())
-  })
+  const visibleCovers = coverBreakup.filter(
+    (item) =>
+      item.cover.id === 'cover-health' || item.cover.id === 'cover-term-life',
+  )
 
   return (
     <Panel>
@@ -137,15 +130,6 @@ export function ValidationResultsPanel({
         <AssignmentCard>
           <AssignmentHeader>
             <AssignmentTitle>Lives covered in</AssignmentTitle>
-            <SearchField>
-              <img src={assets.mlIconSearch} alt="" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search employees..."
-                aria-label="Search benefits"
-              />
-            </SearchField>
           </AssignmentHeader>
 
           <CoverGrid>
@@ -423,37 +407,6 @@ const AssignmentTitle = styled.h2`
   font-weight: 500;
   line-height: 24px;
   letter-spacing: 0.2px;
-`
-
-const SearchField = styled.label`
-  display: flex;
-  width: 300px;
-  height: 36px;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
-  border-radius: 8px;
-  box-sizing: border-box;
-
-  img {
-    width: 14px;
-    height: 14px;
-  }
-
-  input {
-    min-width: 0;
-    flex: 1;
-    border: 0;
-    outline: 0;
-    color: ${({ theme }) => theme.colors.textPrimary};
-    font: inherit;
-    font-size: 12px;
-
-    &::placeholder {
-      color: ${({ theme }) => theme.colors.textSecondary};
-    }
-  }
 `
 
 const CoverGrid = styled.div`

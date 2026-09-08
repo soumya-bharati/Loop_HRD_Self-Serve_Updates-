@@ -8,7 +8,7 @@ export function downloadAssignmentSheet(rows: BulkMemberRow[]) {
       row.employeeId,
       row.name,
       row.relationship,
-      coverAssignmentsForRow(row)
+      coverAssignmentsForRow(row, rows)
         .map((item) => `${item.coverName} - ${item.planLabel}`)
         .join('; '),
     ]),
