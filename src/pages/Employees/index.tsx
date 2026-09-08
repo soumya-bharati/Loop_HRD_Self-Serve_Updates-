@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
 import type { Gender } from '@/data/employees'
 import { sampleEmployees } from '@/data/employees'
-import { endorsementsSummary } from '@/data/endorsements'
 import {
   FIGMA_DEMO_TOTAL,
   FIGMA_DEAL_LABEL,
@@ -19,7 +18,7 @@ import {
   rosterToCsv,
   type RosterRow,
 } from '@/pages/Employees/stats'
-import { DeadlineBanner } from '@/pages/Endorsements/DeadlineBanner'
+import { launchWizardPath } from '@/pages/ManageLives/launchWizard'
 import { usePendingChanges } from '@/pages/ManageLives/PendingChangesContext'
 import { findEmployee } from '@/pages/ManageLives/searchEmployees'
 import { useProtoConfig } from '@/proto/ProtoConfigContext'
@@ -41,6 +40,7 @@ function SortHeader({ label }: { label: string }) {
 }
 
 export function EmployeesPage() {
+  const navigate = useNavigate()
   const { entities, deals } = useProtoConfig()
   const { changes, lifecycleFor } = usePendingChanges()
   const [scopeTab, setScopeTab] = useState<ScopeTab>('all')
@@ -170,20 +170,20 @@ export function EmployeesPage() {
 
   return (
     <Page>
-      <DeadlineBanner
-        variant="employees"
-        monthLabel={endorsementsSummary.deadlineMonth}
-        deadline={endorsementsSummary.deadlineDate}
-        entityId={entities[0]?.id ?? 'symphony-eyc'}
-        dealId={deals[0]?.id}
-      />
-
       <PageIntro>
         <Header>
-          <Title>Employees</Title>
-          <Subtitle>
-            Comprehensive list of all employees and dependents in your company
-          </Subtitle>
+          <HeaderCopy>
+            <Title>Employees</Title>
+            <Subtitle>
+              Comprehensive list of all employees and dependents in your company
+            </Subtitle>
+          </HeaderCopy>
+          <BulkLivesButton
+            type="button"
+            onClick={() => navigate('/manage-lives')}
+          >
+            Add/Deletes Lives in Bulk
+          </BulkLivesButton>
         </Header>
 
         <ScopeTabs role="tablist" aria-label="Employees scope">
@@ -317,29 +317,21 @@ export function EmployeesPage() {
           <SectionTitle>
             Total Employees ({formatCount(displayTotal)})
           </SectionTitle>
-          <Pager>
-            <PagerLabel>
-              {rangeStart} to {rangeEnd} of {formatCount(displayTotal)} records
-            </PagerLabel>
-            <PagerButton
-              type="button"
-              $variant="muted"
-              disabled={safePage === 0}
-              onClick={() => setPage((current) => Math.max(0, current - 1))}
-            >
-              Previous
-            </PagerButton>
-            <PagerButton
-              type="button"
-              $variant="outline"
-              disabled={safePage >= pageCount - 1 || displayTotal === 0}
-              onClick={() =>
-                setPage((current) => Math.min(pageCount - 1, current + 1))
-              }
-            >
-              Next
-            </PagerButton>
-          </Pager>
+          <AddEmployeeButton
+            type="button"
+            onClick={() =>
+              navigate(
+                launchWizardPath({
+                  action: 'add',
+                  method: 'single',
+                  entity: entities[0]?.id ?? 'symphony-eyc',
+                  deal: deals[0]?.id,
+                }),
+              )
+            }
+          >
+            Add Single Employee
+          </AddEmployeeButton>
         </CountBar>
 
         {displayRows.length === 0 ? (
@@ -527,7 +519,7 @@ export function EmployeesPage() {
                     </>
                   ) : (
                     <td>
-                      <ActionLink to={row.href}>Next</ActionLink>
+                      <ActionLink to={row.href}>View</ActionLink>
                     </td>
                   )}
                 </tr>
@@ -536,6 +528,30 @@ export function EmployeesPage() {
           </Table>
         </TableWrap>
         )}
+
+        <Pager>
+          <PagerLabel>
+            {rangeStart} to {rangeEnd} of {formatCount(displayTotal)} records
+          </PagerLabel>
+          <PagerButton
+            type="button"
+            $variant="muted"
+            disabled={safePage === 0}
+            onClick={() => setPage((current) => Math.max(0, current - 1))}
+          >
+            Previous
+          </PagerButton>
+          <PagerButton
+            type="button"
+            $variant="outline"
+            disabled={safePage >= pageCount - 1 || displayTotal === 0}
+            onClick={() =>
+              setPage((current) => Math.min(pageCount - 1, current + 1))
+            }
+          >
+            Next
+          </PagerButton>
+        </Pager>
       </RosterCard>
     </Page>
   )
@@ -566,9 +582,22 @@ const PageIntro = styled.div`
 
 const Header = styled.div`
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 36px 0 42px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+`
+
+const HeaderCopy = styled.div`
+  display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 36px 0 42px;
+  min-width: 0;
 `
 
 const Title = styled.h1`
@@ -585,6 +614,23 @@ const Subtitle = styled.p`
   line-height: 20px;
   letter-spacing: 0.2px;
   color: ${({ theme }) => theme.colors.textSecondary};
+`
+
+const BulkLivesButton = styled.button`
+  flex-shrink: 0;
+  height: 48px;
+  padding: 14px 24px;
+  border: none;
+  border-radius: ${({ theme }) => theme.radii.md};
+  background: ${({ theme }) => theme.colors.fillGreen};
+  color: ${({ theme }) => theme.colors.emerald};
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  white-space: nowrap;
 `
 
 const ScopeTabs = styled.div`
@@ -699,9 +745,9 @@ const PayrollButton = styled.button`
   gap: 4px;
   height: 48px;
   padding: 0 24px;
-  border: 0;
-  border-radius: 12px;
-  background: ${({ theme }) => theme.colors.fillGreen};
+  border: 1px solid ${({ theme }) => theme.colors.emerald};
+  border-radius: ${({ theme }) => theme.radii.md};
+  background: ${({ theme }) => theme.colors.surface1};
   color: ${({ theme }) => theme.colors.emerald};
   font: inherit;
   font-size: 14px;
@@ -711,6 +757,7 @@ const PayrollButton = styled.button`
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
+  box-sizing: border-box;
 `
 
 const RosterCard = styled.section`
@@ -816,11 +863,32 @@ const SectionTitle = styled.h2`
   color: ${({ theme }) => theme.colors.textPrimary};
 `
 
+const AddEmployeeButton = styled.button`
+  flex-shrink: 0;
+  height: 48px;
+  padding: 14px 24px;
+  border: none;
+  border-radius: ${({ theme }) => theme.radii.md};
+  background: ${({ theme }) => theme.colors.fillGreen};
+  color: ${({ theme }) => theme.colors.emerald};
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  white-space: nowrap;
+`
+
 const Pager = styled.div`
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
+  flex-wrap: wrap;
+  min-height: 70px;
+  padding: 16px 56px;
+  box-sizing: border-box;
 `
 
 const PagerLabel = styled.span`

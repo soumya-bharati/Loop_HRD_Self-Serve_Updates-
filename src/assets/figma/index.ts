@@ -92,6 +92,7 @@ import employeesChevronDown from '@/assets/figma/employees/chevron-down-24.svg'
 import employeesPayrollDownload from '@/assets/figma/employees/icon-download-payroll.svg'
 import employeesClock from '@/assets/figma/employees/icon-clock.svg'
 import employeesSort from '@/assets/figma/employees/icon-sort.svg'
+import bannerPersonDesk from '@/assets/figma/employees/banner-person-desk.svg'
 import mlShowingForDot from '@/assets/figma/manage-lives/showing-for-dot.svg'
 import mlChevronDownWhite from '@/assets/figma/manage-lives/chevron-down-white.svg'
 import mlIconInstructions from '@/assets/figma/manage-lives/icon-instructions.svg'
@@ -102,8 +103,41 @@ import mlArrowBack from '@/assets/figma/manage-lives/icon-arrow-back.svg'
 import mlChevronDown24 from '@/assets/figma/manage-lives/chevron-down-24.svg'
 import mlIconPdfUpload from '@/assets/figma/manage-lives/icon-pdf-upload.svg'
 import mlIconUploadPlusSmall from '@/assets/figma/manage-lives/icon-upload-plus-small.svg'
+import mlIconFileDoc from '@/assets/figma/manage-lives/icon-file-doc.svg'
+import mlIconFileUploaded from '@/assets/figma/manage-lives/icon-file-uploaded.svg'
+import mlIconTrashDelete from '@/assets/figma/manage-lives/icon-trash-delete.svg'
+import mlIconCheckEmerald from '@/assets/figma/manage-lives/icon-check-emerald.svg'
+import mlIconLoaderLg from '@/assets/figma/manage-lives/icon-loader-lg.svg'
+import mlIconLoaderSm from '@/assets/figma/manage-lives/icon-loader-sm.svg'
+import mlIconLoaderScan from '@/assets/figma/manage-lives/icon-loader-scan.svg'
+import mlIconMappingArrow from '@/assets/figma/manage-lives/icon-mapping-arrow.svg'
+import mlIconCheckWhite14 from '@/assets/figma/manage-lives/icon-check-white-14.svg'
+import mlIconLives from '@/assets/figma/manage-lives/ml-icon-lives.svg'
+import mlIconEmployees from '@/assets/figma/manage-lives/ml-icon-employees.svg'
+import mlIconTable from '@/assets/figma/manage-lives/ml-icon-table.svg'
+import mlIconDependents from '@/assets/figma/manage-lives/ml-icon-dependents.svg'
+import mlIconSearch from '@/assets/figma/manage-lives/ml-icon-search.svg'
+import mlIconFilter from '@/assets/figma/manage-lives/ml-icon-filter.svg'
+import mlIconReupload from '@/assets/figma/manage-lives/icon-reupload.svg'
+import mlIconMetricUser from '@/assets/figma/manage-lives/icon-metric-user.svg'
+import mlIconMetricBriefcase from '@/assets/figma/manage-lives/icon-metric-briefcase.svg'
+import mlIconMetricUsers from '@/assets/figma/manage-lives/icon-metric-users.svg'
+import mlIconInfoOutline from '@/assets/figma/manage-lives/icon-info-outline.svg'
+import mlIconInfoWarning from '@/assets/figma/manage-lives/icon-info-warning.svg'
+import mlLogoOriental from '@/assets/figma/manage-lives/logo-oriental.png'
+import mlLogoIciciPru from '@/assets/figma/manage-lives/logo-icici-pru.png'
 import mlActionIllustration from '@/assets/figma/manage-lives/action-illustration.svg'
 import mlChevronRight from '@/assets/figma/manage-lives/chevron-right.svg'
+import mlBulkSidebarNoise from '@/assets/figma/manage-lives/bulk-sidebar-noise.png'
+import mlBulkSidebarLeaves from '@/assets/figma/manage-lives/bulk-sidebar-leaves.png'
+import mlBulkAssistantAvatar from '@/assets/figma/manage-lives/bulk-assistant-avatar.png'
+import mlBulkAddLives from '@/assets/figma/manage-lives/bulk-add-lives.svg'
+import mlBulkDeleteLives from '@/assets/figma/manage-lives/bulk-delete-lives.svg'
+import mlBulkSelectedCheck from '@/assets/figma/manage-lives/bulk-selected-check.svg'
+import mlIconModalClose24 from '@/assets/figma/manage-lives/icon-modal-close-24.svg'
+import mlIconCalendarField24 from '@/assets/figma/manage-lives/icon-calendar-field-24.svg'
+import mlIconChevronDownField from '@/assets/figma/manage-lives/icon-chevron-down-field.svg'
+import mlEnrollmentEmailPreview from '@/assets/figma/manage-lives/enrollment-email-preview.png'
 import navAskLoop from '@/assets/figma/nav/ask-loop.svg'
 import navPoliciesBenefits from '@/assets/figma/nav/policies.svg'
 import navEnrollments from '@/assets/figma/nav/enrollments.svg'
@@ -131,6 +165,7 @@ export const assets = {
   bannerCal1,
   bannerCal2,
   bannerCal3,
+  bannerPersonDesk,
   avatar,
   bulkUpload,
   chevronDown,
@@ -232,8 +267,41 @@ export const assets = {
   mlChevronDown24,
   mlIconPdfUpload,
   mlIconUploadPlusSmall,
+  mlIconFileDoc,
+  mlIconFileUploaded,
+  mlIconTrashDelete,
+  mlIconCheckEmerald,
+  mlIconLoaderLg,
+  mlIconLoaderSm,
+  mlIconLoaderScan,
+  mlIconMappingArrow,
+  mlIconCheckWhite14,
+  mlIconLives,
+  mlIconEmployees,
+  mlIconTable,
+  mlIconDependents,
+  mlIconSearch,
+  mlIconFilter,
+  mlIconReupload,
+  mlIconMetricUser,
+  mlIconMetricBriefcase,
+  mlIconMetricUsers,
+  mlIconInfoOutline,
+  mlIconInfoWarning,
+  mlLogoOriental,
+  mlLogoIciciPru,
   mlActionIllustration,
   mlChevronRight,
+  mlBulkSidebarNoise,
+  mlBulkSidebarLeaves,
+  mlBulkAssistantAvatar,
+  mlBulkAddLives,
+  mlBulkDeleteLives,
+  mlBulkSelectedCheck,
+  mlIconModalClose24,
+  mlIconCalendarField24,
+  mlIconChevronDownField,
+  mlEnrollmentEmailPreview,
   navAskLoop,
   navPoliciesBenefits,
   navEnrollments,

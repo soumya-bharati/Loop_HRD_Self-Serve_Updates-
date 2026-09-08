@@ -1,190 +1,137 @@
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
-import { flexDeal, formatINR, getPlanById } from '@/data/flexDeal'
-import { CostAndCdSummary } from '@/pages/LivesWizard/components/CostAndCdSummary'
+import {
+  breakupTotals,
+  buildCoverBreakup,
+  buildInsurerGroups,
+  isRowAssigned,
+} from '@/data/coverPlans'
+import { EndorsementCostReview } from '@/pages/LivesWizard/components/EndorsementCostReview'
 import { WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
 import { isWorkspaceReturn, wizardExitPath } from '@/pages/ManageLives/launchWizard'
 
 export function BulkReviewStep() {
   const navigate = useNavigate()
-  const { rows, costEstimate, setStep, completeFlow } = useLivesWizard()
+  const { rows, setStep, completeFlow } = useLivesWizard()
   const returning = isWorkspaceReturn()
 
-  const valid = rows.filter((r) => r.status === 'pass')
-  const byAssignment = new Map<
-    string,
-    { employees: Set<string>; lives: number; payroll: number }
-  >()
-
-  for (const row of valid) {
-    const planName = row.assignedPlanId
-      ? getPlanById(row.assignedPlanId)?.name ?? row.assignedPlanId
-      : 'Unassigned'
-    const key = planName
-    const cur = byAssignment.get(key) ?? {
-      employees: new Set<string>(),
-      lives: 0,
-      payroll: 0,
+  const { breakup, groups, totals, employees, dependants } = useMemo(() => {
+    const assigned = rows.filter(isRowAssigned)
+    const coverBreakup = buildCoverBreakup(rows)
+    return {
+      breakup: coverBreakup,
+      groups: buildInsurerGroups(coverBreakup),
+      totals: breakupTotals(rows, coverBreakup),
+      employees: assigned.filter((row) => row.relationship === 'Self').length,
+      dependants: assigned.filter((row) => row.relationship !== 'Self').length,
     }
-    cur.employees.add(row.employeeId)
-    cur.lives += 1
-    cur.payroll += row.payrollDelta
-    byAssignment.set(key, cur)
-  }
+  }, [rows])
+
+  const coverEnrolments = breakup.reduce((sum, item) => sum + item.lives, 0)
+  const goBack = returning
+    ? () => navigate('/manage-lives')
+    : () => setStep('bulk-validate')
 
   return (
     <WizardChrome
-      title="Bulk review & cost"
-      onBack={() => setStep('bulk-validate')}
+      title="Review & cost"
+      onBack={goBack}
       onExit={() => navigate(wizardExitPath())}
-      secondaryLabel="Back"
-      onSecondary={() => setStep('bulk-validate')}
-      primaryLabel={returning ? 'Add to Pending Changes' : 'Continue to enrolment'}
+      secondaryLabel="Go Back"
+      onSecondary={goBack}
+      primaryLabel={
+        returning
+          ? 'Add to Pending Changes'
+          : `Submit ${totals.lives} ${totals.lives === 1 ? 'Life' : 'Lives'}`
+      }
+      primaryDisabled={totals.lives === 0}
       onPrimary={() => (returning ? completeFlow() : setStep('enrolment'))}
+      primaryHint={{
+        title: 'Submit Your Endo! ⚡',
+        body: 'If everything looks good click below to submit your endo!',
+      }}
     >
-      <Actions>
-        <Download
-          type="button"
-          onClick={() => {
-            const lines = [
-              'Employee ID,Name,Plan,Payroll',
-              ...valid.map(
-                (r) =>
-                  `${r.employeeId},${r.name},${r.assignedPlanId ?? ''},${r.payrollDelta}`,
-              ),
-            ]
-            const blob = new Blob([lines.join('\n')], { type: 'text/csv' })
-            const url = URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = 'who_gets_what.csv'
-            a.click()
-            URL.revokeObjectURL(url)
-          }}
-        >
-          Download who-gets-what sheet
-        </Download>
-      </Actions>
+      <LivesSummary>
+        <SummaryStat>
+          <SummaryValue>{totals.lives}</SummaryValue>
+          <SummaryLabel>Total lives</SummaryLabel>
+        </SummaryStat>
+        <SummaryStat>
+          <SummaryValue>{employees}</SummaryValue>
+          <SummaryLabel>
+            {employees === 1 ? 'Employee' : 'Employees'}
+          </SummaryLabel>
+        </SummaryStat>
+        <SummaryStat>
+          <SummaryValue>{dependants}</SummaryValue>
+          <SummaryLabel>
+            {dependants === 1 ? 'Dependant' : 'Dependants'}
+          </SummaryLabel>
+        </SummaryStat>
+        <SummaryStat>
+          <SummaryValue>{coverEnrolments}</SummaryValue>
+          <SummaryLabel>Cover enrolments</SummaryLabel>
+        </SummaryStat>
+      </LivesSummary>
 
-      <Table>
-        <thead>
-          <tr>
-            <th>Assignment</th>
-            <th>Employees</th>
-            <th>Lives</th>
-            <th>Payroll deduction</th>
-          </tr>
-        </thead>
-        <tbody>
-          {[...byAssignment.entries()].map(([name, stats]) => (
-            <tr key={name}>
-              <td data-label="Assignment">
-                {flexDeal.name} · {name}
-              </td>
-              <td data-label="Employees">{stats.employees.size}</td>
-              <td data-label="Lives">{stats.lives}</td>
-              <td data-label="Payroll deduction">{formatINR(stats.payroll)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </Table>
-
-      <CostAndCdSummary estimate={costEstimate} />
+      <EndorsementCostReview
+        groups={groups}
+        totalLives={totals.lives}
+        totalCost={totals.cost}
+        emptyMessage="No lives are assigned yet. Go back and resolve the flagged rows."
+      />
     </WizardChrome>
   )
 }
 
-const Actions = styled.div`
+const LivesSummary = styled.section`
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    gap: 8px;
+  }
+`
+
+const SummaryStat = styled.div`
   display: flex;
-  justify-content: flex-end;
-
-  @media (max-width: 640px) {
-    justify-content: stretch;
-  }
-`
-
-const Download = styled.button`
-  border: 1px solid ${({ theme }) => theme.colors.emerald};
-  background: transparent;
-  color: ${({ theme }) => theme.colors.emerald};
-  border-radius: 8px;
-  padding: 10px 14px;
-  font-family: ${({ theme }) => theme.fontFamily};
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-
-  @media (max-width: 640px) {
-    width: 100%;
-    box-sizing: border-box;
-  }
-`
-
-const Table = styled.table`
-  width: 100%;
-  max-width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 16px 18px;
+  border-radius: 14px;
   background: ${({ theme }) => theme.colors.surface1};
-  border-radius: 12px;
-  overflow: hidden;
+  border: 1px solid ${({ theme }) => theme.colors.disableFill};
   box-sizing: border-box;
 
-  th,
-  td {
-    text-align: left;
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
     padding: 12px;
-    border-bottom: 1px solid ${({ theme }) => theme.colors.disableFill};
   }
+`
 
-  th {
-    font-size: 12px;
-    color: ${({ theme }) => theme.colors.textSecondary};
-    background: ${({ theme }) => theme.colors.surface0};
+const SummaryValue = styled.strong`
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 32px;
+  color: ${({ theme }) => theme.colors.emerald};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    font-size: 20px;
+    line-height: 26px;
   }
+`
 
-  @media (max-width: 640px) {
-    display: block;
-    overflow: hidden;
-
-    thead {
-      display: none;
-    }
-
-    tbody {
-      display: block;
-    }
-
-    tbody tr {
-      display: block;
-      padding: 12px;
-      border-bottom: 1px solid ${({ theme }) => theme.colors.disableFill};
-
-      &:last-child {
-        border-bottom: none;
-      }
-    }
-
-    tbody td {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      padding: 8px 0;
-      border-bottom: none;
-
-      &::before {
-        content: attr(data-label);
-        font-size: 11px;
-        font-weight: 600;
-        letter-spacing: 0.2px;
-        color: ${({ theme }) => theme.colors.textSecondary};
-      }
-
-      &:not(:last-child) {
-        border-bottom: 1px solid ${({ theme }) => theme.colors.disableFill};
-      }
-    }
-  }
+const SummaryLabel = styled.span`
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  color: ${({ theme }) => theme.colors.textSecondary};
 `

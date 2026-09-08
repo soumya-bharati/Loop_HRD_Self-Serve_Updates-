@@ -3,10 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import {
-  flexDeal,
-  getPlanById,
-  type BulkMemberRow,
-} from '@/data/flexDeal'
+  buildCoverBreakup,
+  coverAssignmentsForRow,
+  coverCatalog,
+  planChips,
+  rowAssignmentLabel,
+} from '@/data/coverPlans'
+import { flexDeal, type BulkMemberRow } from '@/data/flexDeal'
 import { BulkAssignmentKnowMoreModal } from '@/pages/LivesWizard/components/BulkAssignmentKnowMoreModal'
 import { WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
@@ -29,9 +32,20 @@ function statusLabel(status: BulkMemberRow['status']) {
   return 'Pass'
 }
 
-function planLabel(row: BulkMemberRow) {
-  if (!row.assignedPlanId) return 'Unassigned'
-  return getPlanById(row.assignedPlanId)?.name ?? row.assignedPlanId
+const COVER_FILTER_PREFIX = 'cover:'
+
+/** Every cover this life lands on, e.g. "Top-up Advance · OPD Essential · GTL General". */
+function coverPlanSummary(row: BulkMemberRow) {
+  const assignments = coverAssignmentsForRow(row).filter(
+    (a) => a.coverId !== 'cover-health',
+  )
+  if (assignments.length === 0) return '—'
+  return assignments
+    .map((a) => {
+      const cover = coverCatalog.find((c) => c.id === a.coverId)
+      return `${cover?.shortLabel ?? a.coverName} ${a.planLabel}`
+    })
+    .join(' · ')
 }
 
 export function BulkValidateStep() {
@@ -56,14 +70,12 @@ export function BulkValidateStep() {
   )
   const dependants = rows.length - employees
 
-  const benefitBreakdown = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const row of rows) {
-      const label = planLabel(row)
-      counts.set(label, (counts.get(label) ?? 0) + 1)
-    }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1])
-  }, [rows])
+  const coverBreakup = useMemo(() => buildCoverBreakup(rows), [rows])
+  const planBreakdown = useMemo(() => planChips(coverBreakup), [coverBreakup])
+  const unassigned = useMemo(
+    () => rows.filter((row) => coverAssignmentsForRow(row).length === 0).length,
+    [rows],
+  )
 
   const isDelete = action === 'delete'
   // The workspace already collected the sheet, so back leaves the wizard.
@@ -122,8 +134,13 @@ export function BulkValidateStep() {
     )
   }
 
-  const filtered =
-    bulkFilter === 'all'
+  const filtered = bulkFilter.startsWith(COVER_FILTER_PREFIX)
+    ? rows.filter((r) =>
+        coverAssignmentsForRow(r).some(
+          (a) => a.coverId === bulkFilter.slice(COVER_FILTER_PREFIX.length),
+        ),
+      )
+    : bulkFilter === 'all'
       ? rows
       : bulkFilter === 'deal'
         ? rows.filter((r) => r.dealId === flexDeal.id)
@@ -166,9 +183,12 @@ export function BulkValidateStep() {
             <div>
               <MetricLabel>Benefit assignment</MetricLabel>
               <MetricValue $compact>
-                {benefitBreakdown
-                  .map(([name, count]) => `${count} ${name}`)
-                  .join(' · ')}
+                {coverBreakup.length === 0
+                  ? 'No covers assigned yet'
+                  : coverBreakup
+                      .map((item) => `${item.lives} ${item.cover.name}`)
+                      .join(' · ')}
+                {unassigned > 0 ? ` · ${unassigned} unassigned` : ''}
               </MetricValue>
             </div>
             <KnowMore type="button" onClick={() => setKnowMoreOpen(true)}>
@@ -176,9 +196,9 @@ export function BulkValidateStep() {
             </KnowMore>
           </MetricHeader>
           <BenefitChips>
-            {benefitBreakdown.map(([name, count]) => (
-              <BenefitChip key={name}>
-                <strong>{count}</strong> {name}
+            {planBreakdown.map((chip) => (
+              <BenefitChip key={chip.key}>
+                <strong>{chip.lives}</strong> {chip.label}
               </BenefitChip>
             ))}
           </BenefitChips>
@@ -186,24 +206,38 @@ export function BulkValidateStep() {
       </MetricsGrid>
 
       <Chips>
-        {['all', 'pass', 'needs-review', 'fail', 'deal'].map((chip) => (
+        {['all', 'pass', 'needs-review', 'fail'].map((chip) => (
           <Chip
             key={chip}
             type="button"
             $active={bulkFilter === chip}
             onClick={() => setBulkFilter(chip)}
           >
-            {chip === 'deal'
-              ? flexDeal.name
-              : chip === 'needs-review'
-                ? 'Needs review'
-                : chip === 'pass'
-                  ? 'Pass'
-                  : chip === 'fail'
-                    ? 'Fail'
-                    : 'All'}
+            {chip === 'needs-review'
+              ? 'Needs review'
+              : chip === 'pass'
+                ? 'Pass'
+                : chip === 'fail'
+                  ? 'Fail'
+                  : 'All'}
           </Chip>
         ))}
+        <ChipDivider aria-hidden />
+        {coverCatalog.map((cover) => {
+          const value = `${COVER_FILTER_PREFIX}${cover.id}`
+          const lives =
+            coverBreakup.find((item) => item.cover.id === cover.id)?.lives ?? 0
+          return (
+            <Chip
+              key={cover.id}
+              type="button"
+              $active={bulkFilter === value}
+              onClick={() => setBulkFilter(value)}
+            >
+              {cover.name} ({lives})
+            </Chip>
+          )
+        })}
       </Chips>
 
       <Table>
@@ -211,7 +245,7 @@ export function BulkValidateStep() {
           <tr>
             <th>Employee</th>
             <th>Relationship</th>
-            <th>Plan / Benefits</th>
+            <th>Cover / Plan</th>
             <th>Status</th>
             <th>Error / edit</th>
           </tr>
@@ -231,7 +265,7 @@ export function BulkValidateStep() {
                   <Sub>{row.employeeId}</Sub>
                 </td>
                 <td data-label="Relationship">{row.relationship}</td>
-                <td data-label="Plan / Benefits">
+                <td data-label="Cover / Plan">
                   {highlight ? (
                     <Select
                       value={row.assignedPlanId ?? ''}
@@ -248,12 +282,8 @@ export function BulkValidateStep() {
                     </Select>
                   ) : (
                     <>
-                      {planLabel(row)}
-                      <Sub>
-                        {(row.benefitIds ?? []).length
-                          ? `${row.benefitIds.length} benefit(s)`
-                          : '—'}
-                      </Sub>
+                      {rowAssignmentLabel(row)}
+                      <Sub>{coverPlanSummary(row)}</Sub>
                     </>
                   )}
                 </td>
@@ -434,7 +464,18 @@ const Stat = styled.div`
 const Chips = styled.div`
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+`
+
+const ChipDivider = styled.span`
+  width: 1px;
+  height: 20px;
+  background: ${({ theme }) => theme.colors.defaultBorder};
+
+  @media (max-width: 640px) {
+    display: none;
+  }
 `
 
 const Chip = styled.button<{ $active: boolean }>`

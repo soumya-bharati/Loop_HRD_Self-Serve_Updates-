@@ -48,6 +48,8 @@ export function DependantSlotSelector({
   onAddSlot,
   onEditDependant,
   onEditSelf,
+  showCovers = true,
+  addSlotLabel,
 }: {
   summary: FamilySlotSummary
   selected?: string
@@ -60,6 +62,8 @@ export function DependantSlotSelector({
   onAddSlot?: (relationship: FamilyRelationship) => void
   onEditDependant?: (dependant: DependantFormData) => void
   onEditSelf?: () => void
+  showCovers?: boolean
+  addSlotLabel?: string
 }) {
   if (employee) {
     return (
@@ -73,6 +77,8 @@ export function DependantSlotSelector({
         onAddSlot={onAddSlot}
         onEditDependant={onEditDependant}
         onEditSelf={onEditSelf}
+        showCovers={showCovers}
+        addSlotLabel={addSlotLabel}
       />
     )
   }
@@ -132,6 +138,8 @@ function FamilyBoard({
   onAddSlot,
   onEditDependant,
   onEditSelf,
+  showCovers,
+  addSlotLabel,
 }: {
   summary: FamilySlotSummary
   employee: EmployeeFormData
@@ -142,6 +150,8 @@ function FamilyBoard({
   onAddSlot?: (relationship: FamilyRelationship) => void
   onEditDependant?: (dependant: DependantFormData) => void
   onEditSelf?: () => void
+  showCovers: boolean
+  addSlotLabel?: string
 }) {
   const spouseSlot = summary.slots.find((slot) => slot.relationship === 'Spouse')
   const childSlot = summary.slots.find((slot) => slot.relationship === 'Child')
@@ -231,16 +241,19 @@ function FamilyBoard({
                 {employee.mobile.trim() || 'NA'}
               </MetaItem>
             </MetaRow>
-            <CoverList
-              benefitIds={employeeBenefitIds}
-              benefitLabels={benefitLabels}
-            />
+            {showCovers ? (
+              <CoverList
+                benefitIds={employeeBenefitIds}
+                benefitLabels={benefitLabels}
+              />
+            ) : null}
           </FilledCard>
           {spouses.map((dependant) => (
             <FilledMemberCard
               key={dependant.id}
               dependant={dependant}
               benefitLabels={benefitLabels}
+              showCovers={showCovers}
               onEdit={onEditDependant}
             />
           ))}
@@ -249,6 +262,7 @@ function FamilyBoard({
               key={dependant.id}
               dependant={dependant}
               benefitLabels={benefitLabels}
+              showCovers={showCovers}
               priorYear
               onEdit={onEditDependant}
             />
@@ -256,7 +270,7 @@ function FamilyBoard({
           {Array.from({ length: spouseEmptyCount }, (_, index) => (
             <EmptySlot
               key={`spouse-empty-${index}`}
-              label="Add spouse"
+              label={addSlotLabel ?? 'Add spouse'}
               disabled={!onAddSlot}
               onClick={() => onAddSlot?.('Spouse')}
             />
@@ -277,27 +291,29 @@ function FamilyBoard({
             {children.map((dependant) => (
               <FilledMemberCard
                 key={dependant.id}
-                dependant={dependant}
-                benefitLabels={benefitLabels}
-                onEdit={onEditDependant}
-              />
-            ))}
-            {uncoveredChildren.map((dependant) => (
-              <FilledMemberCard
-                key={dependant.id}
-                dependant={dependant}
-                benefitLabels={benefitLabels}
-                priorYear
-                onEdit={onEditDependant}
-              />
-            ))}
-            {Array.from({ length: childEmptyCount }, (_, index) => (
-              <EmptySlot
-                key={`child-empty-${index}`}
-                label="Add child"
-                disabled={!onAddSlot}
-                onClick={() => onAddSlot?.('Child')}
-              />
+              dependant={dependant}
+              benefitLabels={benefitLabels}
+              showCovers={showCovers}
+              onEdit={onEditDependant}
+            />
+          ))}
+          {uncoveredChildren.map((dependant) => (
+            <FilledMemberCard
+              key={dependant.id}
+              dependant={dependant}
+              benefitLabels={benefitLabels}
+              showCovers={showCovers}
+              priorYear
+              onEdit={onEditDependant}
+            />
+          ))}
+          {Array.from({ length: childEmptyCount }, (_, index) => (
+            <EmptySlot
+              key={`child-empty-${index}`}
+              label={addSlotLabel ?? 'Add child'}
+              disabled={!onAddSlot}
+              onClick={() => onAddSlot?.('Child')}
+            />
             ))}
           </Row>
         </Section>
@@ -322,6 +338,7 @@ function FamilyBoard({
                   key={dependant.id}
                   dependant={dependant}
                   benefitLabels={benefitLabels}
+                  showCovers={showCovers}
                   onEdit={onEditDependant}
                 />
               ))}
@@ -330,6 +347,7 @@ function FamilyBoard({
                   key={dependant.id}
                   dependant={dependant}
                   benefitLabels={benefitLabels}
+                  showCovers={showCovers}
                   priorYear
                   onEdit={onEditDependant}
                 />
@@ -337,7 +355,7 @@ function FamilyBoard({
               {Array.from({ length: emptyCount }, (_, index) => (
                 <EmptySlot
                   key={`${relationship}-empty-${index}`}
-                  label={`Add ${relationship.toLowerCase()}`}
+                  label={addSlotLabel ?? `Add ${relationship.toLowerCase()}`}
                   disabled={!onAddSlot}
                   onClick={() => onAddSlot?.(relationship)}
                 />
@@ -354,11 +372,13 @@ function FilledMemberCard({
   dependant,
   benefitLabels,
   priorYear = false,
+  showCovers = true,
   onEdit,
 }: {
   dependant: DependantFormData
   benefitLabels: Record<string, string>
   priorYear?: boolean
+  showCovers?: boolean
   onEdit?: (dependant: DependantFormData) => void
 }) {
   return (
@@ -403,11 +423,13 @@ function FilledMemberCard({
           {dependant.mobile.trim() || 'NA'}
         </MetaItem>
       </MetaRow>
-      <CoverList
-        benefitIds={dependant.selectedBenefitIds}
-        benefitLabels={benefitLabels}
-        priorYear={priorYear}
-      />
+      {showCovers ? (
+        <CoverList
+          benefitIds={dependant.selectedBenefitIds}
+          benefitLabels={benefitLabels}
+          priorYear={priorYear}
+        />
+      ) : null}
     </FilledCard>
   )
 }
@@ -454,6 +476,7 @@ function EmptySlot({
 }) {
   return (
     <EmptyCard type="button" disabled={disabled} onClick={onClick}>
+      <EmptyPlus src={assets.iconPlusEmerald} alt="" width={20} height={20} />
       {label}
     </EmptyCard>
   )
@@ -660,11 +683,13 @@ const CoverEmpty = styled.span`
 
 const EmptyCard = styled.button`
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   min-height: 116px;
   padding: 16px;
-  border: 2px dashed ${({ theme }) => theme.colors.defaultBorder};
+  border: 1.5px dashed ${({ theme }) => theme.colors.defaultBorder};
   border-radius: 12px;
   background: ${({ theme }) => theme.colors.planeGreenLight};
   color: ${({ theme }) => theme.colors.emerald};
@@ -679,6 +704,12 @@ const EmptyCard = styled.button`
     cursor: default;
     opacity: 0.7;
   }
+`
+
+const EmptyPlus = styled.img`
+  display: block;
+  width: 20px;
+  height: 20px;
 `
 
 const Grid = styled.div`

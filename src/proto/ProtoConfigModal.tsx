@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
@@ -11,6 +11,13 @@ const MODE_OPTIONS: { id: ProtoCardinality; label: string }[] = [
   { id: 'single', label: 'Single' },
   { id: 'multiple', label: 'Multiple' },
 ]
+
+type Editor =
+  | { kind: 'entity'; mode: 'add' }
+  | { kind: 'entity'; mode: 'edit'; id: string }
+  | { kind: 'deal'; mode: 'add' }
+  | { kind: 'deal'; mode: 'edit'; id: string }
+  | null
 
 export function ProtoConfigModal({
   open,
@@ -32,8 +39,18 @@ export function ProtoConfigModal({
     toggleDeal,
     selectOnlyEntity,
     selectOnlyDeal,
+    addEntity,
+    updateEntity,
+    removeEntity,
+    addDeal,
+    updateDeal,
+    removeDeal,
     reset,
   } = useProtoConfig()
+
+  const [editor, setEditor] = useState<Editor>(null)
+  const [draftName, setDraftName] = useState('')
+  const [draftPeriod, setDraftPeriod] = useState('')
 
   useEffect(() => {
     if (!open) return
@@ -44,10 +61,44 @@ export function ProtoConfigModal({
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
+  useEffect(() => {
+    if (!open) setEditor(null)
+  }, [open])
+
   if (!open) return null
 
   const selectedEntityIds = new Set(entities.map((entity) => entity.id))
   const selectedDealIds = new Set(deals.map((deal) => deal.id))
+
+  function startAdd(kind: 'entity' | 'deal') {
+    setEditor({ kind, mode: 'add' })
+    setDraftName(kind === 'entity' ? 'New company' : 'New flex deal')
+    setDraftPeriod(allDeals[0]?.periodLabel ?? 'FY 2026–27')
+  }
+
+  function startEditEntity(id: string, name: string) {
+    setEditor({ kind: 'entity', mode: 'edit', id })
+    setDraftName(name)
+  }
+
+  function startEditDeal(id: string, name: string, periodLabel: string) {
+    setEditor({ kind: 'deal', mode: 'edit', id })
+    setDraftName(name)
+    setDraftPeriod(periodLabel)
+  }
+
+  function saveEditor() {
+    if (!editor) return
+    if (editor.kind === 'entity') {
+      if (editor.mode === 'add') addEntity(draftName)
+      else updateEntity(editor.id, draftName)
+    } else if (editor.mode === 'add') {
+      addDeal(draftName, draftPeriod)
+    } else {
+      updateDeal(editor.id, { name: draftName, periodLabel: draftPeriod })
+    }
+    setEditor(null)
+  }
 
   return (
     <Overlay role="presentation" onClick={onClose}>
@@ -61,8 +112,9 @@ export function ProtoConfigModal({
           <HeaderText>
             <Title id="proto-config-title">Prototype controls</Title>
             <Subtitle>
-              Shape the account this prototype pretends to be. Changes apply to
-              the Add / Edit / Delete Lives flow straight away.
+              Shape the account this prototype pretends to be. Add, edit, or
+              remove companies and deals — changes apply to the Add / Edit /
+              Delete Lives flow straight away.
             </Subtitle>
           </HeaderText>
           <CloseButton type="button" aria-label="Close" onClick={onClose}>
@@ -95,25 +147,90 @@ export function ProtoConfigModal({
           <Options>
             {allEntities.map((entity) => {
               const selected = selectedEntityIds.has(entity.id)
+              const editing =
+                editor?.kind === 'entity' &&
+                editor.mode === 'edit' &&
+                editor.id === entity.id
+              if (editing) {
+                return (
+                  <EditorRow key={entity.id}>
+                    <EditorInput
+                      autoFocus
+                      value={draftName}
+                      onChange={(event) => setDraftName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') saveEditor()
+                      }}
+                      aria-label="Company name"
+                    />
+                    <TextAction type="button" onClick={saveEditor}>
+                      Save
+                    </TextAction>
+                    <TextAction type="button" onClick={() => setEditor(null)}>
+                      Cancel
+                    </TextAction>
+                  </EditorRow>
+                )
+              }
               return (
-                <Option
-                  key={entity.id}
-                  type="button"
-                  $selected={selected}
-                  aria-pressed={selected}
-                  onClick={() =>
-                    entityMode === 'single'
-                      ? selectOnlyEntity(entity.id)
-                      : toggleEntity(entity.id)
-                  }
-                >
-                  <Marker $selected={selected} $round={entityMode === 'single'}>
-                    {selected ? <Tick aria-hidden>✓</Tick> : null}
-                  </Marker>
-                  <OptionName>{entity.name}</OptionName>
-                </Option>
+                <OptionRow key={entity.id}>
+                  <Option
+                    type="button"
+                    $selected={selected}
+                    aria-pressed={selected}
+                    onClick={() =>
+                      entityMode === 'single'
+                        ? selectOnlyEntity(entity.id)
+                        : toggleEntity(entity.id)
+                    }
+                  >
+                    <Marker $selected={selected} $round={entityMode === 'single'}>
+                      {selected ? <Tick aria-hidden>✓</Tick> : null}
+                    </Marker>
+                    <OptionName>{entity.name}</OptionName>
+                  </Option>
+                  <RowActions>
+                    <TextAction
+                      type="button"
+                      onClick={() => startEditEntity(entity.id, entity.name)}
+                    >
+                      Edit
+                    </TextAction>
+                    <TextAction
+                      type="button"
+                      $danger
+                      disabled={allEntities.length <= 1}
+                      onClick={() => removeEntity(entity.id)}
+                    >
+                      Delete
+                    </TextAction>
+                  </RowActions>
+                </OptionRow>
               )
             })}
+            {editor?.kind === 'entity' && editor.mode === 'add' ? (
+              <EditorRow>
+                <EditorInput
+                  autoFocus
+                  value={draftName}
+                  onChange={(event) => setDraftName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') saveEditor()
+                  }}
+                  aria-label="New company name"
+                />
+                <TextAction type="button" onClick={saveEditor}>
+                  Add
+                </TextAction>
+                <TextAction type="button" onClick={() => setEditor(null)}>
+                  Cancel
+                </TextAction>
+              </EditorRow>
+            ) : (
+              <AddButton type="button" onClick={() => startAdd('entity')}>
+                Add company
+              </AddButton>
+            )}
           </Options>
         </Section>
 
@@ -142,30 +259,117 @@ export function ProtoConfigModal({
           <Options>
             {allDeals.map((deal) => {
               const selected = selectedDealIds.has(deal.id)
+              const editing =
+                editor?.kind === 'deal' &&
+                editor.mode === 'edit' &&
+                editor.id === deal.id
+              if (editing) {
+                return (
+                  <EditorColumn key={deal.id}>
+                    <EditorInput
+                      autoFocus
+                      value={draftName}
+                      onChange={(event) => setDraftName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') saveEditor()
+                      }}
+                      aria-label="Deal name"
+                    />
+                    <EditorInput
+                      value={draftPeriod}
+                      onChange={(event) => setDraftPeriod(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') saveEditor()
+                      }}
+                      aria-label="Deal period"
+                    />
+                    <EditorRow>
+                      <TextAction type="button" onClick={saveEditor}>
+                        Save
+                      </TextAction>
+                      <TextAction type="button" onClick={() => setEditor(null)}>
+                        Cancel
+                      </TextAction>
+                    </EditorRow>
+                  </EditorColumn>
+                )
+              }
               return (
-                <Option
-                  key={deal.id}
-                  type="button"
-                  $selected={selected}
-                  aria-pressed={selected}
-                  onClick={() =>
-                    dealMode === 'single'
-                      ? selectOnlyDeal(deal.id)
-                      : toggleDeal(deal.id)
-                  }
-                >
-                  <Marker $selected={selected} $round={dealMode === 'single'}>
-                    {selected ? <Tick aria-hidden>✓</Tick> : null}
-                  </Marker>
-                  <OptionName>
-                    {deal.name}
-                    <OptionMeta>
-                      {deal.periodLabel} · {deal.benefits.length} coverages
-                    </OptionMeta>
-                  </OptionName>
-                </Option>
+                <OptionRow key={deal.id}>
+                  <Option
+                    type="button"
+                    $selected={selected}
+                    aria-pressed={selected}
+                    onClick={() =>
+                      dealMode === 'single'
+                        ? selectOnlyDeal(deal.id)
+                        : toggleDeal(deal.id)
+                    }
+                  >
+                    <Marker $selected={selected} $round={dealMode === 'single'}>
+                      {selected ? <Tick aria-hidden>✓</Tick> : null}
+                    </Marker>
+                    <OptionName>
+                      {deal.name}
+                      <OptionMeta>
+                        {deal.periodLabel} · {deal.benefits.length} coverages
+                      </OptionMeta>
+                    </OptionName>
+                  </Option>
+                  <RowActions>
+                    <TextAction
+                      type="button"
+                      onClick={() =>
+                        startEditDeal(deal.id, deal.name, deal.periodLabel)
+                      }
+                    >
+                      Edit
+                    </TextAction>
+                    <TextAction
+                      type="button"
+                      $danger
+                      disabled={allDeals.length <= 1}
+                      onClick={() => removeDeal(deal.id)}
+                    >
+                      Delete
+                    </TextAction>
+                  </RowActions>
+                </OptionRow>
               )
             })}
+            {editor?.kind === 'deal' && editor.mode === 'add' ? (
+              <EditorColumn>
+                <EditorInput
+                  autoFocus
+                  value={draftName}
+                  onChange={(event) => setDraftName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') saveEditor()
+                  }}
+                  aria-label="New deal name"
+                />
+                <EditorInput
+                  value={draftPeriod}
+                  onChange={(event) => setDraftPeriod(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') saveEditor()
+                  }}
+                  aria-label="New deal period"
+                />
+                <EditorRow>
+                  <TextAction type="button" onClick={saveEditor}>
+                    Add
+                  </TextAction>
+                  <TextAction type="button" onClick={() => setEditor(null)}>
+                    Cancel
+                  </TextAction>
+                </EditorRow>
+              </EditorColumn>
+            ) : (
+              <AddButton type="button" onClick={() => startAdd('deal')}>
+                Add deal
+              </AddButton>
+            )}
           </Options>
         </Section>
 
@@ -365,11 +569,18 @@ const Options = styled.div`
   gap: 8px;
 `
 
+const OptionRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
 const Option = styled.button<{ $selected: boolean }>`
   display: flex;
   align-items: center;
   gap: 12px;
-  width: 100%;
+  min-width: 0;
+  flex: 1;
   padding: 10px 12px;
   border: 1px solid
     ${({ theme, $selected }) =>
@@ -381,6 +592,82 @@ const Option = styled.button<{ $selected: boolean }>`
   text-align: left;
   cursor: pointer;
   box-sizing: border-box;
+`
+
+const RowActions = styled.div`
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+`
+
+const EditorRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
+const EditorColumn = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  background: ${({ theme }) => theme.colors.surface1};
+`
+
+const EditorInput = styled.input`
+  min-width: 0;
+  flex: 1;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  background: ${({ theme }) => theme.colors.surface1};
+  color: ${({ theme }) => theme.colors.textPrimary};
+  font: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+
+  &:focus {
+    outline: none;
+    border-color: ${({ theme }) => theme.colors.emerald};
+  }
+`
+
+const TextAction = styled.button<{ $danger?: boolean }>`
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: ${({ theme, $danger }) =>
+    $danger ? theme.colors.textError : theme.colors.emerald};
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+
+  &:disabled {
+    color: ${({ theme }) => theme.colors.textSecondary};
+    cursor: not-allowed;
+  }
+`
+
+const AddButton = styled.button`
+  align-self: flex-start;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px dashed ${({ theme }) => theme.colors.defaultBorder};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  background: transparent;
+  color: ${({ theme }) => theme.colors.emerald};
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  cursor: pointer;
 `
 
 const Marker = styled.span<{ $selected: boolean; $round: boolean }>`

@@ -29,10 +29,12 @@ interface StoredProtoConfig {
   entityIds: string[]
   dealIds: string[]
   versionId?: string
+  entitiesCatalog?: OrganisationEntity[]
+  dealsCatalog?: FlexDealConfig[]
 }
 
 interface ProtoConfigValue {
-  /** Every entity/deal the mock data ships with. */
+  /** Every entity/deal currently available in the prototype. */
   allEntities: OrganisationEntity[]
   allDeals: FlexDealConfig[]
   /** What the prototype should behave as if the company actually has. */
@@ -46,6 +48,12 @@ interface ProtoConfigValue {
   toggleDeal: (id: string) => void
   selectOnlyEntity: (id: string) => void
   selectOnlyDeal: (id: string) => void
+  addEntity: (name: string) => void
+  updateEntity: (id: string, name: string) => void
+  removeEntity: (id: string) => void
+  addDeal: (name: string, periodLabel?: string) => void
+  updateDeal: (id: string, patch: { name: string; periodLabel: string }) => void
+  removeDeal: (id: string) => void
   /** Active prototype iteration — drives Manage Lives layouts. */
   versionId: ProtoVersionId
   version: ProtoVersion
@@ -55,6 +63,38 @@ interface ProtoConfigValue {
 }
 
 const ProtoConfigContext = createContext<ProtoConfigValue | null>(null)
+
+const seedEntities = (): OrganisationEntity[] =>
+  organisationEntities.map((entity) => ({ ...entity }))
+
+const seedDeals = (): FlexDealConfig[] =>
+  listActiveDeals().map((deal) => structuredClone(deal))
+
+function slugId(prefix: string, name: string) {
+  const slug =
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'item'
+  return `${prefix}-${slug}-${Date.now().toString(36)}`
+}
+
+function isEntity(value: unknown): value is OrganisationEntity {
+  if (!value || typeof value !== 'object') return false
+  const item = value as OrganisationEntity
+  return typeof item.id === 'string' && typeof item.name === 'string'
+}
+
+function isDeal(value: unknown): value is FlexDealConfig {
+  if (!value || typeof value !== 'object') return false
+  const item = value as FlexDealConfig
+  return (
+    typeof item.id === 'string' &&
+    typeof item.name === 'string' &&
+    Array.isArray(item.plans) &&
+    Array.isArray(item.benefits)
+  )
+}
 
 function readStored(): StoredProtoConfig | null {
   try {
@@ -69,6 +109,12 @@ function readStored(): StoredProtoConfig | null {
       dealIds: parsed.dealIds,
       versionId:
         typeof parsed.versionId === 'string' ? parsed.versionId : undefined,
+      entitiesCatalog: Array.isArray(parsed.entitiesCatalog)
+        ? parsed.entitiesCatalog.filter(isEntity)
+        : undefined,
+      dealsCatalog: Array.isArray(parsed.dealsCatalog)
+        ? parsed.dealsCatalog.filter(isDeal)
+        : undefined,
     }
   } catch {
     return null
@@ -85,19 +131,34 @@ function sanitise(ids: string[], pool: { id: string }[]) {
 }
 
 export function ProtoConfigProvider({ children }: { children: ReactNode }) {
-  const allEntities = organisationEntities
-  const allDeals = useMemo(() => listActiveDeals(), [])
+  const [allEntities, setAllEntities] = useState<OrganisationEntity[]>(() => {
+    const stored = readStored()
+    return stored?.entitiesCatalog && stored.entitiesCatalog.length > 0
+      ? stored.entitiesCatalog
+      : seedEntities()
+  })
+  const [allDeals, setAllDeals] = useState<FlexDealConfig[]>(() => {
+    const stored = readStored()
+    return stored?.dealsCatalog && stored.dealsCatalog.length > 0
+      ? stored.dealsCatalog
+      : seedDeals()
+  })
 
   const [entityIds, setEntityIds] = useState<string[]>(() => {
     const stored = readStored()
-    return sanitise(
-      stored?.entityIds ?? allEntities.map((entity) => entity.id),
-      allEntities,
-    )
+    const pool =
+      stored?.entitiesCatalog && stored.entitiesCatalog.length > 0
+        ? stored.entitiesCatalog
+        : seedEntities()
+    return sanitise(stored?.entityIds ?? pool.map((entity) => entity.id), pool)
   })
   const [dealIds, setDealIds] = useState<string[]>(() => {
     const stored = readStored()
-    return sanitise(stored?.dealIds ?? allDeals.map((deal) => deal.id), allDeals)
+    const pool =
+      stored?.dealsCatalog && stored.dealsCatalog.length > 0
+        ? stored.dealsCatalog
+        : seedDeals()
+    return sanitise(stored?.dealIds ?? pool.map((deal) => deal.id), pool)
   })
   const [versionId, setVersionIdState] = useState<ProtoVersionId>(() => {
     const stored = readStored()
@@ -108,12 +169,18 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
     try {
       window.localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ entityIds, dealIds, versionId }),
+        JSON.stringify({
+          entityIds,
+          dealIds,
+          versionId,
+          entitiesCatalog: allEntities,
+          dealsCatalog: allDeals,
+        }),
       )
     } catch {
       // Prototype-only preference — safe to lose when storage is unavailable.
     }
-  }, [entityIds, dealIds, versionId])
+  }, [entityIds, dealIds, versionId, allEntities, allDeals])
 
   const entities = useMemo(
     () => allEntities.filter((entity) => entityIds.includes(entity.id)),
@@ -191,11 +258,96 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
     [allDeals],
   )
 
+  const addEntity = useCallback((name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const entity: OrganisationEntity = {
+      id: slugId('entity', trimmed),
+      name: trimmed,
+    }
+    setAllEntities((current) => [...current, entity])
+    setEntityIds((current) =>
+      current.length <= 1 ? [entity.id] : [...current, entity.id],
+    )
+  }, [])
+
+  const updateEntity = useCallback((id: string, name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    setAllEntities((current) =>
+      current.map((entity) =>
+        entity.id === id ? { ...entity, name: trimmed } : entity,
+      ),
+    )
+  }, [])
+
+  const removeEntity = useCallback((id: string) => {
+    setAllEntities((current) => {
+      if (current.length <= 1) return current
+      const next = current.filter((entity) => entity.id !== id)
+      setEntityIds((selected) => sanitise(selected, next))
+      return next
+    })
+  }, [])
+
+  const addDeal = useCallback((name: string, periodLabel?: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    setAllDeals((current) => {
+      const template = current[0] ?? seedDeals()[0]
+      if (!template) return current
+      const deal: FlexDealConfig = {
+        ...structuredClone(template),
+        id: slugId('deal', trimmed),
+        name: trimmed,
+        periodLabel: periodLabel?.trim() || template.periodLabel,
+        status: 'active',
+      }
+      setDealIds((selected) =>
+        selected.length <= 1 ? [deal.id] : [...selected, deal.id],
+      )
+      return [...current, deal]
+    })
+  }, [])
+
+  const updateDeal = useCallback(
+    (id: string, patch: { name: string; periodLabel: string }) => {
+      const name = patch.name.trim()
+      const periodLabel = patch.periodLabel.trim()
+      if (!name) return
+      setAllDeals((current) =>
+        current.map((deal) =>
+          deal.id === id
+            ? {
+                ...deal,
+                name,
+                periodLabel: periodLabel || deal.periodLabel,
+              }
+            : deal,
+        ),
+      )
+    },
+    [],
+  )
+
+  const removeDeal = useCallback((id: string) => {
+    setAllDeals((current) => {
+      if (current.length <= 1) return current
+      const next = current.filter((deal) => deal.id !== id)
+      setDealIds((selected) => sanitise(selected, next))
+      return next
+    })
+  }, [])
+
   const reset = useCallback(() => {
-    setEntityIds(allEntities.map((entity) => entity.id))
-    setDealIds(allDeals.map((deal) => deal.id))
+    const entitiesSeed = seedEntities()
+    const dealsSeed = seedDeals()
+    setAllEntities(entitiesSeed)
+    setAllDeals(dealsSeed)
+    setEntityIds(entitiesSeed.map((entity) => entity.id))
+    setDealIds(dealsSeed.map((deal) => deal.id))
     setVersionIdState(DEFAULT_PROTO_VERSION_ID)
-  }, [allEntities, allDeals])
+  }, [])
 
   const value = useMemo<ProtoConfigValue>(
     () => ({
@@ -211,6 +363,12 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
       toggleDeal,
       selectOnlyEntity,
       selectOnlyDeal,
+      addEntity,
+      updateEntity,
+      removeEntity,
+      addDeal,
+      updateDeal,
+      removeDeal,
       versionId,
       version,
       versions: PROTO_VERSIONS,
@@ -228,6 +386,12 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
       toggleDeal,
       selectOnlyEntity,
       selectOnlyDeal,
+      addEntity,
+      updateEntity,
+      removeEntity,
+      addDeal,
+      updateDeal,
+      removeDeal,
       versionId,
       version,
       setVersionId,

@@ -8,6 +8,7 @@ import {
   useLivesWizard,
   type LifeAction,
   type LifeMethod,
+  type WizardStep,
 } from '@/pages/LivesWizard/WizardContext'
 import { AutofillWidget } from '@/pages/LivesWizard/components/AutofillWidget'
 import { BulkReviewStep } from '@/pages/LivesWizard/steps/BulkReviewStep'
@@ -31,11 +32,36 @@ import { SearchEmployeeStep } from '@/pages/LivesWizard/steps/SearchEmployeeStep
 import { SelectionStep } from '@/pages/LivesWizard/steps/SelectionStep'
 import { SuccessStep } from '@/pages/LivesWizard/steps/SuccessStep'
 import { UploadStep } from '@/pages/LivesWizard/steps/UploadStep'
-import { UserDetailsStep } from '@/pages/LivesWizard/steps/UserDetailsStep'
+import { SingleEmployeeSetupStep } from '@/pages/LivesWizard/steps/SingleEmployeeSetupStep'
 import { VerifyStep } from '@/pages/LivesWizard/steps/VerifyStep'
 
 const VALID_ACTIONS: LifeAction[] = ['add', 'edit', 'delete']
 const VALID_METHODS: LifeMethod[] = ['bulk', 'single', 'single-dependant']
+const VALID_STEPS: WizardStep[] = [
+  'selection',
+  'employee-details',
+  'user-details',
+  'search-employee',
+  'dependant-details',
+  'dependant-plan',
+  'benefits',
+  'family',
+  'verify',
+  'endo-costs',
+  'enrolment',
+  'upload',
+  'bulk-validate',
+  'midterm-proof',
+  'bulk-review',
+  'processing',
+  'date-of-leaving',
+  'offboard-coverage',
+  'delete-summary',
+  'edit-form',
+  'edit-proof',
+  'correction-batch',
+  'success',
+]
 
 function LivesWizardInner() {
   const { step } = useLivesWizard()
@@ -65,7 +91,7 @@ function LivesWizardInner() {
     <Page>
       {step === 'selection' && <SelectionStep />}
       {step === 'employee-details' && <EmployeeDetailsStep />}
-      {step === 'user-details' && <UserDetailsStep />}
+      {step === 'user-details' && <SingleEmployeeSetupStep />}
       {step === 'search-employee' && <SearchEmployeeStep />}
       {step === 'dependant-details' && <DependantDetailsStep />}
       {step === 'dependant-plan' && <DependantPlanStep />}
@@ -100,6 +126,11 @@ export function LivesWizardPage() {
   const dependantParam = searchParams.get('dependant')
   const leavingParam = searchParams.get('leaving')
   const fileParam = searchParams.get('file')
+  const stepParam = searchParams.get('step')
+  const initialStepOverride =
+    stepParam && VALID_STEPS.includes(stepParam as WizardStep)
+      ? (stepParam as WizardStep)
+      : null
 
   const fallback = searchParams.get('returnTo') === 'manage-lives' ? '/manage-lives' : '/endorsements'
 
@@ -121,7 +152,7 @@ export function LivesWizardPage() {
 
   return (
     <LivesWizardProvider
-      key={`${action}-${methodParam}-${entityParam ?? 'default'}-${dealParam ?? 'default'}-${employeeParam ?? ''}-${dependantParam ?? ''}-${fileParam ?? ''}`}
+      key={`${action}-${methodParam}-${entityParam ?? 'default'}-${dealParam ?? 'default'}-${employeeParam ?? ''}-${dependantParam ?? ''}-${fileParam ?? ''}-${stepParam ?? ''}`}
       action={action}
       initialMethod={methodParam}
       organisationEntityId={entityParam}
@@ -130,6 +161,7 @@ export function LivesWizardPage() {
       initialDependantId={dependantParam}
       initialLeavingDate={leavingParam}
       initialFileName={fileParam}
+      initialStepOverride={initialStepOverride}
     >
       <LivesWizardInner />
     </LivesWizardProvider>

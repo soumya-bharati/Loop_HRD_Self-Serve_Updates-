@@ -7,9 +7,15 @@ import { TopNav } from '@/components/layout/TopNav'
 import { ProtoControlBar } from '@/proto/ProtoControlBar'
 
 export function AppShell() {
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const normalized = pathname.replace(/\/+$/, '') || '/'
+  const params = new URLSearchParams(search)
+  // These setup screens provide their own full-bleed guided-flow chrome.
+  const isGuidedSetup =
+    normalized === '/manage-lives' ||
+    (normalized === '/endorsements/lives/add' &&
+      params.get('method') === 'single')
   const showProtoBar =
     normalized === '/endorsements' ||
     normalized === '/manage-lives' ||
@@ -27,30 +33,47 @@ export function AppShell() {
   }, [mobileNavOpen])
 
   return (
-    <Shell>
+    <Shell $fillViewport={isGuidedSetup}>
       {showProtoBar ? <ProtoControlBar /> : null}
-      <TopNav
-        mobileNavOpen={mobileNavOpen}
-        onMenuClick={() => setMobileNavOpen((current) => !current)}
-      />
-      <Body>
-        <Sidebar open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
-        {mobileNavOpen ? (
-          <Backdrop
-            type="button"
-            aria-label="Close navigation"
-            onClick={() => setMobileNavOpen(false)}
-          />
-        ) : null}
-        <Main>
+      {isGuidedSetup ? (
+        <Main $fillViewport>
           <Outlet />
         </Main>
-      </Body>
+      ) : (
+        <>
+          <TopNav
+            mobileNavOpen={mobileNavOpen}
+            onMenuClick={() => setMobileNavOpen((current) => !current)}
+          />
+          <Body>
+            <Sidebar open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+            {mobileNavOpen ? (
+              <Backdrop
+                type="button"
+                aria-label="Close navigation"
+                onClick={() => setMobileNavOpen(false)}
+              />
+            ) : null}
+            <Main>
+              <Outlet />
+            </Main>
+          </Body>
+        </>
+      )}
     </Shell>
   )
 }
 
-const Shell = styled.div`
+const Shell = styled.div<{ $fillViewport?: boolean }>`
+  ${({ $fillViewport }) =>
+    $fillViewport
+      ? `
+    display: flex;
+    height: 100vh;
+    flex-direction: column;
+    overflow: hidden;
+  `
+      : ''}
   min-height: 100vh;
   background: ${({ theme }) => theme.colors.surface0};
   color: ${({ theme }) => theme.colors.textPrimary};
@@ -63,11 +86,18 @@ const Body = styled.div`
   min-height: calc(100vh - ${({ theme }) => theme.layout.topNavHeight});
 `
 
-const Main = styled.main`
+const Main = styled.main<{ $fillViewport?: boolean }>`
   flex: 1;
   min-width: 0;
   max-width: 100%;
   background: ${({ theme }) => theme.colors.surface0};
+  ${({ $fillViewport }) =>
+    $fillViewport
+      ? `
+    min-height: 0;
+    overflow: hidden;
+  `
+      : ''}
 `
 
 const Backdrop = styled.button`

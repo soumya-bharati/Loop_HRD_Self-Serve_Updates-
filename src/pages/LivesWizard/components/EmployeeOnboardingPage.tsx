@@ -58,12 +58,14 @@ export function EmployeeOnboardingPage({
   open,
   member,
   deal,
+  startAtBenefits = false,
   onCancel,
   onSave,
 }: {
   open: boolean
   member: AddEmployeeMember | null
   deal: FlexDealConfig
+  startAtBenefits?: boolean
   onCancel: () => void
   onSave: (draft: EmployeeOnboardingDraft) => void
 }) {
@@ -108,7 +110,7 @@ export function EmployeeOnboardingPage({
     if (seededSessionId.current === sessionId) return
     seededSessionId.current = sessionId
     assignedKeyRef.current = null
-    setStepIndex(0)
+    setStepIndex(startAtBenefits ? 1 : 0)
     setCancelConfirmOpen(false)
     setEmployee({
       ...member.employee,
@@ -117,7 +119,7 @@ export function EmployeeOnboardingPage({
     setSelectedBenefitIds([...member.selectedBenefitIds])
     setPolicySlabIds({ ...(member.policySlabIds ?? {}) })
     setDependants(member.dependants.map((dependant) => ({ ...dependant })))
-  }, [member, sessionId])
+  }, [member, sessionId, startAtBenefits])
 
   useEffect(() => {
     if (!open) return

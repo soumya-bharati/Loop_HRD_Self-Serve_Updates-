@@ -1,6 +1,7 @@
 import styled, { keyframes } from 'styled-components'
 
 import { assets } from '@/assets/figma'
+import { coverCatalog } from '@/data/coverPlans'
 import { flexDeal } from '@/data/flexDeal'
 
 type Props = {
@@ -52,11 +53,25 @@ export function BulkAssignmentKnowMoreModal({ open, onClose }: Props) {
           </RuleCard>
 
           <RuleCard>
-            <RuleLabel>2. Company default</RuleLabel>
+            <RuleLabel>2. Covers and plans</RuleLabel>
             <RuleCopy>
-              If no rule matches, the company default plan is applied so most
-              lives can continue without manual review.
+              That plan then decides which cover and which plan within it each
+              life is enrolled on.
             </RuleCopy>
+            {coverCatalog.map((cover) => (
+              <CoverRule key={cover.id}>
+                <CoverRuleHead>
+                  <CoverRuleName>{cover.name}</CoverRuleName>
+                  <CoverRuleCode>{cover.shortLabel}</CoverRuleCode>
+                </CoverRuleHead>
+                <PlanPills>
+                  {cover.plans.map((plan) => (
+                    <PlanPill key={plan.id}>{plan.label}</PlanPill>
+                  ))}
+                </PlanPills>
+                <RuleCopy>{cover.assignmentNote}</RuleCopy>
+              </CoverRule>
+            ))}
           </RuleCard>
 
           <RuleCard>
@@ -65,11 +80,6 @@ export function BulkAssignmentKnowMoreModal({ open, onClose }: Props) {
               Choose “Use plan/benefit from the sheet” to honour uploaded values,
               or pick a plan inline when a life needs review.
             </RuleCopy>
-            <PlanPills>
-              {flexDeal.plans.map((plan) => (
-                <PlanPill key={plan.id}>{plan.name}</PlanPill>
-              ))}
-            </PlanPills>
           </RuleCard>
         </Body>
 
@@ -194,6 +204,36 @@ const RuleList = styled.ul`
   display: flex;
   flex-direction: column;
   gap: 4px;
+`
+
+const CoverRule = styled.div`
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid ${({ theme }) => theme.colors.disableFill};
+`
+
+const CoverRuleHead = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
+const CoverRuleName = styled.h4`
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.textPrimary};
+`
+
+const CoverRuleCode = styled.span`
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: ${({ theme }) => theme.colors.surface0};
+  border: 1px solid ${({ theme }) => theme.colors.disableFill};
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: ${({ theme }) => theme.colors.textSecondary};
 `
 
 const PlanPills = styled.div`

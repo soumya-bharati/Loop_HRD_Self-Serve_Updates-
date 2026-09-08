@@ -7,6 +7,7 @@ export function launchWizardPath({
   dependant,
   leaving,
   file,
+  step,
 }: {
   action: 'add' | 'edit' | 'delete'
   method: 'bulk' | 'single' | 'single-dependant'
@@ -16,6 +17,7 @@ export function launchWizardPath({
   dependant?: string
   leaving?: string
   file?: string
+  step?: string
 }) {
   const params = new URLSearchParams({
     method,
@@ -27,6 +29,7 @@ export function launchWizardPath({
   if (dependant) params.set('dependant', dependant)
   if (leaving) params.set('leaving', leaving)
   if (file) params.set('file', file)
+  if (step) params.set('step', step)
   return `/endorsements/lives/${action}?${params.toString()}`
 }
 

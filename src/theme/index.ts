@@ -5,6 +5,7 @@ export const theme = {
     fillGreen: '#BCDD33',
     planeGreenLight: '#E6EFED',
     bannerMint: '#EBF4F1',
+    hoverSurface1: '#F2F7F6',
     surface0: '#F8F9FA',
     surface1: '#FFFFFF',
     fillRed: '#FF8080',

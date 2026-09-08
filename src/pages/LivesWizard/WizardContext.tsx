@@ -367,6 +367,7 @@ export function LivesWizardProvider({
   initialDependantId,
   initialLeavingDate,
   initialFileName,
+  initialStepOverride,
   children,
 }: {
   action: LifeAction
@@ -378,6 +379,8 @@ export function LivesWizardProvider({
   initialLeavingDate?: string | null
   /** Sheet already attached upstream — skip the wizard's own upload step. */
   initialFileName?: string | null
+  /** Jump past bulk-validate when results were already reviewed upstream. */
+  initialStepOverride?: WizardStep | null
   children: ReactNode
 }) {
   const { entities: protoEntities, deals: protoDeals } = useProtoConfig()
@@ -388,9 +391,11 @@ export function LivesWizardProvider({
     initialMethod,
   )
   const skipUpload = Boolean(initialFileName) && initialMethod === 'bulk'
-  const initialStep = skipUpload
-    ? 'bulk-validate'
-    : (hydrated?.step ?? initialStepFor(action, initialMethod))
+  const initialStep =
+    initialStepOverride ??
+    (skipUpload
+      ? 'bulk-validate'
+      : (hydrated?.step ?? initialStepFor(action, initialMethod)))
   const organisationEntity = getOrganisationEntity(
     organisationEntityIdProp,
     protoEntities,
