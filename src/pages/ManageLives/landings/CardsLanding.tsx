@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styled, { keyframes } from 'styled-components'
 
@@ -19,7 +19,11 @@ import { ValidationIssuesPanel } from '@/pages/ManageLives/landings/ValidationIs
 import { ValidationResultsPanel } from '@/pages/ManageLives/landings/ValidationResultsPanel'
 import { usePendingChanges } from '@/pages/ManageLives/PendingChangesContext'
 import { nextPendingId } from '@/pages/ManageLives/pendingChanges'
-import { sampleBulkRows, validationIssuesFor, type BulkMemberRow } from '@/data/flexDeal'
+import {
+  sampleBulkRowsForPrototype,
+  validationIssuesFor,
+  type BulkMemberRow,
+} from '@/data/flexDeal'
 import { useProtoConfig } from '@/proto/ProtoConfigContext'
 
 type BulkMode = 'add' | 'remove'
@@ -64,8 +68,8 @@ const WIZARD_STEPS = [
     description: 'Review lives, plan distribution, and validation errors.',
   },
   {
-    title: 'Review Cost',
-    description: 'Check the Endo cost, CD balance, and any shortfall.',
+    title: 'Review & Submit',
+    description: 'Review the assignments and submit them to complete this endorsement.',
   },
 ] as const
 
@@ -98,11 +102,15 @@ function formatFileSize(bytes: number) {
 
 export function CardsLanding() {
   const navigate = useNavigate()
-  const { entities, deals } = useProtoConfig()
+  const { entities, deals, includeValidationErrors } = useProtoConfig()
   const { addChange } = usePendingChanges()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const workspaceRef = useRef<HTMLElement>(null)
   const pendingFileRef = useRef<File | null>(null)
+  const demoRows = useMemo(
+    () => sampleBulkRowsForPrototype(includeValidationErrors),
+    [includeValidationErrors],
+  )
 
   const [bulkMode, setBulkMode] = useState<BulkMode>('add')
   const [entityId, setEntityId] = useState(entities[0]?.id ?? 'symphony-eyc')
@@ -111,7 +119,7 @@ export function CardsLanding() {
     'idle' | 'scanning' | 'issues' | 'results' | 'cost'
   >('idle')
   const [validatedRows, setValidatedRows] =
-    useState<BulkMemberRow[]>(sampleBulkRows)
+    useState<BulkMemberRow[]>(() => sampleBulkRowsForPrototype(true))
   const [columnDetection, setColumnDetection] =
     useState<ColumnDetectionResult | null>(null)
   const [assigningBenefits, setAssigningBenefits] = useState(false)
@@ -141,11 +149,14 @@ export function CardsLanding() {
     if (phase !== 'scanning' || !assigningBenefits) return
 
     const timer = window.setTimeout(() => {
-      setPhase(bulkMode === 'add' ? 'issues' : 'results')
+      setValidatedRows(sampleBulkRowsForPrototype(includeValidationErrors))
+      setPhase(
+        bulkMode === 'add' && includeValidationErrors ? 'issues' : 'results',
+      )
     }, ASSIGNING_BENEFITS_MS)
 
     return () => window.clearTimeout(timer)
-  }, [phase, assigningBenefits, bulkMode])
+  }, [phase, assigningBenefits, bulkMode, includeValidationErrors])
 
   useEffect(() => {
     if (phase !== 'scanning' || columnDetection || assigningBenefits) return
@@ -169,7 +180,7 @@ export function CardsLanding() {
     setError(null)
     setFile(next)
     setColumnDetection(null)
-    setValidatedRows(sampleBulkRows)
+    setValidatedRows(demoRows)
     setAssigningBenefits(false)
   }
 
@@ -185,7 +196,7 @@ export function CardsLanding() {
   function goBackToSetup() {
     pendingFileRef.current = null
     setColumnDetection(null)
-    setValidatedRows(sampleBulkRows)
+    setValidatedRows(demoRows)
     setAssigningBenefits(false)
     setScanStage(0)
     setPhase('idle')
@@ -339,8 +350,12 @@ export function CardsLanding() {
 
     try {
       const [detection] = await Promise.all([
-        detectSheetColumns(bulkMode),
-        parseSheet(file, bulkMode),
+        detectSheetColumns(bulkMode, {
+          includeErrors: includeValidationErrors,
+        }),
+        parseSheet(file, bulkMode, {
+          includeErrors: includeValidationErrors,
+        }),
       ])
       setColumnDetection(detection)
     } catch {
@@ -350,6 +365,31 @@ export function CardsLanding() {
       setColumnDetection(null)
       setAssigningBenefits(false)
     }
+  }
+
+  if (showingCost) {
+    return (
+      <>
+        <EndorsementCostPanel
+          rows={validatedRows}
+          isDelete={bulkMode === 'remove'}
+          onDone={() => navigate('/employees')}
+        />
+        <EnrollmentSettingsModal
+          open={enrollmentOpen}
+          recipientCount={
+            validatedRows.filter(
+              (row) =>
+                !row.ignored &&
+                row.status !== 'fail' &&
+                row.relationship === 'Self',
+            ).length
+          }
+          onCancel={() => setEnrollmentOpen(false)}
+          onConfirm={continueToReview}
+        />
+      </>
+    )
   }
 
   return (
@@ -385,48 +425,44 @@ export function CardsLanding() {
         <PhaseView key={phase}>
           {scanning ? (
           <Content>
-            <AssistantAvatar
-              src={assets.mlBulkAssistantAvatar}
-              alt=""
-              width={48}
-              height={48}
-            />
             <Setup>
-              <ScanPanel role="status" aria-busy aria-live="polite">
-                <ScanFileCard>
-                  <FileMeta>
-                    <FileIconWrap aria-hidden>
-                      <img
-                        src={assets.mlIconFileUploaded}
-                        alt=""
-                        width={20}
-                        height={20}
-                      />
-                    </FileIconWrap>
-                    <FileCopy>
-                      <FileName title={scanFile?.name}>
-                        {scanFile?.name}
-                      </FileName>
-                      <FileSize>{formatFileSize(scanFile?.size ?? 0)}</FileSize>
-                    </FileCopy>
-                  </FileMeta>
-                  <LoaderSpin
-                    src={assets.mlIconLoaderScan}
-                    alt=""
-                    width={32}
-                    height={32}
-                  />
-                </ScanFileCard>
-
-                {columnDetection && !assigningBenefits ? (
-                  <ColumnMappingPanel
-                    mappings={columnDetection.mappings}
-                    uploadedColumns={columnDetection.uploadedColumns}
-                    sampleValues={columnDetection.sampleValues}
-                    onMap={mapColumn}
-                    onConfirm={confirmColumnMapping}
-                  />
-                ) : (
+              {columnDetection && !assigningBenefits ? (
+                <ColumnMappingPanel
+                  mappings={columnDetection.mappings}
+                  uploadedColumns={columnDetection.uploadedColumns}
+                  sampleValues={columnDetection.sampleValues}
+                  fileName={scanFile?.name}
+                  fileSize={scanFile?.size}
+                  onMap={mapColumn}
+                  onConfirm={confirmColumnMapping}
+                  onBack={goBackToSetup}
+                />
+              ) : (
+                <ScanPanel role="status" aria-busy aria-live="polite">
+                  <ScanFileCard>
+                    <FileMeta>
+                      <FileIconWrap aria-hidden>
+                        <img
+                          src={assets.mlIconFileUploaded}
+                          alt=""
+                          width={20}
+                          height={20}
+                        />
+                      </FileIconWrap>
+                      <FileCopy>
+                        <FileName title={scanFile?.name}>
+                          {scanFile?.name}
+                        </FileName>
+                        <FileSize>{formatFileSize(scanFile?.size ?? 0)}</FileSize>
+                      </FileCopy>
+                    </FileMeta>
+                    <LoaderSpin
+                      src={assets.mlIconLoaderScan}
+                      alt=""
+                      width={32}
+                      height={32}
+                    />
+                  </ScanFileCard>
                   <DetectionIntro>
                     <LoaderSpin
                       src={assets.mlIconLoaderSm}
@@ -438,8 +474,8 @@ export function CardsLanding() {
                       ? 'Assigning benefits to employees...'
                       : SCAN_STAGES[scanStage]}
                   </DetectionIntro>
-                )}
-              </ScanPanel>
+                </ScanPanel>
+              )}
             </Setup>
           </Content>
         ) : showingIssues ? (
@@ -457,44 +493,40 @@ export function CardsLanding() {
           <ValidationResultsPanel
             rows={validatedRows}
             isDelete={bulkMode === 'remove'}
-            fileName={scanFile?.name}
-            fileSize={scanFile?.size}
-            onBack={goBackToSetup}
+            onBack={() =>
+              bulkMode === 'add' && includeValidationErrors
+                ? setPhase('issues')
+                : goBackToSetup()
+            }
             onContinue={submitForReview}
-          />
-        ) : showingCost ? (
-          <EndorsementCostPanel
-            rows={validatedRows}
-            isDelete={bulkMode === 'remove'}
-            onDone={() => navigate('/employees')}
           />
         ) : (
           <Content>
-            <AssistantAvatar
-              src={assets.mlBulkAssistantAvatar}
-              alt=""
-              width={48}
-              height={48}
-            />
             <Setup>
               {entities.length > 1 ? (
                 <CompanySection>
                   <SectionTitle>
                     Which company are you taking this action for?
                   </SectionTitle>
-                  <Pills role="group" aria-label="Company">
+                  <CompanyCards role="group" aria-label="Company">
                     {entities.map((entity) => (
-                      <Pill
+                      <CompanyCard
                         key={entity.id}
                         type="button"
                         $active={entityId === entity.id}
                         aria-pressed={entityId === entity.id}
                         onClick={() => setEntityId(entity.id)}
                       >
-                        {entity.name}
-                      </Pill>
+                        <CompanyName>{entity.name}</CompanyName>
+                        <SelectedBadge
+                          $shown={entityId === entity.id}
+                          aria-hidden
+                        >
+                          <img src={assets.mlBulkSelectedCheck} alt="" />
+                        </SelectedBadge>
+                      </CompanyCard>
                     ))}
-                  </Pills>
+                  </CompanyCards>
                 </CompanySection>
               ) : null}
 
@@ -927,6 +959,7 @@ const stepIn = keyframes`
 
 /** Remounted per phase so every step rises into place like a new chat message. */
 const PhaseView = styled.div`
+  width: 100%;
   animation: ${stepIn} 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
 
   @media (prefers-reduced-motion: reduce) {
@@ -939,13 +972,9 @@ const Content = styled.div`
   align-items: flex-start;
   gap: 24px;
   width: 100%;
-  max-width: 996px;
-  padding: 72px 24px 24px 40px;
+  max-width: none;
+  padding: 72px 40px 24px;
   box-sizing: border-box;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
-    padding-left: 24px;
-  }
 
   @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
     padding: 72px ${({ theme }) => theme.layout.contentPadXMobile} 32px;
@@ -956,19 +985,11 @@ const Content = styled.div`
   }
 `
 
-const AssistantAvatar = styled.img`
-  display: block;
-  width: 48px;
-  height: 48px;
-  flex: 0 0 48px;
-  border-radius: 50%;
-  object-fit: cover;
-`
-
 const Setup = styled.div`
   display: flex;
   min-width: 0;
-  max-width: 860px;
+  width: 100%;
+  max-width: none;
   flex: 1;
   flex-direction: column;
   gap: 16px;
@@ -1044,9 +1065,9 @@ const ActionCard = styled.button<{ $active: boolean }>`
   position: relative;
   display: flex;
   min-width: 0;
-  min-height: 88px;
+  min-height: 80px;
   flex: 1;
-  align-items: flex-start;
+  align-items: center;
   gap: 16px;
   padding: 16px;
   border: 1px solid
@@ -1141,7 +1162,61 @@ const SelectedBadge = styled.span<{ $shown: boolean }>`
 const CompanySection = styled.section`
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 16px;
+  width: 100%;
+  margin-bottom: 16px;
+`
+
+const CompanyCards = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 16px;
+  width: 100%;
+`
+
+const CompanyCard = styled.button<{ $active: boolean }>`
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 16px 48px 16px 16px;
+  border: 1px solid
+    ${({ $active, theme }) =>
+      $active ? theme.colors.emerald : theme.colors.disableFill};
+  border-radius: 12px;
+  background: ${({ theme }) => theme.colors.surface1};
+  box-shadow: 0 0 0 ${({ $active }) => ($active ? '2px' : '0')}
+    ${({ theme }) => theme.colors.emerald};
+  box-sizing: border-box;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease;
+
+  &:hover {
+    border-color: ${({ theme }) => theme.colors.emerald};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.emerald};
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+`
+
+const CompanyName = styled.span`
+  color: ${({ theme }) => theme.colors.textPrimary};
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: 0.2px;
 `
 
 const SmallTitle = styled.h3`
@@ -1151,39 +1226,6 @@ const SmallTitle = styled.h3`
   font-weight: 500;
   line-height: 24px;
   letter-spacing: 0.2px;
-`
-
-const Pills = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-`
-
-const Pill = styled.button<{ $active: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 36px;
-  padding: 8px 16px;
-  border: 1px solid
-    ${({ $active, theme }) =>
-      $active ? theme.colors.planeGreenLight : theme.colors.defaultBorder};
-  border-radius: 30px;
-  background: ${({ $active, theme }) =>
-    $active ? theme.colors.planeGreenLight : 'transparent'};
-  color: ${({ $active, theme }) =>
-    $active ? theme.colors.emerald : theme.colors.textPrimary};
-  font: inherit;
-  font-size: 12px;
-  font-weight: ${({ $active }) => ($active ? 500 : 400)};
-  line-height: 18px;
-  letter-spacing: 0.2px;
-  cursor: pointer;
-
-  &:disabled {
-    cursor: not-allowed;
-  }
 `
 
 const PointerRow = styled.div`

@@ -1,4 +1,7 @@
-import { sampleBulkDeleteRows, sampleBulkRows } from '@/data/flexDeal'
+import {
+  sampleBulkDeleteRowsForPrototype,
+  sampleBulkRowsForPrototype,
+} from '@/data/flexDeal'
 
 export type BulkOperation = 'add' | 'remove'
 
@@ -21,6 +24,14 @@ export interface ColumnDetectionResult {
   uploadedColumns: string[]
   sampleValues: Record<string, string>
   mappings: ColumnMapping[]
+}
+
+export type DetectSheetOptions = {
+  includeErrors?: boolean
+}
+
+export type ParseSheetOptions = {
+  includeErrors?: boolean
 }
 
 const ADD_UPLOADED_COLUMNS = [
@@ -87,10 +98,12 @@ const REMOVE_SAMPLE_VALUES: Record<string, string> = {
   'Department': 'Sales',
 }
 
-function employeeCountFor(operation: BulkOperation) {
-  if (operation === 'remove') return sampleBulkDeleteRows.length
+function employeeCountFor(operation: BulkOperation, includeErrors: boolean) {
+  if (operation === 'remove') {
+    return sampleBulkDeleteRowsForPrototype(includeErrors).length
+  }
   return new Set(
-    sampleBulkRows
+    sampleBulkRowsForPrototype(includeErrors)
       .filter((row) => row.relationship === 'Self')
       .map((row) => row.employeeId),
   ).size
@@ -103,7 +116,9 @@ function employeeCountFor(operation: BulkOperation) {
  */
 export async function detectSheetColumns(
   operation: BulkOperation = 'add',
+  options: DetectSheetOptions = {},
 ): Promise<ColumnDetectionResult> {
+  const includeErrors = options.includeErrors !== false
   await new Promise((resolve) => window.setTimeout(resolve, 1600))
 
   if (operation === 'remove') {
@@ -122,8 +137,8 @@ export async function detectSheetColumns(
           id: 'date-of-leaving',
           loopField: 'Date of Leaving',
           required: true,
-          sourceColumn: null,
-          confidence: 'manual',
+          sourceColumn: includeErrors ? null : 'Exit Date',
+          confidence: includeErrors ? 'manual' : 'high',
           expectedSourceColumn: 'Exit Date',
         },
         {
@@ -150,14 +165,14 @@ export async function detectSheetColumns(
       },
       {
         id: 'employee-name',
-        loopField: 'Employee Name',
+        loopField: 'Name',
         required: true,
         sourceColumn: 'Full Name',
         confidence: 'high',
       },
       {
         id: 'email',
-        loopField: 'Email',
+        loopField: 'Work Email',
         required: true,
         sourceColumn: 'Work Email',
         confidence: 'high',
@@ -180,14 +195,14 @@ export async function detectSheetColumns(
         id: 'core-cover',
         loopField: 'Coverage Plan',
         required: true,
-        sourceColumn: null,
-        confidence: 'manual',
+        sourceColumn: includeErrors ? null : 'Coverage Tier',
+        confidence: includeErrors ? 'manual' : 'high',
         expectedSourceColumn: 'Coverage Tier',
       },
       {
         id: 'relationship',
         loopField: 'Relationship',
-        required: false,
+        required: true,
         sourceColumn: 'Relation',
         confidence: 'high',
       },
@@ -202,13 +217,19 @@ export async function detectSheetColumns(
 export async function parseSheet(
   file: File,
   operation: BulkOperation = 'add',
+  options: ParseSheetOptions = {},
 ): Promise<ParsedSheet> {
+  const includeErrors = options.includeErrors !== false
   await new Promise((resolve) => window.setTimeout(resolve, 1200))
+
+  const rows =
+    operation === 'remove'
+      ? sampleBulkDeleteRowsForPrototype(includeErrors)
+      : sampleBulkRowsForPrototype(includeErrors)
 
   return {
     fileName: file.name || 'uploaded-file',
-    rowCount:
-      operation === 'remove' ? sampleBulkDeleteRows.length : sampleBulkRows.length,
-    employeeCount: employeeCountFor(operation),
+    rowCount: rows.length,
+    employeeCount: employeeCountFor(operation, includeErrors),
   }
 }

@@ -58,6 +58,8 @@ export function ValidationIssuesPanel({
   onContinue,
 }: Props) {
   const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [attempted, setAttempted] = useState<Record<string, boolean>>({})
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const issueRows = rows.filter(
     (row) =>
       validationIssuesFor(row).length > 0 ||
@@ -77,74 +79,80 @@ export function ValidationIssuesPanel({
     (sum, row) => sum + validationIssuesFor(row).length,
     0,
   )
+  const validatedRows = rows.filter(
+    (row) => !row.ignored && validationIssuesFor(row).length === 0,
+  )
+  const invalidRows = rows.filter(
+    (row) => !row.ignored && validationIssuesFor(row).length > 0,
+  )
+  const validatedEmployees = validatedRows.filter(
+    (row) => row.relationship === 'Self',
+  ).length
 
-  function updateDraft(
-    row: BulkMemberRow,
-    issues: BulkValidationIssue[],
-    issueId: string,
-    value: string,
-  ) {
-    if (row.ignored) return
-    const next = {
-      ...drafts,
-      [draftKey(row.id, issueId)]: value,
-    }
-    setDrafts(next)
-    const complete = issues.every(
-      (issue) => next[draftKey(row.id, issue.id)]?.trim(),
+  function cardState(row: BulkMemberRow): 'open' | 'ignored' | 'fixed' {
+    if (row.ignored) return 'ignored'
+    const issues = validationIssuesFor(row)
+    if (issues.length === 0 && row.resolvedIssues?.length) return 'fixed'
+    return 'open'
+  }
+
+  function isExpanded(rowId: string, state: 'open' | 'ignored' | 'fixed') {
+    if (expanded[rowId] !== undefined) return expanded[rowId]
+    return state === 'open'
+  }
+
+  function setCardExpanded(rowId: string, next: boolean) {
+    setExpanded((current) => ({ ...current, [rowId]: next }))
+  }
+
+  function updateDraft(rowId: string, issueId: string, value: string) {
+    setDrafts((current) => ({
+      ...current,
+      [draftKey(rowId, issueId)]: value,
+    }))
+  }
+
+  function save(row: BulkMemberRow, issues: BulkValidationIssue[]) {
+    const missing = issues.filter(
+      (issue) => !drafts[draftKey(row.id, issue.id)]?.trim(),
     )
-    if (!complete) return
+    if (missing.length > 0) {
+      setAttempted((current) => ({ ...current, [row.id]: true }))
+      return
+    }
     onResolve(
       row.id,
       issues.map((issue) => ({
         field: issue.field,
-        value: next[draftKey(row.id, issue.id)].trim(),
+        value: drafts[draftKey(row.id, issue.id)].trim(),
       })),
     )
+    setCardExpanded(row.id, false)
+  }
+
+  function ignore(rowId: string) {
+    onIgnore(rowId)
+    setCardExpanded(rowId, false)
   }
 
   return (
     <Panel>
-      <AssistantAvatar
-        src={assets.mlBulkAssistantAvatar}
-        alt=""
-        width={48}
-        height={48}
-      />
       <Content>
         <Heading>
-          <div>
-            <Title>
-              {openRows.length > 0
-                ? 'Some lives need your attention'
-                : ignoredCount > 0 && fixedCount === 0
-                  ? 'Ignored lives will be left out'
-                  : 'All validation issues are resolved'}
-            </Title>
-            <Description>
-              {openRows.length > 0
-                ? 'Fix missing or ineligible information before reviewing the final benefit assignment. Corrected and ignored lives stay in this list.'
-                : ignoredCount > 0
-                  ? 'Corrected lives will be included. Ignored lives will not, unless you undo them.'
-                  : 'Every life is ready for the final validation review.'}
-            </Description>
-          </div>
-          <IssueCount $clear={openRows.length === 0}>
-            {openRows.length === 0
-              ? [
-                  fixedCount > 0
-                    ? `${fixedCount} fixed`
-                    : ignoredCount > 0
-                      ? null
-                      : 'All fixed',
-                  ignoredCount > 0 ? `${ignoredCount} ignored` : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')
-              : `${issueCount} ${issueCount === 1 ? 'issue' : 'issues'}${
-                  ignoredCount > 0 ? ` · ${ignoredCount} ignored` : ''
-                }${fixedCount > 0 ? ` · ${fixedCount} fixed` : ''}`}
-          </IssueCount>
+          <Title>
+            {openRows.length > 0
+              ? 'Some lives need your attention'
+              : ignoredCount > 0 && fixedCount === 0
+                ? 'Ignored lives will be left out'
+                : 'All validation issues are resolved'}
+          </Title>
+          <Description>
+            {openRows.length > 0
+              ? 'Fix missing or ineligible information before reviewing the final benefit assignment. Corrected and ignored lives stay in this list.'
+              : ignoredCount > 0
+                ? 'Corrected lives will be included. Ignored lives will not, unless you undo them.'
+                : 'Every life is ready for the final validation review.'}
+          </Description>
         </Heading>
 
         <FileCard>
@@ -164,9 +172,47 @@ export function ValidationIssuesPanel({
         </FileCard>
 
         <SectionDivider>
+          <span>Here’s what we found</span>
+          <i />
+        </SectionDivider>
+
+        <Metrics $withFix={invalidRows.length > 0}>
+          <MetricCard $accent>
+            <MetricValue>{validatedRows.length} lives</MetricValue>
+            <MetricLabel>Total Lives</MetricLabel>
+            <MetricIcon>
+              <img src={assets.mlIconMetricUser} alt="" />
+            </MetricIcon>
+          </MetricCard>
+          <MetricCard>
+            <MetricValue>{validatedEmployees}</MetricValue>
+            <MetricLabel>Employees</MetricLabel>
+            <MetricIcon>
+              <img src={assets.mlIconMetricBriefcase} alt="" />
+            </MetricIcon>
+          </MetricCard>
+          <MetricCard $muted>
+            <MetricValue>{validatedRows.length - validatedEmployees}</MetricValue>
+            <MetricLabel>Dependents</MetricLabel>
+            <MetricIcon>
+              <img src={assets.mlIconMetricUsers} alt="" />
+            </MetricIcon>
+          </MetricCard>
+          {invalidRows.length > 0 ? (
+            <MetricCard $error>
+              <MetricValue>{invalidRows.length} lives</MetricValue>
+              <MetricLabel>Need a fix</MetricLabel>
+              <MetricIcon $error>
+                <img src={assets.mlIconMetricUser} alt="" />
+              </MetricIcon>
+            </MetricCard>
+          ) : null}
+        </Metrics>
+
+        <SectionDivider>
           <span>
             {openRows.length > 0
-              ? 'Here are the lives that need a fix'
+              ? 'Fix the lives that could not be validated'
               : 'Lives reviewed'}
           </span>
           <i />
@@ -175,161 +221,261 @@ export function ValidationIssuesPanel({
         {issueRows.length > 0 ? (
           <IssueSection>
             <IssueHeader>
-              <IssueTitle>Lives to review</IssueTitle>
+              <IssueHeaderTop>
+                <IssueTitle>
+                  {openRows.length > 0 ? 'Lives to review' : 'Lives reviewed'}
+                </IssueTitle>
+                <ProgressStats aria-live="polite">
+                  <RemainingBadge $clear={openRows.length === 0}>
+                    {openRows.length === 0
+                      ? 'All clear'
+                      : `${issueCount} ${issueCount === 1 ? 'issue' : 'issues'} left`}
+                  </RemainingBadge>
+                  {fixedCount > 0 ? (
+                    <StatChip $tone="fixed">
+                      {fixedCount} fixed
+                    </StatChip>
+                  ) : null}
+                  {ignoredCount > 0 ? (
+                    <StatChip $tone="ignored">
+                      {ignoredCount} ignored
+                    </StatChip>
+                  ) : null}
+                </ProgressStats>
+              </IssueHeaderTop>
+              <ProgressTrack
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={issueRows.length}
+                aria-valuenow={fixedCount + ignoredCount}
+                aria-label="Lives resolved"
+              >
+                <ProgressFill
+                  $pct={
+                    issueRows.length === 0
+                      ? 100
+                      : ((fixedCount + ignoredCount) / issueRows.length) * 100
+                  }
+                />
+              </ProgressTrack>
+              <ProgressCaption>
+                {fixedCount + ignoredCount} of {issueRows.length}{' '}
+                {issueRows.length === 1 ? 'life' : 'lives'} resolved
+              </ProgressCaption>
             </IssueHeader>
             <IssueList>
             {issueRows.map((row) => {
+              const state = cardState(row)
               const issues = validationIssuesFor(row)
-              const ignored = Boolean(row.ignored)
-              const fixed =
-                !ignored &&
-                issues.length === 0 &&
-                Boolean(row.resolvedIssues?.length)
+              const ignored = state === 'ignored'
+              const fixed = state === 'fixed'
+              const open = state === 'open'
               const shownIssues = ignored
                 ? []
                 : fixed
                   ? (row.resolvedIssues ?? [])
                   : issues
+              const cardOpen = isExpanded(row.id, state)
+              const tried = Boolean(attempted[row.id])
 
               return (
-                <IssueCard key={row.id} $state={ignored ? 'ignored' : fixed ? 'fixed' : 'open'}>
-                  <Member>
-                    <MemberAvatar
-                      aria-hidden
-                      $state={ignored ? 'ignored' : fixed ? 'fixed' : 'open'}
+                <IssueCard
+                  key={row.id}
+                  $state={state}
+                  $collapsed={!cardOpen}
+                >
+                  <CardHeader>
+                    <Member>
+                      <MemberAvatar aria-hidden $state={state}>
+                        {row.name
+                          .split(' ')
+                          .slice(0, 2)
+                          .map((part) => part[0])
+                          .join('')}
+                      </MemberAvatar>
+                      <div>
+                        <MemberName>{row.name}</MemberName>
+                        <MemberMeta>
+                          {row.employeeId} · {row.relationship}
+                          {ignored
+                            ? ' · Ignored'
+                            : fixed
+                              ? ' · Fixed'
+                              : issues.length > 1
+                                ? ` · ${issues.length} issues`
+                                : ''}
+                        </MemberMeta>
+                      </div>
+                    </Member>
+                    <ChevronButton
+                      type="button"
+                      aria-expanded={cardOpen}
+                      aria-label={
+                        cardOpen
+                          ? `Collapse ${row.name}`
+                          : `Expand ${row.name}`
+                      }
+                      onClick={() => setCardExpanded(row.id, !cardOpen)}
                     >
-                      {row.name
-                        .split(' ')
-                        .slice(0, 2)
-                        .map((part) => part[0])
-                        .join('')}
-                    </MemberAvatar>
-                    <div>
-                      <MemberName>{row.name}</MemberName>
-                      <MemberMeta>
-                        {row.employeeId} · {row.relationship}
-                        {ignored
-                          ? ' · Ignored'
-                          : fixed
-                            ? ' · Fixed'
-                            : issues.length > 1
-                              ? ` · ${issues.length} issues`
-                              : ''}
-                      </MemberMeta>
-                    </div>
-                  </Member>
+                      <img
+                        src={
+                          cardOpen ? assets.chevronUp : assets.chevronDown
+                        }
+                        alt=""
+                        width={20}
+                        height={20}
+                      />
+                    </ChevronButton>
+                  </CardHeader>
 
-                  <IssueBody>
-                    {ignored ? (
-                      <IgnoredNote>
-                        This life will not be included in the endorsement.
-                      </IgnoredNote>
-                    ) : (
-                      shownIssues.map((issue) => {
-                      const kind = controlKind(issue.field)
-                      const key = draftKey(row.id, issue.id)
-                      const value = drafts[key] ?? ''
-                      const label = `Fix ${issue.field} for ${row.name}`
-
-                      return (
-                        <IssueFix key={issue.id}>
-                          <Issue>
-                            <IssueLabel $fixed={fixed}>{issue.field}</IssueLabel>
-                            <IssueReason>
-                              {fixed
-                                ? `Was: ${issue.error}`
-                                : issue.error}
-                            </IssueReason>
-                          </Issue>
-                          {fixed ? (
-                            <FixedValue>
-                              {displayFixValue(issue.field, issue.resolvedValue)}
-                            </FixedValue>
-                          ) : kind === 'plan' ? (
-                            <Select
-                              value={value}
-                              aria-label={label}
-                              onChange={(event) =>
-                                updateDraft(
-                                  row,
-                                  issues,
-                                  issue.id,
-                                  event.target.value,
-                                )
-                              }
-                            >
-                              <option value="">Select eligible plan</option>
-                              {flexDeal.plans.map((plan) => (
-                                <option key={plan.id} value={plan.id}>
-                                  {plan.name}
-                                </option>
-                              ))}
-                            </Select>
-                          ) : kind === 'gender' ? (
-                            <Select
-                              value={value}
-                              aria-label={label}
-                              onChange={(event) =>
-                                updateDraft(
-                                  row,
-                                  issues,
-                                  issue.id,
-                                  event.target.value,
-                                )
-                              }
-                            >
-                              <option value="">Select gender</option>
-                              <option value="Female">Female</option>
-                              <option value="Male">Male</option>
-                              <option value="Other">Other</option>
-                            </Select>
-                          ) : (
-                            <Input
-                              type={
-                                kind === 'date'
-                                  ? 'date'
-                                  : kind === 'email'
-                                    ? 'email'
-                                    : 'text'
-                              }
-                              value={value}
-                              placeholder={issue.field}
-                              aria-label={label}
-                              onChange={(event) =>
-                                updateDraft(
-                                  row,
-                                  issues,
-                                  issue.id,
-                                  event.target.value,
-                                )
-                              }
-                            />
-                          )}
-                        </IssueFix>
-                      )
-                    })
-                    )}
-
-                    <Actions>
+                  {cardOpen ? (
+                    <IssueBody>
                       {ignored ? (
-                        <UndoButton
-                          type="button"
-                          onClick={() => onRestore(row.id)}
-                          aria-label={`Undo ignore for ${row.name}`}
-                        >
-                          Undo ignore
-                        </UndoButton>
+                        <IgnoredNote>
+                          This life will not be included in the endorsement.
+                        </IgnoredNote>
                       ) : (
-                        <IgnoreButton
-                          type="button"
-                          onClick={() => onIgnore(row.id)}
-                          aria-label={`Ignore ${row.name}`}
-                        >
-                          Ignore
-                        </IgnoreButton>
+                        shownIssues.map((issue) => {
+                          const kind = controlKind(issue.field)
+                          const key = draftKey(row.id, issue.id)
+                          const value = drafts[key] ?? ''
+                          const invalid = open && tried && !value.trim()
+                          const label = `Fix ${issue.field} for ${row.name}`
+
+                          return (
+                            <IssueFix key={issue.id}>
+                              <Issue>
+                                <IssueLabel $fixed={fixed}>
+                                  {issue.field}
+                                </IssueLabel>
+                                <IssueReason>
+                                  {fixed
+                                    ? `Was: ${issue.error}`
+                                    : issue.error}
+                                </IssueReason>
+                              </Issue>
+                              {fixed ? (
+                                <FixedValue>
+                                  {displayFixValue(
+                                    issue.field,
+                                    issue.resolvedValue,
+                                  )}
+                                </FixedValue>
+                              ) : kind === 'plan' ? (
+                                <FieldStack>
+                                  <Select
+                                    value={value}
+                                    aria-label={label}
+                                    $invalid={invalid}
+                                    onChange={(event) =>
+                                      updateDraft(
+                                        row.id,
+                                        issue.id,
+                                        event.target.value,
+                                      )
+                                    }
+                                  >
+                                    <option value="">
+                                      Select eligible plan
+                                    </option>
+                                    {flexDeal.plans.map((plan) => (
+                                      <option key={plan.id} value={plan.id}>
+                                        {plan.name}
+                                      </option>
+                                    ))}
+                                  </Select>
+                                  {invalid ? (
+                                    <FieldError>Required</FieldError>
+                                  ) : null}
+                                </FieldStack>
+                              ) : kind === 'gender' ? (
+                                <FieldStack>
+                                  <Select
+                                    value={value}
+                                    aria-label={label}
+                                    $invalid={invalid}
+                                    onChange={(event) =>
+                                      updateDraft(
+                                        row.id,
+                                        issue.id,
+                                        event.target.value,
+                                      )
+                                    }
+                                  >
+                                    <option value="">Select gender</option>
+                                    <option value="Female">Female</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Other">Other</option>
+                                  </Select>
+                                  {invalid ? (
+                                    <FieldError>Required</FieldError>
+                                  ) : null}
+                                </FieldStack>
+                              ) : (
+                                <FieldStack>
+                                  <Input
+                                    type={
+                                      kind === 'date'
+                                        ? 'date'
+                                        : kind === 'email'
+                                          ? 'email'
+                                          : 'text'
+                                    }
+                                    value={value}
+                                    placeholder={issue.field}
+                                    aria-label={label}
+                                    $invalid={invalid}
+                                    onChange={(event) =>
+                                      updateDraft(
+                                        row.id,
+                                        issue.id,
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                  {invalid ? (
+                                    <FieldError>Required</FieldError>
+                                  ) : null}
+                                </FieldStack>
+                              )}
+                            </IssueFix>
+                          )
+                        })
                       )}
-                    </Actions>
-                  </IssueBody>
+
+                      <Actions>
+                        {ignored ? (
+                          <UndoButton
+                            type="button"
+                            onClick={() => {
+                              onRestore(row.id)
+                              setCardExpanded(row.id, true)
+                            }}
+                            aria-label={`Undo ignore for ${row.name}`}
+                          >
+                            Undo ignore
+                          </UndoButton>
+                        ) : open ? (
+                          <>
+                            <IgnoreButton
+                              type="button"
+                              onClick={() => ignore(row.id)}
+                              aria-label={`Ignore ${row.name}`}
+                            >
+                              Ignore
+                            </IgnoreButton>
+                            <SaveButton
+                              type="button"
+                              onClick={() => save(row, issues)}
+                              aria-label={`Save fix for ${row.name}`}
+                            >
+                              Save fix
+                            </SaveButton>
+                          </>
+                        ) : null}
+                      </Actions>
+                    </IssueBody>
+                  ) : null}
                 </IssueCard>
               )
             })}
@@ -373,22 +519,13 @@ const Panel = styled.div`
   align-items: flex-start;
   gap: 24px;
   width: 100%;
-  max-width: 996px;
+  max-width: none;
   padding: 72px 24px 40px 40px;
   box-sizing: border-box;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
     padding: 72px 16px 40px;
   }
-`
-
-const AssistantAvatar = styled.img`
-  display: block;
-  width: 48px;
-  height: 48px;
-  flex: 0 0 48px;
-  border-radius: 50%;
-  object-fit: cover;
 `
 
 const FileCard = styled.div`
@@ -473,7 +610,8 @@ const ReuploadButton = styled.button`
 const Content = styled.div`
   display: flex;
   min-width: 0;
-  max-width: 860px;
+  width: 100%;
+  max-width: none;
   flex: 1;
   flex-direction: column;
   gap: 16px;
@@ -482,9 +620,8 @@ const Content = styled.div`
 
 const Heading = styled.div`
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  gap: 0;
 `
 
 const Title = styled.h1`
@@ -501,19 +638,6 @@ const Description = styled.p`
   font-size: 12px;
   line-height: 18px;
   letter-spacing: 0.2px;
-`
-
-const IssueCount = styled.span<{ $clear: boolean }>`
-  flex-shrink: 0;
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: ${({ $clear, theme }) =>
-    $clear ? theme.colors.planeGreenLight : '#FDECEC'};
-  color: ${({ $clear, theme }) =>
-    $clear ? theme.colors.emerald : theme.colors.textError};
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 18px;
 `
 
 const SectionDivider = styled.div`
@@ -533,6 +657,80 @@ const SectionDivider = styled.div`
   }
 `
 
+const Metrics = styled.div<{ $withFix: boolean }>`
+  display: grid;
+  grid-template-columns: ${({ $withFix }) =>
+    $withFix
+      ? 'repeat(4, minmax(0, 1fr))'
+      : 'repeat(3, minmax(0, 1fr))'};
+  gap: 16px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    grid-template-columns: 1fr;
+  }
+`
+
+const MetricCard = styled.div<{
+  $accent?: boolean
+  $muted?: boolean
+  $error?: boolean
+}>`
+  position: relative;
+  min-height: 92px;
+  padding: 16px;
+  border: 1px solid
+    ${({ $error, theme }) =>
+      $error ? '#f1b7b7' : theme.colors.disableFill};
+  border-radius: 12px;
+  background: ${({ $error }) => ($error ? '#fffafa' : 'transparent')};
+  box-sizing: border-box;
+  color: ${({ theme, $accent, $muted, $error }) =>
+    $error
+      ? theme.colors.textError
+      : $accent
+        ? theme.colors.emerald
+        : $muted
+          ? theme.colors.textSecondary
+          : theme.colors.textPrimary};
+`
+
+const MetricValue = styled.p`
+  margin: 0;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 28px;
+`
+
+const MetricLabel = styled.p`
+  margin: 2px 0 0;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  letter-spacing: 0.2px;
+`
+
+const MetricIcon = styled.div<{ $error?: boolean }>`
+  position: absolute;
+  top: 20px;
+  right: 16px;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 50%;
+  background: ${({ $error }) => ($error ? '#FDECEC' : '#f3f4f6')};
+
+  img {
+    width: 18px;
+    height: 18px;
+  }
+`
+
 const IssueSection = styled.section`
   display: flex;
   flex-direction: column;
@@ -545,17 +743,89 @@ const IssueSection = styled.section`
 
 const IssueHeader = styled.div`
   display: flex;
+  flex-direction: column;
+  gap: 10px;
+`
+
+const IssueHeaderTop = styled.div`
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  flex-wrap: wrap;
 `
 
 const IssueTitle = styled.h2`
   margin: 0;
-  color: ${({ theme }) => theme.colors.textSecondary};
+  color: ${({ theme }) => theme.colors.textPrimary};
   font-size: 16px;
   font-weight: 500;
   line-height: 24px;
+  letter-spacing: 0.2px;
+`
+
+const ProgressStats = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+`
+
+const RemainingBadge = styled.span<{ $clear: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: ${({ $clear, theme }) =>
+    $clear ? theme.colors.planeGreenLight : '#FDECEC'};
+  color: ${({ $clear, theme }) =>
+    $clear ? theme.colors.emerald : theme.colors.textError};
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  letter-spacing: 0.2px;
+`
+
+const StatChip = styled.span<{ $tone: 'fixed' | 'ignored' }>`
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: ${({ $tone, theme }) =>
+    $tone === 'fixed' ? theme.colors.planeGreenLight : theme.colors.surface0};
+  color: ${({ $tone, theme }) =>
+    $tone === 'fixed' ? theme.colors.emerald : theme.colors.textSecondary};
+  border: 1px solid
+    ${({ $tone, theme }) =>
+      $tone === 'fixed' ? theme.colors.emerald : theme.colors.disableFill};
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+`
+
+const ProgressTrack = styled.div`
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: ${({ theme }) => theme.colors.disableFill};
+  overflow: hidden;
+`
+
+const ProgressFill = styled.i<{ $pct: number }>`
+  display: block;
+  width: ${({ $pct }) => `${Math.min(100, Math.max(0, $pct))}%`};
+  height: 100%;
+  border-radius: inherit;
+  background: ${({ theme }) => theme.colors.emerald};
+  transition: width 280ms ease;
+`
+
+const ProgressCaption = styled.p`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
   letter-spacing: 0.2px;
 `
 
@@ -565,11 +835,13 @@ const IssueList = styled.div`
   gap: 12px;
 `
 
-const IssueCard = styled.article<{ $state: 'open' | 'ignored' | 'fixed' }>`
-  display: grid;
-  grid-template-columns: minmax(180px, 0.85fr) minmax(0, 1.4fr);
-  align-items: start;
-  gap: 16px;
+const IssueCard = styled.article<{
+  $state: 'open' | 'ignored' | 'fixed'
+  $collapsed: boolean
+}>`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ $collapsed }) => ($collapsed ? '0' : '12px')};
   padding: 16px;
   border: 1px solid
     ${({ $state, theme }) =>
@@ -586,10 +858,14 @@ const IssueCard = styled.article<{ $state: 'open' | 'ignored' | 'fixed' }>`
         ? theme.colors.planeGreenLight
         : '#fffafa'};
   opacity: ${({ $state }) => ($state === 'ignored' ? 0.78 : 1)};
+`
 
-  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
-    grid-template-columns: 1fr;
-  }
+const CardHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
 `
 
 const Member = styled.div`
@@ -597,7 +873,6 @@ const Member = styled.div`
   min-width: 0;
   align-items: center;
   gap: 10px;
-  padding-top: 2px;
 `
 
 const MemberAvatar = styled.span<{ $state: 'open' | 'ignored' | 'fixed' }>`
@@ -635,17 +910,43 @@ const MemberMeta = styled.p`
   line-height: 16px;
 `
 
+const ChevronButton = styled.button`
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.hoverSurface1};
+  }
+
+  img {
+    display: block;
+  }
+`
+
 const IssueBody = styled.div`
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 10px;
+  padding-left: 46px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    padding-left: 0;
+  }
 `
 
 const IssueFix = styled.div`
   display: grid;
   grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr);
-  align-items: center;
+  align-items: start;
   gap: 12px;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
@@ -698,6 +999,20 @@ const IgnoredNote = styled.p`
 const Actions = styled.div`
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
+`
+
+const FieldStack = styled.div`
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+`
+
+const FieldError = styled.span`
+  color: ${({ theme }) => theme.colors.textError};
+  font-size: 11px;
+  line-height: 14px;
 `
 
 const controlStyles = `
@@ -711,9 +1026,11 @@ const controlStyles = `
   font-size: 12px;
 `
 
-const Input = styled.input`
+const Input = styled.input<{ $invalid?: boolean }>`
   ${controlStyles}
-  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
+  border: 1px solid
+    ${({ $invalid, theme }) =>
+      $invalid ? theme.colors.textError : theme.colors.defaultBorder};
   color: ${({ theme }) => theme.colors.textPrimary};
 
   &:focus {
@@ -722,10 +1039,12 @@ const Input = styled.input`
   }
 `
 
-const Select = styled.select`
+const Select = styled.select<{ $invalid?: boolean }>`
   ${controlStyles}
   padding-right: 30px;
-  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
+  border: 1px solid
+    ${({ $invalid, theme }) =>
+      $invalid ? theme.colors.textError : theme.colors.defaultBorder};
   color: ${({ theme }) => theme.colors.textPrimary};
   appearance: none;
   background: ${({ theme }) => theme.colors.surface1}
@@ -764,6 +1083,23 @@ const IgnoreButton = styled.button`
 
   &:hover {
     color: ${({ theme }) => theme.colors.textPrimary};
+  }
+`
+
+const SaveButton = styled.button`
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: ${({ theme }) => theme.colors.fillGreen};
+  color: ${({ theme }) => theme.colors.emerald};
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+
+  &:hover {
+    filter: brightness(0.98);
   }
 `
 

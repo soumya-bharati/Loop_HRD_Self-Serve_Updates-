@@ -1,7 +1,11 @@
 import { coverAssignmentsForRow } from '@/data/coverPlans'
 import type { BulkMemberRow } from '@/data/flexDeal'
 
-export function downloadAssignmentSheet(rows: BulkMemberRow[]) {
+export const assignmentSheetFileName =
+  "Loop's Format - Benefits Assignment.csv"
+
+/** The Loop-format sheet handed back to HR, with every life's assigned covers. */
+export function buildAssignmentSheet(rows: BulkMemberRow[]) {
   const lines = [
     ['Employee ID', 'Name', 'Relationship', 'Assigned benefits'],
     ...rows.map((row) => [
@@ -18,10 +22,20 @@ export function downloadAssignmentSheet(rows: BulkMemberRow[]) {
       line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(','),
     )
     .join('\n')
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+
+  return {
+    fileName: assignmentSheetFileName,
+    csv,
+    sizeBytes: new Blob([csv]).size,
+  }
+}
+
+export function downloadAssignmentSheet(rows: BulkMemberRow[]) {
+  const sheet = buildAssignmentSheet(rows)
+  const url = URL.createObjectURL(new Blob([sheet.csv], { type: 'text/csv' }))
   const link = document.createElement('a')
   link.href = url
-  link.download = 'benefit-assignment-sheet.csv'
+  link.download = sheet.fileName
   link.click()
   URL.revokeObjectURL(url)
 }

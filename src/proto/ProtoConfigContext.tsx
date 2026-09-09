@@ -24,11 +24,15 @@ import {
 const STORAGE_KEY = 'loop-proto-config'
 
 export type ProtoCardinality = 'single' | 'multiple'
+export type ProtoValidationFlow = 'with-errors' | 'clean'
+
+const DEFAULT_VALIDATION_FLOW: ProtoValidationFlow = 'with-errors'
 
 interface StoredProtoConfig {
   entityIds: string[]
   dealIds: string[]
   versionId?: string
+  validationFlow?: ProtoValidationFlow
   entitiesCatalog?: OrganisationEntity[]
   dealsCatalog?: FlexDealConfig[]
 }
@@ -59,6 +63,10 @@ interface ProtoConfigValue {
   version: ProtoVersion
   versions: ProtoVersion[]
   setVersionId: (id: ProtoVersionId) => void
+  /** Whether bulk add/delete demos include validation recovery steps. */
+  validationFlow: ProtoValidationFlow
+  setValidationFlow: (flow: ProtoValidationFlow) => void
+  includeValidationErrors: boolean
   reset: () => void
 }
 
@@ -96,6 +104,10 @@ function isDeal(value: unknown): value is FlexDealConfig {
   )
 }
 
+function resolveValidationFlow(value: unknown): ProtoValidationFlow {
+  return value === 'clean' ? 'clean' : DEFAULT_VALIDATION_FLOW
+}
+
 function readStored(): StoredProtoConfig | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
@@ -109,6 +121,7 @@ function readStored(): StoredProtoConfig | null {
       dealIds: parsed.dealIds,
       versionId:
         typeof parsed.versionId === 'string' ? parsed.versionId : undefined,
+      validationFlow: resolveValidationFlow(parsed.validationFlow),
       entitiesCatalog: Array.isArray(parsed.entitiesCatalog)
         ? parsed.entitiesCatalog.filter(isEntity)
         : undefined,
@@ -164,6 +177,11 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
     const stored = readStored()
     return resolveProtoVersion(stored?.versionId).id
   })
+  const [validationFlow, setValidationFlowState] =
+    useState<ProtoValidationFlow>(() => {
+      const stored = readStored()
+      return resolveValidationFlow(stored?.validationFlow)
+    })
 
   useEffect(() => {
     try {
@@ -173,6 +191,7 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
           entityIds,
           dealIds,
           versionId,
+          validationFlow,
           entitiesCatalog: allEntities,
           dealsCatalog: allDeals,
         }),
@@ -180,7 +199,7 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
     } catch {
       // Prototype-only preference — safe to lose when storage is unavailable.
     }
-  }, [entityIds, dealIds, versionId, allEntities, allDeals])
+  }, [entityIds, dealIds, versionId, validationFlow, allEntities, allDeals])
 
   const entities = useMemo(
     () => allEntities.filter((entity) => entityIds.includes(entity.id)),
@@ -194,6 +213,10 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
 
   const setVersionId = useCallback((id: ProtoVersionId) => {
     setVersionIdState(resolveProtoVersion(id).id)
+  }, [])
+
+  const setValidationFlow = useCallback((flow: ProtoValidationFlow) => {
+    setValidationFlowState(resolveValidationFlow(flow))
   }, [])
 
   const setEntityMode = useCallback(
@@ -347,6 +370,7 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
     setEntityIds(entitiesSeed.map((entity) => entity.id))
     setDealIds(dealsSeed.map((deal) => deal.id))
     setVersionIdState(DEFAULT_PROTO_VERSION_ID)
+    setValidationFlowState(DEFAULT_VALIDATION_FLOW)
   }, [])
 
   const value = useMemo<ProtoConfigValue>(
@@ -373,6 +397,9 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
       version,
       versions: PROTO_VERSIONS,
       setVersionId,
+      validationFlow,
+      setValidationFlow,
+      includeValidationErrors: validationFlow === 'with-errors',
       reset,
     }),
     [
@@ -395,6 +422,8 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
       versionId,
       version,
       setVersionId,
+      validationFlow,
+      setValidationFlow,
       reset,
     ],
   )

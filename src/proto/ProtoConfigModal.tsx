@@ -5,11 +5,29 @@ import { assets } from '@/assets/figma'
 import {
   useProtoConfig,
   type ProtoCardinality,
+  type ProtoValidationFlow,
 } from '@/proto/ProtoConfigContext'
 
 const MODE_OPTIONS: { id: ProtoCardinality; label: string }[] = [
   { id: 'single', label: 'Single' },
   { id: 'multiple', label: 'Multiple' },
+]
+
+const VALIDATION_FLOW_OPTIONS: {
+  id: ProtoValidationFlow
+  label: string
+  hint: string
+}[] = [
+  {
+    id: 'with-errors',
+    label: 'With errors',
+    hint: 'Shows unmapped columns and lives that need fixing or ignoring before final validation.',
+  },
+  {
+    id: 'clean',
+    label: 'No errors',
+    hint: 'Happy path — columns map cleanly and every life passes straight to final validation.',
+  },
 ]
 
 type Editor =
@@ -45,6 +63,8 @@ export function ProtoConfigModal({
     addDeal,
     updateDeal,
     removeDeal,
+    validationFlow,
+    setValidationFlow,
     reset,
   } = useProtoConfig()
 
@@ -121,6 +141,32 @@ export function ProtoConfigModal({
             <img src={assets.modalDismiss} alt="" width={16} height={16} />
           </CloseButton>
         </Header>
+
+        <Section>
+          <SectionHead>
+            <SectionTitle>Bulk validation flow</SectionTitle>
+            <ModeSwitch role="group" aria-label="Bulk validation flow">
+              {VALIDATION_FLOW_OPTIONS.map((option) => (
+                <ModeButton
+                  key={option.id}
+                  type="button"
+                  $active={validationFlow === option.id}
+                  aria-pressed={validationFlow === option.id}
+                  onClick={() => setValidationFlow(option.id)}
+                >
+                  {option.label}
+                </ModeButton>
+              ))}
+            </ModeSwitch>
+          </SectionHead>
+          <SectionHint>
+            {
+              VALIDATION_FLOW_OPTIONS.find(
+                (option) => option.id === validationFlow,
+              )?.hint
+            }
+          </SectionHint>
+        </Section>
 
         <Section>
           <SectionHead>

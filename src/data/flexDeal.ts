@@ -1528,6 +1528,59 @@ export const sampleBulkRows: BulkMemberRow[] = [
   },
 ]
 
+/** Clean copy of demo lives — every row passes so the happy path can be demoed. */
+function cleanSampleBulkRow(row: BulkMemberRow): BulkMemberRow {
+  const assignedPlanId = row.assignedPlanId ?? 'plan-standard'
+  const parental = assignedPlanId === 'plan-parental'
+  const employeeId =
+    row.id === 'row-11'
+      ? 'EMP-1188'
+      : row.id === 'row-10'
+        ? 'EMP-1001'
+        : row.employeeId
+
+  return {
+    ...row,
+    employeeId,
+    email:
+      row.email ||
+      `${row.name.toLowerCase().replace(/\s+/g, '.')}@herbalife.com`,
+    assignedPlanId,
+    benefitIds:
+      row.benefitIds.length > 0
+        ? row.benefitIds
+        : parental
+          ? ['ben-gmc', 'ben-gpa', 'ben-gmc-parental']
+          : ['ben-gmc', 'ben-gpa'],
+    purchaseGroupSelections:
+      Object.keys(row.purchaseGroupSelections).length > 0
+        ? row.purchaseGroupSelections
+        : { 'pg-core': [parental ? 'opt-parental' : 'opt-standard'] },
+    assignmentSource:
+      row.assignmentSource === 'manual' ? 'default' : row.assignmentSource,
+    needsManualAssignment: false,
+    status: 'pass',
+    payrollDelta: row.payrollDelta > 0 ? row.payrollDelta : 1250,
+    validationError: undefined,
+    validationField: undefined,
+    validationIssues: undefined,
+    resolvedIssues: undefined,
+    ignored: undefined,
+  }
+}
+
+export function sampleBulkRowsForPrototype(includeErrors: boolean): BulkMemberRow[] {
+  if (includeErrors) {
+    return sampleBulkRows.map((row) => ({
+      ...row,
+      validationIssues: row.validationIssues?.map((issue) => ({ ...issue })),
+      resolvedIssues: undefined,
+      ignored: undefined,
+    }))
+  }
+  return sampleBulkRows.map(cleanSampleBulkRow)
+}
+
 export const sampleBulkDeleteRows: {
   id: string
   employeeId: string
@@ -1575,6 +1628,15 @@ export const sampleBulkDeleteRows: {
     error: 'Employee ID not found',
   },
 ]
+
+export function sampleBulkDeleteRowsForPrototype(includeErrors: boolean) {
+  if (includeErrors) {
+    return sampleBulkDeleteRows.map((row) => ({ ...row }))
+  }
+  return sampleBulkDeleteRows
+    .filter((row) => row.status === 'pass')
+    .map((row) => ({ ...row }))
+}
 
 export function formatINR(amount: number) {
   return new Intl.NumberFormat('en-IN', {

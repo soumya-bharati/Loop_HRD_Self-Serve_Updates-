@@ -111,6 +111,7 @@ import mlIconLoaderLg from '@/assets/figma/manage-lives/icon-loader-lg.svg'
 import mlIconLoaderSm from '@/assets/figma/manage-lives/icon-loader-sm.svg'
 import mlIconLoaderScan from '@/assets/figma/manage-lives/icon-loader-scan.svg'
 import mlIconMappingArrow from '@/assets/figma/manage-lives/icon-mapping-arrow.svg'
+import mlIconAlertTriangleAmber from '@/assets/figma/manage-lives/icon-alert-triangle-amber.svg'
 import mlIconCheckWhite14 from '@/assets/figma/manage-lives/icon-check-white-14.svg'
 import mlIconLives from '@/assets/figma/manage-lives/ml-icon-lives.svg'
 import mlIconEmployees from '@/assets/figma/manage-lives/ml-icon-employees.svg'
@@ -126,6 +127,9 @@ import mlIconInfoOutline from '@/assets/figma/manage-lives/icon-info-outline.svg
 import mlIconInfoWarning from '@/assets/figma/manage-lives/icon-info-warning.svg'
 import mlLogoOriental from '@/assets/figma/manage-lives/logo-oriental.png'
 import mlLogoIciciPru from '@/assets/figma/manage-lives/logo-icici-pru.png'
+import mlIllustrationLoopGroupHappy from '@/assets/figma/manage-lives/illustration-loop-group-happy.svg'
+import mlIconClipboardText from '@/assets/figma/manage-lives/icon-clipboard-text.svg'
+import mlIconNextDot from '@/assets/figma/manage-lives/icon-next-dot.svg'
 import mlActionIllustration from '@/assets/figma/manage-lives/action-illustration.svg'
 import mlChevronRight from '@/assets/figma/manage-lives/chevron-right.svg'
 import mlBulkSidebarNoise from '@/assets/figma/manage-lives/bulk-sidebar-noise.png'
@@ -275,6 +279,7 @@ export const assets = {
   mlIconLoaderSm,
   mlIconLoaderScan,
   mlIconMappingArrow,
+  mlIconAlertTriangleAmber,
   mlIconCheckWhite14,
   mlIconLives,
   mlIconEmployees,
@@ -290,6 +295,9 @@ export const assets = {
   mlIconInfoWarning,
   mlLogoOriental,
   mlLogoIciciPru,
+  mlIllustrationLoopGroupHappy,
+  mlIconClipboardText,
+  mlIconNextDot,
   mlActionIllustration,
   mlChevronRight,
   mlBulkSidebarNoise,

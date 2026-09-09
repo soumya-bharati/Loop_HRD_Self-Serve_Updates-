@@ -3,8 +3,11 @@ import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
 import { buildCoverBreakup, coverAssignmentsForRow } from '@/data/coverPlans'
-import type { BulkMemberRow } from '@/data/flexDeal'
-import { downloadAssignmentSheet } from '@/pages/ManageLives/bulk/downloadAssignmentSheet'
+import { validationIssuesFor, type BulkMemberRow } from '@/data/flexDeal'
+import {
+  buildAssignmentSheet,
+  downloadAssignmentSheet,
+} from '@/pages/ManageLives/bulk/downloadAssignmentSheet'
 
 const PLAN_COLORS: Record<string, string> = {
   Base: '#0D7963',
@@ -47,24 +50,26 @@ export function ValidationResultsPanel({
   onBack,
   onContinue,
   isDelete = false,
-  fileName = 'Uploaded employee list.xlsx',
-  fileSize = 0,
 }: {
   rows: BulkMemberRow[]
   onBack: () => void
   onContinue: () => void
   isDelete?: boolean
-  fileName?: string
-  fileSize?: number
 }) {
   const acceptedRows = useMemo(
     () => rows.filter((row) => !row.ignored && row.status !== 'fail'),
     [rows],
   )
+  const assignmentSheet = useMemo(
+    () => buildAssignmentSheet(acceptedRows),
+    [acceptedRows],
+  )
   const employees = acceptedRows.filter(
     (row) => row.relationship === 'Self',
   ).length
-  const dependents = acceptedRows.length - employees
+  const needsFix = rows.filter(
+    (row) => !row.ignored && validationIssuesFor(row).length > 0,
+  ).length
   const coverBreakup = useMemo(() => buildCoverBreakup(acceptedRows), [acceptedRows])
   const visibleCovers = coverBreakup.filter(
     (item) =>
@@ -73,37 +78,35 @@ export function ValidationResultsPanel({
 
   return (
     <Panel>
-      <AssistantAvatar
-        src={assets.mlBulkAssistantAvatar}
-        alt=""
-        width={48}
-        height={48}
-      />
       <Results>
         <Title>Based on your uploaded document</Title>
 
         <FileCard>
           <FileMeta>
             <FileIcon>
-              <img src={assets.mlIconFileUploaded} alt="" />
+              <img src={assets.mlIconFileDoc} alt="" />
             </FileIcon>
             <FileCopy>
-              <FileName title={fileName}>{fileName}</FileName>
-              <FileSize>{formatFileSize(fileSize)}</FileSize>
+              <FileName title={assignmentSheet.fileName}>
+                {assignmentSheet.fileName}
+              </FileName>
+              <FileSize>{formatFileSize(assignmentSheet.sizeBytes)}</FileSize>
             </FileCopy>
           </FileMeta>
-          <ReuploadButton type="button" onClick={onBack}>
-            <img src={assets.mlIconReupload} alt="" />
-            Re-Upload
-          </ReuploadButton>
+          <DownloadButton
+            type="button"
+            onClick={() => downloadAssignmentSheet(acceptedRows)}
+          >
+            Download Assignment Sheet
+          </DownloadButton>
         </FileCard>
 
         <SectionDivider>
-          <span>Here is assignment of benefits</span>
+          <span>Here’s what we found</span>
           <i />
         </SectionDivider>
 
-        <Metrics>
+        <Metrics $withFix={needsFix > 0}>
           <MetricCard $accent>
             <MetricValue>{acceptedRows.length} lives</MetricValue>
             <MetricLabel>Total Lives</MetricLabel>
@@ -119,13 +122,27 @@ export function ValidationResultsPanel({
             </MetricIcon>
           </MetricCard>
           <MetricCard $muted>
-            <MetricValue>{dependents}</MetricValue>
+            <MetricValue>{acceptedRows.length - employees}</MetricValue>
             <MetricLabel>Dependents</MetricLabel>
             <MetricIcon>
               <img src={assets.mlIconMetricUsers} alt="" />
             </MetricIcon>
           </MetricCard>
+          {needsFix > 0 ? (
+            <MetricCard $error>
+              <MetricValue>{needsFix} lives</MetricValue>
+              <MetricLabel>Need a fix</MetricLabel>
+              <MetricIcon $error>
+                <img src={assets.mlIconMetricUser} alt="" />
+              </MetricIcon>
+            </MetricCard>
+          ) : null}
         </Metrics>
+
+        <SectionDivider>
+          <span>Here is assignment of benefits</span>
+          <i />
+        </SectionDivider>
 
         <AssignmentCard>
           <AssignmentHeader>
@@ -170,17 +187,14 @@ export function ValidationResultsPanel({
           </CoverGrid>
 
           <Actions>
+            <BackButton type="button" onClick={onBack}>
+              Go Back
+            </BackButton>
             <SubmitButton type="button" onClick={onContinue}>
               {isDelete
                 ? `Submit ${acceptedRows.length} Lives for Deletion`
                 : `Submit ${acceptedRows.length} Lives for Addition`}
             </SubmitButton>
-            <DownloadButton
-              type="button"
-              onClick={() => downloadAssignmentSheet(acceptedRows)}
-            >
-              Download Assignment Sheet
-            </DownloadButton>
           </Actions>
         </AssignmentCard>
       </Results>
@@ -193,7 +207,7 @@ const Panel = styled.div`
   align-items: flex-start;
   gap: 24px;
   width: 100%;
-  max-width: 996px;
+  max-width: none;
   padding: 72px 24px 40px 40px;
   box-sizing: border-box;
 
@@ -202,20 +216,12 @@ const Panel = styled.div`
   }
 `
 
-const AssistantAvatar = styled.img`
-  display: block;
-  width: 48px;
-  height: 48px;
-  flex: 0 0 48px;
-  border-radius: 50%;
-  object-fit: cover;
-`
-
 const Results = styled.div`
   display: flex;
   flex: 1;
   min-width: 0;
-  max-width: 860px;
+  width: 100%;
+  max-width: none;
   flex-direction: column;
   gap: 16px;
   padding-top: 13px;
@@ -286,28 +292,6 @@ const FileSize = styled.p`
   line-height: 18px;
 `
 
-const ReuploadButton = styled.button`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: ${({ theme }) => theme.colors.emerald};
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 18px;
-  letter-spacing: -0.28px;
-  cursor: pointer;
-
-  img {
-    width: 20px;
-    height: 20px;
-  }
-`
-
 const SectionDivider = styled.div`
   display: flex;
   align-items: center;
@@ -325,29 +309,45 @@ const SectionDivider = styled.div`
   }
 `
 
-const Metrics = styled.div`
+const Metrics = styled.div<{ $withFix: boolean }>`
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: ${({ $withFix }) =>
+    $withFix
+      ? 'repeat(4, minmax(0, 1fr))'
+      : 'repeat(3, minmax(0, 1fr))'};
   gap: 16px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 
   @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
     grid-template-columns: 1fr;
   }
 `
 
-const MetricCard = styled.div<{ $accent?: boolean; $muted?: boolean }>`
+const MetricCard = styled.div<{
+  $accent?: boolean
+  $muted?: boolean
+  $error?: boolean
+}>`
   position: relative;
   min-height: 92px;
   padding: 16px;
-  border: 1px solid ${({ theme }) => theme.colors.disableFill};
+  border: 1px solid
+    ${({ $error, theme }) =>
+      $error ? '#f1b7b7' : theme.colors.disableFill};
   border-radius: 12px;
+  background: ${({ $error }) => ($error ? '#fffafa' : 'transparent')};
   box-sizing: border-box;
-  color: ${({ theme, $accent, $muted }) =>
-    $accent
-      ? theme.colors.emerald
-      : $muted
-        ? theme.colors.textSecondary
-        : theme.colors.textPrimary};
+  color: ${({ theme, $accent, $muted, $error }) =>
+    $error
+      ? theme.colors.textError
+      : $accent
+        ? theme.colors.emerald
+        : $muted
+          ? theme.colors.textSecondary
+          : theme.colors.textPrimary};
 `
 
 const MetricValue = styled.p`
@@ -366,7 +366,7 @@ const MetricLabel = styled.p`
   letter-spacing: 0.2px;
 `
 
-const MetricIcon = styled.div`
+const MetricIcon = styled.div<{ $error?: boolean }>`
   position: absolute;
   top: 20px;
   right: 16px;
@@ -375,7 +375,7 @@ const MetricIcon = styled.div`
   height: 36px;
   place-items: center;
   border-radius: 50%;
-  background: #f3f4f6;
+  background: ${({ $error }) => ($error ? '#FDECEC' : '#f3f4f6')};
 
   img {
     width: 18px;
@@ -496,6 +496,21 @@ const Actions = styled.div`
   align-items: center;
 `
 
+const BackButton = styled.button`
+  height: 48px;
+  padding: 14px 24px;
+  border: 1px solid ${({ theme }) => theme.colors.emerald};
+  border-radius: 12px;
+  background: ${({ theme }) => theme.colors.surface1};
+  color: ${({ theme }) => theme.colors.emerald};
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+`
+
 const SubmitButton = styled.button`
   height: 48px;
   padding: 14px 24px;
@@ -512,6 +527,7 @@ const SubmitButton = styled.button`
 `
 
 const DownloadButton = styled(SubmitButton)`
+  flex-shrink: 0;
   border: 1px solid ${({ theme }) => theme.colors.emerald};
   background: ${({ theme }) => theme.colors.surface1};
 `

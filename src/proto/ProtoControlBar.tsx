@@ -10,8 +10,15 @@ function countLabel(count: number, singular: string, plural: string) {
 
 export function ProtoControlBar() {
   const [open, setOpen] = useState(false)
-  const { entities, deals, versionId, versions, setVersionId, version } =
-    useProtoConfig()
+  const {
+    entities,
+    deals,
+    versionId,
+    versions,
+    setVersionId,
+    version,
+    validationFlow,
+  } = useProtoConfig()
 
   return (
     <>
@@ -21,7 +28,8 @@ export function ProtoControlBar() {
           <Summary>
             {countLabel(entities.length, 'entity', 'entities')} ·{' '}
             {countLabel(deals.length, 'flex deal', 'flex deals')} ·{' '}
-            {version.label}
+            {version.label} ·{' '}
+            {validationFlow === 'clean' ? 'No errors' : 'With errors'}
           </Summary>
         </Left>
         <Right>
