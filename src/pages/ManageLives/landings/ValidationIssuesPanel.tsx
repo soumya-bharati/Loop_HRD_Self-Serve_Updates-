@@ -4,10 +4,13 @@ import styled from 'styled-components'
 import { assets } from '@/assets/figma'
 import {
   flexDeal,
+  isReadyToSubmit,
   validationIssuesFor,
   type BulkMemberRow,
   type BulkValidationIssue,
 } from '@/data/flexDeal'
+import { downloadAssignmentSheet } from '@/pages/ManageLives/bulk/downloadAssignmentSheet'
+import { AssignmentBreakup } from '@/pages/ManageLives/landings/AssignmentBreakup'
 
 type Props = {
   rows: BulkMemberRow[]
@@ -17,6 +20,7 @@ type Props = {
   onIgnore: (rowId: string) => void
   onRestore: (rowId: string) => void
   onReupload: () => void
+  onBack: () => void
   onContinue: () => void
 }
 
@@ -55,11 +59,18 @@ export function ValidationIssuesPanel({
   onIgnore,
   onRestore,
   onReupload,
+  onBack,
   onContinue,
 }: Props) {
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [attempted, setAttempted] = useState<Record<string, boolean>>({})
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [tab, setTab] = useState<'ready' | 'attention'>(() =>
+    rows.some(
+      (row) => !row.ignored && validationIssuesFor(row).length > 0,
+    )
+      ? 'attention'
+      : 'ready',
+  )
   const issueRows = rows.filter(
     (row) =>
       validationIssuesFor(row).length > 0 ||
@@ -79,30 +90,17 @@ export function ValidationIssuesPanel({
     (sum, row) => sum + validationIssuesFor(row).length,
     0,
   )
-  const validatedRows = rows.filter(
-    (row) => !row.ignored && validationIssuesFor(row).length === 0,
-  )
-  const invalidRows = rows.filter(
-    (row) => !row.ignored && validationIssuesFor(row).length > 0,
-  )
-  const validatedEmployees = validatedRows.filter(
+  const acceptedRows = rows.filter(isReadyToSubmit)
+  const readyEmployees = acceptedRows.filter(
     (row) => row.relationship === 'Self',
   ).length
+  const readyDependants = acceptedRows.length - readyEmployees
 
   function cardState(row: BulkMemberRow): 'open' | 'ignored' | 'fixed' {
     if (row.ignored) return 'ignored'
     const issues = validationIssuesFor(row)
     if (issues.length === 0 && row.resolvedIssues?.length) return 'fixed'
     return 'open'
-  }
-
-  function isExpanded(rowId: string, state: 'open' | 'ignored' | 'fixed') {
-    if (expanded[rowId] !== undefined) return expanded[rowId]
-    return state === 'open'
-  }
-
-  function setCardExpanded(rowId: string, next: boolean) {
-    setExpanded((current) => ({ ...current, [rowId]: next }))
   }
 
   function updateDraft(rowId: string, issueId: string, value: string) {
@@ -127,98 +125,94 @@ export function ValidationIssuesPanel({
         value: drafts[draftKey(row.id, issue.id)].trim(),
       })),
     )
-    setCardExpanded(row.id, false)
   }
 
   function ignore(rowId: string) {
     onIgnore(rowId)
-    setCardExpanded(rowId, false)
   }
 
   return (
     <Panel>
       <Content>
-        <Heading>
-          <Title>
-            {openRows.length > 0
-              ? 'Some lives need your attention'
-              : ignoredCount > 0 && fixedCount === 0
-                ? 'Ignored lives will be left out'
-                : 'All validation issues are resolved'}
-          </Title>
-          <Description>
-            {openRows.length > 0
-              ? 'Fix missing or ineligible information before reviewing the final benefit assignment. Corrected and ignored lives stay in this list.'
-              : ignoredCount > 0
-                ? 'Corrected lives will be included. Ignored lives will not, unless you undo them.'
-                : 'Every life is ready for the final validation review.'}
-          </Description>
-        </Heading>
+        <TabBar role="tablist" aria-label="Validation review">
+          <Tab
+            type="button"
+            role="tab"
+            aria-selected={tab === 'ready'}
+            $active={tab === 'ready'}
+            onClick={() => setTab('ready')}
+          >
+            Members ready for submission
+          </Tab>
+          <Tab
+            type="button"
+            role="tab"
+            aria-selected={tab === 'attention'}
+            $active={tab === 'attention'}
+            onClick={() => setTab('attention')}
+          >
+            Members who need attention({openRows.length})
+          </Tab>
+        </TabBar>
 
-        <FileCard>
-          <FileMeta>
-            <FileIcon>
-              <img src={assets.mlIconFileUploaded} alt="" />
-            </FileIcon>
-            <FileCopy>
-              <FileName title={fileName}>{fileName}</FileName>
-              <FileSize>{formatFileSize(fileSize)}</FileSize>
-            </FileCopy>
-          </FileMeta>
-          <ReuploadButton type="button" onClick={onReupload}>
-            <img src={assets.mlIconReupload} alt="" />
-            Re-Upload
-          </ReuploadButton>
-        </FileCard>
+        {tab === 'ready' ? (
+          <>
+            <ReadyBanner>
+              <div>
+                <ReadyTitle>
+                  {acceptedRows.length}{' '}
+                  {acceptedRows.length === 1 ? 'member' : 'members'} ready for
+                  addition
+                </ReadyTitle>
+                <ReadySub>
+                  which includes {readyEmployees}{' '}
+                  {readyEmployees === 1 ? 'employee' : 'employees'} &{' '}
+                  {readyDependants}{' '}
+                  {readyDependants === 1 ? 'Dependant' : 'Dependants'}
+                </ReadySub>
+              </div>
+              <DownloadOutline
+                type="button"
+                onClick={() => downloadAssignmentSheet(acceptedRows)}
+              >
+                Download list with Assignments
+              </DownloadOutline>
+            </ReadyBanner>
 
-        <SectionDivider>
-          <span>Here’s what we found</span>
-          <i />
-        </SectionDivider>
+            <AssignHeader>
+              <AssignLabel>Here are the assigned benefits</AssignLabel>
+              <AssignRule />
+              <KnowHow type="button">
+                Know how it’s assigned
+                <KnowTip role="tooltip">
+                  Loop assigns each life to a plan from your sheet and the
+                  policy rules for this account. Download the assignment list
+                  to review every employee and dependant.
+                </KnowTip>
+              </KnowHow>
+            </AssignHeader>
 
-        <Metrics $withFix={invalidRows.length > 0}>
-          <MetricCard $accent>
-            <MetricValue>{validatedRows.length} lives</MetricValue>
-            <MetricLabel>Total Lives</MetricLabel>
-            <MetricIcon>
-              <img src={assets.mlIconMetricUser} alt="" />
-            </MetricIcon>
-          </MetricCard>
-          <MetricCard>
-            <MetricValue>{validatedEmployees}</MetricValue>
-            <MetricLabel>Employees</MetricLabel>
-            <MetricIcon>
-              <img src={assets.mlIconMetricBriefcase} alt="" />
-            </MetricIcon>
-          </MetricCard>
-          <MetricCard $muted>
-            <MetricValue>{validatedRows.length - validatedEmployees}</MetricValue>
-            <MetricLabel>Dependents</MetricLabel>
-            <MetricIcon>
-              <img src={assets.mlIconMetricUsers} alt="" />
-            </MetricIcon>
-          </MetricCard>
-          {invalidRows.length > 0 ? (
-            <MetricCard $error>
-              <MetricValue>{invalidRows.length} lives</MetricValue>
-              <MetricLabel>Need a fix</MetricLabel>
-              <MetricIcon $error>
-                <img src={assets.mlIconMetricUser} alt="" />
-              </MetricIcon>
-            </MetricCard>
-          ) : null}
-        </Metrics>
+            <AssignmentBreakup rows={acceptedRows} />
+          </>
+        ) : (
+          <>
+            <FileCard>
+              <FileMeta>
+                <FileIcon>
+                  <img src={assets.mlIconFileUploaded} alt="" />
+                </FileIcon>
+                <FileCopy>
+                  <FileName title={fileName}>{fileName}</FileName>
+                  <FileSize>{formatFileSize(fileSize)}</FileSize>
+                </FileCopy>
+              </FileMeta>
+              <ReuploadButton type="button" onClick={onReupload}>
+                <img src={assets.mlIconReupload} alt="" />
+                Re-Upload
+              </ReuploadButton>
+            </FileCard>
 
-        <SectionDivider>
-          <span>
-            {openRows.length > 0
-              ? 'Fix the lives that could not be validated'
-              : 'Lives reviewed'}
-          </span>
-          <i />
-        </SectionDivider>
-
-        {issueRows.length > 0 ? (
+            {issueRows.length > 0 ? (
           <IssueSection>
             <IssueHeader>
               <IssueHeaderTop>
@@ -263,223 +257,179 @@ export function ValidationIssuesPanel({
                 {issueRows.length === 1 ? 'life' : 'lives'} resolved
               </ProgressCaption>
             </IssueHeader>
-            <IssueList>
-            {issueRows.map((row) => {
-              const state = cardState(row)
-              const issues = validationIssuesFor(row)
-              const ignored = state === 'ignored'
-              const fixed = state === 'fixed'
-              const open = state === 'open'
-              const shownIssues = ignored
-                ? []
-                : fixed
-                  ? (row.resolvedIssues ?? [])
-                  : issues
-              const cardOpen = isExpanded(row.id, state)
-              const tried = Boolean(attempted[row.id])
 
-              return (
-                <IssueCard
-                  key={row.id}
-                  $state={state}
-                  $collapsed={!cardOpen}
-                >
-                  <CardHeader>
-                    <Member>
-                      <MemberAvatar aria-hidden $state={state}>
-                        {row.name
-                          .split(' ')
-                          .slice(0, 2)
-                          .map((part) => part[0])
-                          .join('')}
-                      </MemberAvatar>
-                      <div>
-                        <MemberName>{row.name}</MemberName>
-                        <MemberMeta>
-                          {row.employeeId} · {row.relationship}
-                          {ignored
-                            ? ' · Ignored'
-                            : fixed
-                              ? ' · Fixed'
-                              : issues.length > 1
-                                ? ` · ${issues.length} issues`
-                                : ''}
-                        </MemberMeta>
-                      </div>
-                    </Member>
-                    <ChevronButton
-                      type="button"
-                      aria-expanded={cardOpen}
-                      aria-label={
-                        cardOpen
-                          ? `Collapse ${row.name}`
-                          : `Expand ${row.name}`
-                      }
-                      onClick={() => setCardExpanded(row.id, !cardOpen)}
-                    >
-                      <img
-                        src={
-                          cardOpen ? assets.chevronUp : assets.chevronDown
-                        }
-                        alt=""
-                        width={20}
-                        height={20}
-                      />
-                    </ChevronButton>
-                  </CardHeader>
+            <SheetScroller>
+              <Sheet>
+                <thead>
+                  <tr>
+                    <ThIndex scope="col">#</ThIndex>
+                    <Th scope="col">Employee ID</Th>
+                    <Th scope="col">Member Name</Th>
+                    <Th scope="col">Relationship</Th>
+                    <Th scope="col">Field</Th>
+                    <Th scope="col">What needs fixing</Th>
+                    <Th scope="col">Corrected value</Th>
+                    <Th scope="col">Action</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {issueRows.map((row, index) => {
+                    const state = cardState(row)
+                    const issues = validationIssuesFor(row)
+                    const ignored = state === 'ignored'
+                    const fixed = state === 'fixed'
+                    const open = state === 'open'
+                    const shownIssues = ignored
+                      ? []
+                      : fixed
+                        ? (row.resolvedIssues ?? [])
+                        : issues
+                    const tried = Boolean(attempted[row.id])
+                    const span = Math.max(shownIssues.length, 1)
 
-                  {cardOpen ? (
-                    <IssueBody>
-                      {ignored ? (
-                        <IgnoredNote>
-                          This life will not be included in the endorsement.
-                        </IgnoredNote>
-                      ) : (
-                        shownIssues.map((issue) => {
-                          const kind = controlKind(issue.field)
-                          const key = draftKey(row.id, issue.id)
-                          const value = drafts[key] ?? ''
-                          const invalid = open && tried && !value.trim()
-                          const label = `Fix ${issue.field} for ${row.name}`
+                    const identity = (
+                      <>
+                        <TdIndex rowSpan={span}>{index + 1}</TdIndex>
+                        <Td rowSpan={span} $muted={ignored}>
+                          {row.employeeId}
+                        </Td>
+                        <Td rowSpan={span} $muted={ignored}>
+                          <CellName>{row.name}</CellName>
+                        </Td>
+                        <Td rowSpan={span} $muted={ignored}>
+                          {row.relationship}
+                        </Td>
+                      </>
+                    )
 
-                          return (
-                            <IssueFix key={issue.id}>
-                              <Issue>
-                                <IssueLabel $fixed={fixed}>
-                                  {issue.field}
-                                </IssueLabel>
-                                <IssueReason>
-                                  {fixed
-                                    ? `Was: ${issue.error}`
-                                    : issue.error}
-                                </IssueReason>
-                              </Issue>
-                              {fixed ? (
-                                <FixedValue>
-                                  {displayFixValue(
-                                    issue.field,
-                                    issue.resolvedValue,
-                                  )}
-                                </FixedValue>
-                              ) : kind === 'plan' ? (
-                                <FieldStack>
-                                  <Select
-                                    value={value}
-                                    aria-label={label}
-                                    $invalid={invalid}
-                                    onChange={(event) =>
-                                      updateDraft(
-                                        row.id,
-                                        issue.id,
-                                        event.target.value,
-                                      )
-                                    }
-                                  >
-                                    <option value="">
-                                      Select eligible plan
-                                    </option>
-                                    {flexDeal.plans.map((plan) => (
+                    const action = ignored ? (
+                      <UndoButton
+                        type="button"
+                        onClick={() => onRestore(row.id)}
+                        aria-label={`Undo ignore for ${row.name}`}
+                      >
+                        Undo ignore
+                      </UndoButton>
+                    ) : fixed ? (
+                      <StatChip $tone="fixed">Fixed</StatChip>
+                    ) : (
+                      <CellActions>
+                        <SaveButton
+                          type="button"
+                          onClick={() => save(row, issues)}
+                          aria-label={`Save fix for ${row.name}`}
+                        >
+                          Save fix
+                        </SaveButton>
+                        <IgnoreButton
+                          type="button"
+                          onClick={() => ignore(row.id)}
+                          aria-label={`Ignore ${row.name}`}
+                        >
+                          Ignore
+                        </IgnoreButton>
+                      </CellActions>
+                    )
+
+                    if (ignored) {
+                      return (
+                        <Tr key={row.id} $state={state}>
+                          {identity}
+                          <Td colSpan={3} $muted>
+                            Ignored — this life will not be included in the
+                            endorsement.
+                          </Td>
+                          <Td>{action}</Td>
+                        </Tr>
+                      )
+                    }
+
+                    return shownIssues.map((issue, issueIndex) => {
+                      const kind = controlKind(issue.field)
+                      const key = draftKey(row.id, issue.id)
+                      const value = drafts[key] ?? ''
+                      const invalid = open && tried && !value.trim()
+                      const label = `Fix ${issue.field} for ${row.name}`
+                      const first = issueIndex === 0
+
+                      return (
+                        <Tr key={`${row.id}:${issue.id}`} $state={state}>
+                          {first ? identity : null}
+                          <Td>
+                            <CellField>{issue.field}</CellField>
+                          </Td>
+                          <Td $error={open}>
+                            {fixed ? `Was: ${issue.error}` : issue.error}
+                          </Td>
+                          <TdField $invalid={invalid}>
+                            {fixed ? (
+                              <FixedValue>
+                                {displayFixValue(
+                                  issue.field,
+                                  issue.resolvedValue,
+                                )}
+                              </FixedValue>
+                            ) : kind === 'plan' || kind === 'gender' ? (
+                              <CellSelect
+                                value={value}
+                                aria-label={label}
+                                onChange={(event) =>
+                                  updateDraft(
+                                    row.id,
+                                    issue.id,
+                                    event.target.value,
+                                  )
+                                }
+                              >
+                                <option value="">
+                                  {kind === 'plan'
+                                    ? 'Select eligible plan'
+                                    : 'Select gender'}
+                                </option>
+                                {kind === 'plan'
+                                  ? flexDeal.plans.map((plan) => (
                                       <option key={plan.id} value={plan.id}>
                                         {plan.name}
                                       </option>
-                                    ))}
-                                  </Select>
-                                  {invalid ? (
-                                    <FieldError>Required</FieldError>
-                                  ) : null}
-                                </FieldStack>
-                              ) : kind === 'gender' ? (
-                                <FieldStack>
-                                  <Select
-                                    value={value}
-                                    aria-label={label}
-                                    $invalid={invalid}
-                                    onChange={(event) =>
-                                      updateDraft(
-                                        row.id,
-                                        issue.id,
-                                        event.target.value,
-                                      )
-                                    }
-                                  >
-                                    <option value="">Select gender</option>
-                                    <option value="Female">Female</option>
-                                    <option value="Male">Male</option>
-                                    <option value="Other">Other</option>
-                                  </Select>
-                                  {invalid ? (
-                                    <FieldError>Required</FieldError>
-                                  ) : null}
-                                </FieldStack>
-                              ) : (
-                                <FieldStack>
-                                  <Input
-                                    type={
-                                      kind === 'date'
-                                        ? 'date'
-                                        : kind === 'email'
-                                          ? 'email'
-                                          : 'text'
-                                    }
-                                    value={value}
-                                    placeholder={issue.field}
-                                    aria-label={label}
-                                    $invalid={invalid}
-                                    onChange={(event) =>
-                                      updateDraft(
-                                        row.id,
-                                        issue.id,
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                  {invalid ? (
-                                    <FieldError>Required</FieldError>
-                                  ) : null}
-                                </FieldStack>
-                              )}
-                            </IssueFix>
-                          )
-                        })
-                      )}
-
-                      <Actions>
-                        {ignored ? (
-                          <UndoButton
-                            type="button"
-                            onClick={() => {
-                              onRestore(row.id)
-                              setCardExpanded(row.id, true)
-                            }}
-                            aria-label={`Undo ignore for ${row.name}`}
-                          >
-                            Undo ignore
-                          </UndoButton>
-                        ) : open ? (
-                          <>
-                            <IgnoreButton
-                              type="button"
-                              onClick={() => ignore(row.id)}
-                              aria-label={`Ignore ${row.name}`}
-                            >
-                              Ignore
-                            </IgnoreButton>
-                            <SaveButton
-                              type="button"
-                              onClick={() => save(row, issues)}
-                              aria-label={`Save fix for ${row.name}`}
-                            >
-                              Save fix
-                            </SaveButton>
-                          </>
-                        ) : null}
-                      </Actions>
-                    </IssueBody>
-                  ) : null}
-                </IssueCard>
-              )
-            })}
-            </IssueList>
+                                    ))
+                                  : ['Female', 'Male', 'Other'].map(
+                                      (option) => (
+                                        <option key={option} value={option}>
+                                          {option}
+                                        </option>
+                                      ),
+                                    )}
+                              </CellSelect>
+                            ) : (
+                              <CellInput
+                                type={
+                                  kind === 'date'
+                                    ? 'date'
+                                    : kind === 'email'
+                                      ? 'email'
+                                      : 'text'
+                                }
+                                value={value}
+                                placeholder={`Enter ${issue.field.toLowerCase()}`}
+                                aria-label={label}
+                                onChange={(event) =>
+                                  updateDraft(
+                                    row.id,
+                                    issue.id,
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                            )}
+                          </TdField>
+                          {first ? <Td rowSpan={span}>{action}</Td> : null}
+                        </Tr>
+                      )
+                    })
+                  })}
+                </tbody>
+              </Sheet>
+            </SheetScroller>
           </IssueSection>
         ) : (
           <SuccessCard role="status">
@@ -492,23 +442,42 @@ export function ValidationIssuesPanel({
               />
             </SuccessMark>
             <div>
-              <SuccessTitle>Validation complete</SuccessTitle>
-              <SuccessCopy>
-                {ignoredCount > 0
-                  ? `${ignoredCount} ${ignoredCount === 1 ? 'life was' : 'lives were'} ignored and will not be included. Continue to review the rest.`
-                  : 'Continue to review the final list of lives and their benefit assignments.'}
-              </SuccessCopy>
+              <SuccessTitle>All lives are ready for submission.</SuccessTitle>
+              {ignoredCount > 0 ? (
+                <SuccessCopy>
+                  {ignoredCount}{' '}
+                  {ignoredCount === 1 ? 'life was' : 'lives were'} ignored and
+                  will not be included.
+                </SuccessCopy>
+              ) : null}
             </div>
           </SuccessCard>
         )}
+          </>
+        )}
 
-        <ContinueButton
-          type="button"
-          disabled={openRows.length > 0}
-          onClick={onContinue}
-        >
-          Continue to final validation
-        </ContinueButton>
+        {tab === 'ready' ? (
+          <FooterActions>
+            <BackButton type="button" onClick={onBack}>
+              Go Back
+            </BackButton>
+            <ContinueButton
+              type="button"
+              disabled={acceptedRows.length === 0}
+              onClick={onContinue}
+            >
+              Submit {acceptedRows.length}{' '}
+              {acceptedRows.length === 1 ? 'life' : 'lives'} for Addition
+            </ContinueButton>
+            {acceptedRows.length > 0 && openRows.length > 0 ? (
+              <ContinueHint>
+                {openRows.length}{' '}
+                {openRows.length === 1 ? 'life still has' : 'lives still have'}{' '}
+                issues and will be left out.
+              </ContinueHint>
+            ) : null}
+          </FooterActions>
+        ) : null}
       </Content>
     </Panel>
   )
@@ -614,98 +583,59 @@ const Content = styled.div`
   max-width: none;
   flex: 1;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
   padding-top: 13px;
 `
 
-const Heading = styled.div`
+const TabBar = styled.div`
   display: flex;
-  flex-direction: column;
-  gap: 0;
+  align-items: stretch;
+  gap: 20px;
+  width: 100%;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.defaultBorder};
 `
 
-const Title = styled.h1`
-  margin: 0;
-  color: ${({ theme }) => theme.colors.textPrimary};
-  font-size: 18px;
-  font-weight: 500;
-  line-height: 24px;
-`
-
-const Description = styled.p`
-  margin: 4px 0 0;
-  color: ${({ theme }) => theme.colors.textSecondary};
-  font-size: 12px;
-  line-height: 18px;
-  letter-spacing: 0.2px;
-`
-
-const SectionDivider = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  color: ${({ theme }) => theme.colors.textSecondary};
+const Tab = styled.button<{ $active: boolean }>`
+  height: 48px;
+  padding: 14px 0 0;
+  border: 0;
+  border-bottom: ${({ $active, theme }) =>
+    $active
+      ? `2px solid ${theme.colors.emerald}`
+      : `1px solid ${theme.colors.defaultBorder}`};
+  margin-bottom: -1px;
+  background: transparent;
+  color: ${({ $active, theme }) =>
+    $active ? theme.colors.emerald : theme.colors.textSecondary};
+  font: inherit;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: ${({ $active }) => ($active ? 600 : 500)};
   line-height: 20px;
   letter-spacing: 0.2px;
-
-  i {
-    height: 1px;
-    flex: 1;
-    background: ${({ theme }) => theme.colors.disableFill};
-  }
+  cursor: pointer;
 `
 
-const Metrics = styled.div<{ $withFix: boolean }>`
-  display: grid;
-  grid-template-columns: ${({ $withFix }) =>
-    $withFix
-      ? 'repeat(4, minmax(0, 1fr))'
-      : 'repeat(3, minmax(0, 1fr))'};
+const ReadyBanner = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 16px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
-    grid-template-columns: 1fr;
-  }
-`
-
-const MetricCard = styled.div<{
-  $accent?: boolean
-  $muted?: boolean
-  $error?: boolean
-}>`
-  position: relative;
-  min-height: 92px;
-  padding: 16px;
-  border: 1px solid
-    ${({ $error, theme }) =>
-      $error ? '#f1b7b7' : theme.colors.disableFill};
+  width: 100%;
+  padding: 16px 20px;
   border-radius: 12px;
-  background: ${({ $error }) => ($error ? '#fffafa' : 'transparent')};
+  background: ${({ theme }) => theme.colors.hoverSurface1};
   box-sizing: border-box;
-  color: ${({ theme, $accent, $muted, $error }) =>
-    $error
-      ? theme.colors.textError
-      : $accent
-        ? theme.colors.emerald
-        : $muted
-          ? theme.colors.textSecondary
-          : theme.colors.textPrimary};
 `
 
-const MetricValue = styled.p`
+const ReadyTitle = styled.p`
   margin: 0;
+  color: ${({ theme }) => theme.colors.emerald};
   font-size: 24px;
   font-weight: 500;
   line-height: 28px;
 `
 
-const MetricLabel = styled.p`
+const ReadySub = styled.p`
   margin: 2px 0 0;
   color: ${({ theme }) => theme.colors.textSecondary};
   font-size: 12px;
@@ -714,30 +644,93 @@ const MetricLabel = styled.p`
   letter-spacing: 0.2px;
 `
 
-const MetricIcon = styled.div<{ $error?: boolean }>`
-  position: absolute;
-  top: 20px;
-  right: 16px;
-  display: grid;
-  width: 36px;
+const DownloadOutline = styled.button`
+  flex-shrink: 0;
   height: 36px;
-  place-items: center;
-  border-radius: 50%;
-  background: ${({ $error }) => ($error ? '#FDECEC' : '#f3f4f6')};
+  padding: 8px 16px;
+  border: 1px solid ${({ theme }) => theme.colors.emerald};
+  border-radius: 8px;
+  background: transparent;
+  color: ${({ theme }) => theme.colors.emerald};
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+`
 
-  img {
-    width: 18px;
-    height: 18px;
+const AssignHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+`
+
+const AssignLabel = styled.p`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+`
+
+const AssignRule = styled.i`
+  display: block;
+  height: 1px;
+  flex: 1;
+  min-width: 8px;
+  background: ${({ theme }) => theme.colors.defaultBorder};
+`
+
+const KnowHow = styled.button`
+  position: relative;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: ${({ theme }) => theme.colors.emerald};
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  text-decoration: underline;
+  cursor: help;
+
+  &:hover > span,
+  &:focus-visible > span {
+    opacity: 1;
+    visibility: visible;
   }
+`
+
+const KnowTip = styled.span`
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 2;
+  width: 280px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: ${({ theme }) => theme.colors.surface1};
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  color: ${({ theme }) => theme.colors.textPrimary};
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: 0.2px;
+  text-decoration: none;
+  opacity: 0;
+  visibility: hidden;
 `
 
 const IssueSection = styled.section`
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 16px;
-  border: 1px solid ${({ theme }) => theme.colors.disableFill};
-  border-radius: 12px;
   box-sizing: border-box;
 `
 
@@ -829,231 +822,166 @@ const ProgressCaption = styled.p`
   letter-spacing: 0.2px;
 `
 
-const IssueList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+const SheetScroller = styled.div`
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid ${({ theme }) => theme.colors.disableFill};
+  border-radius: 12px;
+  box-sizing: border-box;
 `
 
-const IssueCard = styled.article<{
-  $state: 'open' | 'ignored' | 'fixed'
-  $collapsed: boolean
-}>`
-  display: flex;
-  flex-direction: column;
-  gap: ${({ $collapsed }) => ($collapsed ? '0' : '12px')};
-  padding: 16px;
-  border: 1px solid
-    ${({ $state, theme }) =>
-      $state === 'ignored'
-        ? theme.colors.disableFill
-        : $state === 'fixed'
-          ? theme.colors.emerald
-          : '#f1b7b7'};
-  border-radius: 12px;
+const Sheet = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+
+  th,
+  td {
+    border-right: 1px solid ${({ theme }) => theme.colors.disableFill};
+    border-bottom: 1px solid ${({ theme }) => theme.colors.disableFill};
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  th:last-child,
+  td:last-child {
+    border-right: 0;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+`
+
+const Th = styled.th`
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px 12px;
+  background: ${({ theme }) => theme.colors.surface0};
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+`
+
+const ThIndex = styled(Th)`
+  width: 44px;
+  text-align: center;
+`
+
+const Tr = styled.tr<{ $state: 'open' | 'ignored' | 'fixed' }>`
   background: ${({ $state, theme }) =>
     $state === 'ignored'
       ? theme.colors.surface0
       : $state === 'fixed'
         ? theme.colors.planeGreenLight
-        : '#fffafa'};
-  opacity: ${({ $state }) => ($state === 'ignored' ? 0.78 : 1)};
+        : theme.colors.surface1};
+
+  &:hover {
+    background: ${({ $state, theme }) =>
+      $state === 'open' ? theme.colors.hoverSurface1 : undefined};
+  }
 `
 
-const CardHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 0;
+const Td = styled.td<{ $muted?: boolean; $error?: boolean }>`
+  padding: 10px 12px;
+  color: ${({ $muted, $error, theme }) =>
+    $muted
+      ? theme.colors.textSecondary
+      : $error
+        ? theme.colors.textError
+        : theme.colors.textPrimary};
+  font-size: 12px;
+  line-height: 18px;
+  letter-spacing: 0.2px;
 `
 
-const Member = styled.div`
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 10px;
-`
-
-const MemberAvatar = styled.span<{ $state: 'open' | 'ignored' | 'fixed' }>`
-  display: grid;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
-  place-items: center;
-  border-radius: 50%;
-  background: ${({ $state, theme }) =>
-    $state === 'ignored'
-      ? theme.colors.disableFill
-      : theme.colors.planeGreenLight};
-  color: ${({ $state, theme }) =>
-    $state === 'ignored' ? theme.colors.textSecondary : theme.colors.emerald};
+const TdIndex = styled(Td)`
+  background: ${({ theme }) => theme.colors.surface0};
+  color: ${({ theme }) => theme.colors.textSecondary};
   font-size: 11px;
   font-weight: 600;
+  text-align: center;
 `
 
-const MemberName = styled.p`
-  margin: 0;
-  overflow: hidden;
+const TdField = styled(Td)<{ $invalid?: boolean }>`
+  padding: 4px 6px;
+  background: ${({ $invalid }) => ($invalid ? '#FFF4F4' : undefined)};
+  box-shadow: ${({ $invalid, theme }) =>
+    $invalid ? `inset 0 0 0 1px ${theme.colors.textError}` : undefined};
+`
+
+const CellName = styled.span`
   color: ${({ theme }) => theme.colors.textPrimary};
-  font-size: 13px;
   font-weight: 500;
-  line-height: 18px;
-  text-overflow: ellipsis;
   white-space: nowrap;
 `
 
-const MemberMeta = styled.p`
-  margin: 2px 0 0;
-  color: ${({ theme }) => theme.colors.textSecondary};
-  font-size: 11px;
-  line-height: 16px;
-`
-
-const ChevronButton = styled.button`
-  display: grid;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  cursor: pointer;
-
-  &:hover {
-    background: ${({ theme }) => theme.colors.hoverSurface1};
-  }
-
-  img {
-    display: block;
-  }
-`
-
-const IssueBody = styled.div`
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 10px;
-  padding-left: 46px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
-    padding-left: 0;
-  }
-`
-
-const IssueFix = styled.div`
-  display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr);
-  align-items: start;
-  gap: 12px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
-    grid-template-columns: 1fr;
-  }
-`
-
-const Issue = styled.div`
-  min-width: 0;
-`
-
-const IssueLabel = styled.p<{ $fixed?: boolean }>`
-  margin: 0;
-  color: ${({ $fixed, theme }) =>
-    $fixed ? theme.colors.emerald : theme.colors.textError};
-  font-size: 12px;
+const CellField = styled.span`
   font-weight: 500;
+  white-space: nowrap;
+`
+
+const CellActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`
+
+/** Borderless controls so each editable cell reads like a spreadsheet cell. */
+const cellControlStyles = `
+  width: 100%;
+  min-width: 150px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 12px;
   line-height: 18px;
 `
 
-const IssueReason = styled.p`
-  margin: 2px 0 0;
+const CellInput = styled.input`
+  ${cellControlStyles}
+  padding: 0 6px;
   color: ${({ theme }) => theme.colors.textPrimary};
-  font-size: 12px;
-  line-height: 18px;
+
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.textSecondary};
+  }
+
+  &:focus {
+    outline: 2px solid ${({ theme }) => theme.colors.emerald};
+    outline-offset: -2px;
+  }
+`
+
+const CellSelect = styled.select`
+  ${cellControlStyles}
+  padding: 0 26px 0 6px;
+  color: ${({ theme }) => theme.colors.textPrimary};
+  appearance: none;
+  background: transparent url(${assets.mlChevronDown24}) no-repeat right 6px
+    center / 16px 16px;
+
+  &:focus {
+    outline: 2px solid ${({ theme }) => theme.colors.emerald};
+    outline-offset: -2px;
+  }
 `
 
 const FixedValue = styled.span`
-  display: flex;
-  min-width: 0;
+  display: inline-flex;
   align-items: center;
-  min-height: 36px;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: ${({ theme }) => theme.colors.surface1};
+  padding: 0 6px;
   color: ${({ theme }) => theme.colors.emerald};
   font-size: 12px;
   font-weight: 500;
   line-height: 18px;
-  box-sizing: border-box;
-`
-
-const IgnoredNote = styled.p`
-  margin: 0;
-  color: ${({ theme }) => theme.colors.textSecondary};
-  font-size: 12px;
-  line-height: 18px;
-`
-
-const Actions = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-`
-
-const FieldStack = styled.div`
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-`
-
-const FieldError = styled.span`
-  color: ${({ theme }) => theme.colors.textError};
-  font-size: 11px;
-  line-height: 14px;
-`
-
-const controlStyles = `
-  width: 100%;
-  height: 36px;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: white;
-  box-sizing: border-box;
-  font: inherit;
-  font-size: 12px;
-`
-
-const Input = styled.input<{ $invalid?: boolean }>`
-  ${controlStyles}
-  border: 1px solid
-    ${({ $invalid, theme }) =>
-      $invalid ? theme.colors.textError : theme.colors.defaultBorder};
-  color: ${({ theme }) => theme.colors.textPrimary};
-
-  &:focus {
-    outline: none;
-    border-color: ${({ theme }) => theme.colors.emerald};
-  }
-`
-
-const Select = styled.select<{ $invalid?: boolean }>`
-  ${controlStyles}
-  padding-right: 30px;
-  border: 1px solid
-    ${({ $invalid, theme }) =>
-      $invalid ? theme.colors.textError : theme.colors.defaultBorder};
-  color: ${({ theme }) => theme.colors.textPrimary};
-  appearance: none;
-  background: ${({ theme }) => theme.colors.surface1}
-    url(${assets.mlChevronDown24}) no-repeat right 8px center / 16px 16px;
-
-  &:focus {
-    outline: none;
-    border-color: ${({ theme }) => theme.colors.emerald};
-  }
 `
 
 const UndoButton = styled.button`
@@ -1136,6 +1064,38 @@ const SuccessCopy = styled.p`
   color: ${({ theme }) => theme.colors.textPrimary};
   font-size: 12px;
   line-height: 18px;
+`
+
+const FooterActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+`
+
+const ContinueHint = styled.p`
+  margin: 0;
+  flex-basis: 100%;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: 0.2px;
+`
+
+const BackButton = styled.button`
+  height: 48px;
+  padding: 14px 24px;
+  border: 1px solid ${({ theme }) => theme.colors.emerald};
+  border-radius: 12px;
+  background: ${({ theme }) => theme.colors.surface1};
+  color: ${({ theme }) => theme.colors.emerald};
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  cursor: pointer;
 `
 
 const ContinueButton = styled.button`

@@ -3,10 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import styled, { keyframes } from 'styled-components'
 
 import { assets } from '@/assets/figma'
-import {
-  bulkDeleteTemplateFileName,
-  bulkTemplateFileName,
-} from '@/data/employees'
+import { bulkDeleteTemplateFileName } from '@/data/employees'
 import {
   detectSheetColumns,
   parseSheet,
@@ -20,6 +17,7 @@ import { ValidationResultsPanel } from '@/pages/ManageLives/landings/ValidationR
 import { usePendingChanges } from '@/pages/ManageLives/PendingChangesContext'
 import { nextPendingId } from '@/pages/ManageLives/pendingChanges'
 import {
+  isReadyToSubmit,
   sampleBulkRowsForPrototype,
   validationIssuesFor,
   type BulkMemberRow,
@@ -60,32 +58,41 @@ const SCAN_STAGE_MS = 900
 
 const WIZARD_STEPS = [
   {
-    title: 'Set Up Action',
-    description: 'Choose an action, select companies, and upload the sheet.',
+    title: 'Upload document',
+    description: 'Choose an action and upload the sheet.',
   },
   {
     title: 'Validate Data',
-    description: 'Review lives, plan distribution, and validation errors.',
+    description: 'Map your columns, then review lives and benefits.',
   },
   {
     title: 'Review & Submit',
-    description: 'Review the assignments and submit them to complete this endorsement.',
+    description: 'Review the benefit assignments, then submit to Loop.',
   },
 ] as const
 
 type StepStatus = 'done' | 'active' | 'pending'
 
+const ADD_SAMPLE_TEMPLATE_FILE_NAME = 'Sample Bulk Add Sheet.xlsx'
+const ADD_SAMPLE_TEMPLATE_HREF = `${import.meta.env.BASE_URL}templates/${encodeURIComponent(ADD_SAMPLE_TEMPLATE_FILE_NAME)}`
+const SPREADSHEET_EXTENSIONS = /\.(xlsx?|csv)$/i
+
 function downloadBulkTemplate(operation: BulkMode) {
-  const isRemove = operation === 'remove'
-  const headers = isRemove
-    ? 'Employee ID,Date of Leaving,Confirm Delete\n'
-    : 'Employee ID,First Name,Last Name,Grade,Core Cover,Email,DOB\n'
-  const blob = new Blob([headers], { type: 'text/csv' })
+  if (operation === 'add') {
+    const link = document.createElement('a')
+    link.href = ADD_SAMPLE_TEMPLATE_HREF
+    link.download = ADD_SAMPLE_TEMPLATE_FILE_NAME
+    link.click()
+    return
+  }
+
+  const blob = new Blob(['Employee ID,Date of Leaving,Confirm Delete\n'], {
+    type: 'text/csv',
+  })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = (isRemove ? bulkDeleteTemplateFileName : bulkTemplateFileName)
-    .replace('.xlsx', '.csv')
+  link.download = bulkDeleteTemplateFileName.replace('.xlsx', '.csv')
   link.click()
   URL.revokeObjectURL(url)
 }
@@ -127,6 +134,21 @@ export function CardsLanding() {
   const [enrollmentOpen, setEnrollmentOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const wizardSteps = useMemo(
+    () =>
+      WIZARD_STEPS.map((step, index) =>
+        index === 0
+          ? {
+              ...step,
+              description:
+                entities.length > 1
+                  ? 'Choose an action, select a company, and upload the sheet.'
+                  : 'Choose an action and upload the sheet.',
+            }
+          : step,
+      ),
+    [entities.length],
+  )
   const dealId = deals[0]?.id
   const scanning = phase === 'scanning'
   const showingIssues = phase === 'issues'
@@ -150,9 +172,7 @@ export function CardsLanding() {
 
     const timer = window.setTimeout(() => {
       setValidatedRows(sampleBulkRowsForPrototype(includeValidationErrors))
-      setPhase(
-        bulkMode === 'add' && includeValidationErrors ? 'issues' : 'results',
-      )
+      setPhase(bulkMode === 'add' ? 'issues' : 'results')
     }, ASSIGNING_BENEFITS_MS)
 
     return () => window.clearTimeout(timer)
@@ -177,6 +197,10 @@ export function CardsLanding() {
 
   function selectFile(next: File | null) {
     if (!next || scanning) return
+    if (!SPREADSHEET_EXTENSIONS.test(next.name)) {
+      setError('Please upload a spreadsheet (XLS, XLSX, or CSV).')
+      return
+    }
     setError(null)
     setFile(next)
     setColumnDetection(null)
@@ -200,6 +224,11 @@ export function CardsLanding() {
     setAssigningBenefits(false)
     setScanStage(0)
     setPhase('idle')
+  }
+
+  function goBackToMapping() {
+    setAssigningBenefits(false)
+    setPhase('scanning')
   }
 
   function mapColumn(mappingId: string, sourceColumn: string) {
@@ -311,9 +340,7 @@ export function CardsLanding() {
   function continueToReview() {
     setEnrollmentOpen(false)
     const target = pendingFileRef.current ?? file
-    const lives = validatedRows.filter(
-      (row) => !row.ignored && row.status !== 'fail',
-    ).length
+    const lives = validatedRows.filter(isReadyToSubmit).length
     const entityName =
       entities.find((entity) => entity.id === entityId)?.name ?? entityId
     addChange({
@@ -379,10 +406,7 @@ export function CardsLanding() {
           open={enrollmentOpen}
           recipientCount={
             validatedRows.filter(
-              (row) =>
-                !row.ignored &&
-                row.status !== 'fail' &&
-                row.relationship === 'Self',
+              (row) => isReadyToSubmit(row) && row.relationship === 'Self',
             ).length
           }
           onCancel={() => setEnrollmentOpen(false)}
@@ -395,19 +419,19 @@ export function CardsLanding() {
   return (
     <Page>
       <ProgressPanel>
-        <Logo src={assets.loopLogoYellow} alt="loop" />
+        <Logo src={assets.loopLogo} alt="loop" />
         <ProgressList aria-label="Bulk update progress">
-          {WIZARD_STEPS.map((step, index) => {
+          {wizardSteps.map((step, index) => {
             const status = stepStatus(index)
             return (
               <ProgressStep key={step.title}>
                 <StepRail>
                   <StepDot $status={status} aria-hidden />
-                  {index < WIZARD_STEPS.length - 1 ? (
+                  {index < wizardSteps.length - 1 ? (
                     <StepConnector $done={status === 'done'} />
                   ) : null}
                 </StepRail>
-                <StepCopy $last={index === WIZARD_STEPS.length - 1}>
+                <StepCopy $last={index === wizardSteps.length - 1}>
                   <StepTitle>{step.title}</StepTitle>
                   <StepDesc>{step.description}</StepDesc>
                 </StepCopy>
@@ -487,17 +511,14 @@ export function CardsLanding() {
             onIgnore={ignoreValidationIssue}
             onRestore={restoreValidationIssue}
             onReupload={goBackToSetup}
-            onContinue={() => setPhase('results')}
+            onBack={goBackToMapping}
+            onContinue={submitForReview}
           />
         ) : showingResults ? (
           <ValidationResultsPanel
             rows={validatedRows}
             isDelete={bulkMode === 'remove'}
-            onBack={() =>
-              bulkMode === 'add' && includeValidationErrors
-                ? setPhase('issues')
-                : goBackToSetup()
-            }
+            onBack={goBackToSetup}
             onContinue={submitForReview}
           />
         ) : (
@@ -585,37 +606,15 @@ export function CardsLanding() {
               </PointerRow>
               <UploadPanel>
                 <UploadHeading>
-                  <SmallTitle>Upload the excel sheet</SmallTitle>
+                  <SmallTitle>Upload your spreadsheet</SmallTitle>
                   <UploadDescription>
                     {file
-                      ? 'Download the template, fill in the details and upload the completed placement slip to create this policy'
+                      ? 'We’ll read this sheet and match your columns next. You can swap the file if this isn’t the right one.'
                       : bulkMode === 'add'
-                        ? 'Download the template, fill in the details, and upload it to add the employees & their dependants.'
-                        : 'Download the template, fill in the details, and upload it to remove employees or dependants.'}
+                        ? 'Upload any XLS, XLSX, or CSV with employees and their dependants. It doesn’t need to match our layout — we’ll map the columns after you upload.'
+                        : 'Upload any XLS, XLSX, or CSV with the people you want to remove. Your own columns are fine — we’ll map them after you upload.'}
                   </UploadDescription>
                 </UploadHeading>
-
-                {file ? null : (
-                  <TemplateCard>
-                    <TemplateCopy>
-                      <TemplateTitle>
-                        <ExcelMark aria-hidden>X</ExcelMark>
-                        Sample Template for{' '}
-                        {bulkMode === 'add' ? 'Addition' : 'Deletion'}
-                      </TemplateTitle>
-                      <TemplateDescription>
-                        Use this template with predefined columns and enter
-                        details
-                      </TemplateDescription>
-                    </TemplateCopy>
-                    <DownloadButton
-                      type="button"
-                      onClick={() => downloadBulkTemplate(bulkMode)}
-                    >
-                      Download
-                    </DownloadButton>
-                  </TemplateCard>
-                )}
 
                 <UploadBlock>
                   {file ? (
@@ -689,7 +688,7 @@ export function CardsLanding() {
                         </DropInner>
                       </DropZone>
                       <Formats>
-                        <span>Supported Formats: XLS, XLSX</span>
+                        <span>Supported formats: XLS, XLSX, CSV</span>
                         <span>Maximum Size: 25MB</span>
                       </Formats>
                     </>
@@ -697,13 +696,55 @@ export function CardsLanding() {
                   <HiddenFile
                     ref={fileInputRef}
                     type="file"
-                    accept=".xls,.xlsx"
+                    accept=".xls,.xlsx,.csv"
                     onChange={(event) =>
                       selectFile(event.target.files?.[0] ?? null)
                     }
                   />
                   {error ? <ErrorText>{error}</ErrorText> : null}
                 </UploadBlock>
+
+                {file ? null : (
+                  <>
+                    <OrSeparator role="separator" aria-label="Or">
+                      <i aria-hidden />
+                      <span>Or</span>
+                      <i aria-hidden />
+                    </OrSeparator>
+                    <UploadHeading>
+                      <SmallTitle>
+                        Optional sample for{' '}
+                        {bulkMode === 'add' ? 'adding lives' : 'removing lives'}
+                      </SmallTitle>
+                      <UploadDescription>
+                        A ready-made sheet with the columns we usually look for.
+                        Use it if it helps, or skip it and upload your own.
+                      </UploadDescription>
+                    </UploadHeading>
+                    <TemplateCard>
+                      <TemplateCopy>
+                        <TemplateTitle>
+                          <ExcelMark aria-hidden>X</ExcelMark>
+                          {bulkMode === 'add'
+                            ? ADD_SAMPLE_TEMPLATE_FILE_NAME
+                            : bulkDeleteTemplateFileName.replace(
+                                '.xlsx',
+                                '.csv',
+                              )}
+                        </TemplateTitle>
+                        <TemplateDescription>
+                          {bulkMode === 'add' ? 'XLSX' : 'CSV'} · Sample template
+                        </TemplateDescription>
+                      </TemplateCopy>
+                      <DownloadButton
+                        type="button"
+                        onClick={() => downloadBulkTemplate(bulkMode)}
+                      >
+                        Download
+                      </DownloadButton>
+                    </TemplateCard>
+                  </>
+                )}
               </UploadPanel>
             </Setup>
           </Content>
@@ -715,10 +756,7 @@ export function CardsLanding() {
         open={enrollmentOpen}
         recipientCount={
           validatedRows.filter(
-            (row) =>
-              !row.ignored &&
-              row.status !== 'fail' &&
-              row.relationship === 'Self',
+            (row) => isReadyToSubmit(row) && row.relationship === 'Self',
           ).length
         }
         onCancel={() => setEnrollmentOpen(false)}
@@ -759,18 +797,10 @@ const ProgressPanel = styled.aside`
   flex-shrink: 0;
   padding: 24px;
   border-radius: 16px;
-  background-color: ${({ theme }) => theme.colors.emerald};
-  background-image: linear-gradient(
-    180deg,
-    rgba(2, 95, 76, 0.08),
-    rgba(0, 40, 31, 0.9)
-  );
-  background-repeat: no-repeat;
-  background-size: cover;
+  background: ${({ theme }) => theme.colors.hoverSurface1};
   box-sizing: border-box;
   overflow: hidden;
 
-  /* Noise sits on the green fill with Overlay, matching Figma. */
   &::before {
     content: '';
     position: absolute;
@@ -779,10 +809,10 @@ const ProgressPanel = styled.aside`
     background: image-set(url(${assets.mlBulkSidebarNoise}) 2x) top left / 17.36%
       auto repeat;
     mix-blend-mode: overlay;
+    opacity: 0.3;
     pointer-events: none;
   }
 
-  /* Leaf art sits above the stepper content, as in the design. */
   &::after {
     content: '';
     position: absolute;
@@ -809,19 +839,19 @@ const ProgressPanel = styled.aside`
 
 const Logo = styled.img`
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: block;
-  width: 67px;
-  height: 32px;
+  width: 70px;
+  height: 34px;
   object-fit: contain;
 `
 
 const ProgressList = styled.div`
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: flex;
   flex-direction: column;
-  margin-top: 16px;
+  margin-top: 36px;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
     margin-top: 24px;
@@ -844,26 +874,18 @@ const StepRail = styled.div`
 `
 
 const StepDot = styled.span<{ $status: StepStatus }>`
-  display: grid;
-  place-items: center;
+  display: block;
   width: 14px;
   height: 14px;
   flex-shrink: 0;
   border-radius: 50%;
   box-sizing: border-box;
   background: ${({ theme, $status }) =>
-    $status === 'done'
-      ? theme.colors.fillGreen
-      : $status === 'active'
-        ? theme.colors.planeGreenDark
-        : theme.colors.planeGreenDark};
-  border: 2px solid
-    ${({ theme, $status }) =>
-      $status === 'done'
-        ? theme.colors.planeGreenLight
-        : $status === 'active'
-          ? theme.colors.textTertiary
-          : 'rgba(255, 255, 255, 0.5)'};
+    $status === 'pending' ? 'transparent' : theme.colors.fillGreen};
+  border: ${({ theme, $status }) =>
+    $status === 'pending'
+      ? `1.5px solid ${theme.colors.defaultBorder}`
+      : `2px solid ${theme.colors.emerald}`};
 `
 
 const StepConnector = styled.span<{ $done?: boolean }>`
@@ -872,8 +894,7 @@ const StepConnector = styled.span<{ $done?: boolean }>`
   margin-top: 8px;
   border-left: 1px
     ${({ $done }) => ($done ? 'solid' : 'dashed')}
-    ${({ theme, $done }) =>
-      $done ? theme.colors.planeGreenLight : 'rgba(255, 255, 255, 0.5)'};
+    ${({ theme }) => theme.colors.defaultBorder};
 `
 
 const StepCopy = styled.div<{ $last?: boolean }>`
@@ -890,7 +911,7 @@ const StepTitle = styled.p`
   font-weight: 500;
   line-height: 24px;
   letter-spacing: 0.2px;
-  color: ${({ theme }) => theme.colors.textTertiary};
+  color: ${({ theme }) => theme.colors.textPrimary};
 `
 
 const StepDesc = styled.p`
@@ -899,7 +920,7 @@ const StepDesc = styled.p`
   font-weight: 400;
   line-height: 20px;
   letter-spacing: 0.2px;
-  color: ${({ theme }) => theme.colors.planeGreenLight};
+  color: ${({ theme }) => theme.colors.textPrimary};
 `
 
 const Workspace = styled.main`
@@ -1058,8 +1079,8 @@ const ActionCards = styled.div`
 `
 
 /**
- * The selected ring is a box-shadow rather than a wider border so switching
- * modes cannot reflow the card contents by a pixel.
+ * Selected state matches Figma `option-Add Lives` (146:4337): keep the 1px
+ * #EEE card border, and draw a 1.5px emerald ring 3.5px outside it.
  */
 const ActionCard = styled.button<{ $active: boolean }>`
   position: relative;
@@ -1070,13 +1091,13 @@ const ActionCard = styled.button<{ $active: boolean }>`
   align-items: center;
   gap: 16px;
   padding: 16px;
-  border: 1px solid
-    ${({ $active, theme }) =>
-      $active ? theme.colors.emerald : theme.colors.disableFill};
+  border: 1px solid ${({ theme }) => theme.colors.disableFill};
   border-radius: 12px;
   background: ${({ theme }) => theme.colors.surface1};
-  box-shadow: 0 0 0 ${({ $active }) => ($active ? '2px' : '0')}
-    ${({ theme }) => theme.colors.emerald};
+  box-shadow: ${({ $active, theme }) =>
+    $active
+      ? `0 0 0 3.5px ${theme.colors.surface1}, 0 0 0 5px ${theme.colors.emerald}`
+      : 'none'};
   box-sizing: border-box;
   color: inherit;
   font: inherit;
@@ -1084,16 +1105,16 @@ const ActionCard = styled.button<{ $active: boolean }>`
   cursor: pointer;
   transition:
     border-color 200ms ease,
-    box-shadow 200ms ease,
-    background-color 200ms ease;
+    box-shadow 200ms ease;
 
   &:hover {
-    border-color: ${({ theme }) => theme.colors.emerald};
+    border-color: ${({ theme, $active }) =>
+      $active ? theme.colors.disableFill : theme.colors.emerald};
   }
 
   &:focus-visible {
     outline: 2px solid ${({ theme }) => theme.colors.emerald};
-    outline-offset: 2px;
+    outline-offset: 6px;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1292,6 +1313,24 @@ const UploadDescription = styled.p`
   font-weight: 400;
   line-height: 18px;
   letter-spacing: 0.2px;
+`
+
+const OrSeparator = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  letter-spacing: 0.2px;
+
+  i {
+    height: 1px;
+    flex: 1;
+    background: ${({ theme }) => theme.colors.disableFill};
+  }
 `
 
 const TemplateCard = styled.div`
@@ -1574,7 +1613,8 @@ const Formats = styled.div`
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  width: 100%;
+  gap: auto;
   font-size: 12px;
   font-weight: 400;
   line-height: 18px;

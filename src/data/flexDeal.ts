@@ -1277,6 +1277,15 @@ export function validationIssuesFor(row: BulkMemberRow): BulkValidationIssue[] {
   return []
 }
 
+/** Lives that can go through even if others in the sheet still have issues. */
+export function isReadyToSubmit(row: BulkMemberRow) {
+  return (
+    !row.ignored &&
+    row.status !== 'fail' &&
+    validationIssuesFor(row).length === 0
+  )
+}
+
 export const sampleBulkRows: BulkMemberRow[] = [
   {
     id: 'row-1',

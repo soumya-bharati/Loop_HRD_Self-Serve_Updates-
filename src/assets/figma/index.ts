@@ -129,6 +129,9 @@ import mlLogoOriental from '@/assets/figma/manage-lives/logo-oriental.png'
 import mlLogoIciciPru from '@/assets/figma/manage-lives/logo-icici-pru.png'
 import mlIllustrationLoopGroupHappy from '@/assets/figma/manage-lives/illustration-loop-group-happy.svg'
 import mlIconClipboardText from '@/assets/figma/manage-lives/icon-clipboard-text.svg'
+import mlPlanShieldBasic from '@/assets/figma/manage-lives/plan-shield-basic.png'
+import mlPlanShieldBronze from '@/assets/figma/manage-lives/plan-shield-bronze.png'
+import mlPlanShieldSilver from '@/assets/figma/manage-lives/plan-shield-silver.png'
 import mlIconNextDot from '@/assets/figma/manage-lives/icon-next-dot.svg'
 import mlActionIllustration from '@/assets/figma/manage-lives/action-illustration.svg'
 import mlChevronRight from '@/assets/figma/manage-lives/chevron-right.svg'
@@ -297,6 +300,9 @@ export const assets = {
   mlLogoIciciPru,
   mlIllustrationLoopGroupHappy,
   mlIconClipboardText,
+  mlPlanShieldBasic,
+  mlPlanShieldBronze,
+  mlPlanShieldSilver,
   mlIconNextDot,
   mlActionIllustration,
   mlChevronRight,

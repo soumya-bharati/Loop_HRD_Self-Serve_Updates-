@@ -3,7 +3,11 @@ import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
 import { buildCoverBreakup, coverAssignmentsForRow } from '@/data/coverPlans'
-import { validationIssuesFor, type BulkMemberRow } from '@/data/flexDeal'
+import {
+  isReadyToSubmit,
+  validationIssuesFor,
+  type BulkMemberRow,
+} from '@/data/flexDeal'
 import {
   buildAssignmentSheet,
   downloadAssignmentSheet,
@@ -57,7 +61,7 @@ export function ValidationResultsPanel({
   isDelete?: boolean
 }) {
   const acceptedRows = useMemo(
-    () => rows.filter((row) => !row.ignored && row.status !== 'fail'),
+    () => rows.filter(isReadyToSubmit),
     [rows],
   )
   const assignmentSheet = useMemo(
@@ -67,9 +71,13 @@ export function ValidationResultsPanel({
   const employees = acceptedRows.filter(
     (row) => row.relationship === 'Self',
   ).length
+  const dependants = acceptedRows.length - employees
   const needsFix = rows.filter(
     (row) => !row.ignored && validationIssuesFor(row).length > 0,
   ).length
+  const ignoredCount = rows.filter((row) => row.ignored).length
+  const metricCount =
+    2 + (needsFix > 0 ? 1 : 0) + (ignoredCount > 0 ? 1 : 0)
   const coverBreakup = useMemo(() => buildCoverBreakup(acceptedRows), [acceptedRows])
   const visibleCovers = coverBreakup.filter(
     (item) =>
@@ -106,33 +114,39 @@ export function ValidationResultsPanel({
           <i />
         </SectionDivider>
 
-        <Metrics $withFix={needsFix > 0}>
+        <Metrics $count={metricCount}>
           <MetricCard $accent>
-            <MetricValue>{acceptedRows.length} lives</MetricValue>
-            <MetricLabel>Total Lives</MetricLabel>
-            <MetricIcon>
-              <img src={assets.mlIconMetricUser} alt="" />
-            </MetricIcon>
-          </MetricCard>
-          <MetricCard>
-            <MetricValue>{employees}</MetricValue>
-            <MetricLabel>Employees</MetricLabel>
-            <MetricIcon>
-              <img src={assets.mlIconMetricBriefcase} alt="" />
-            </MetricIcon>
-          </MetricCard>
-          <MetricCard $muted>
-            <MetricValue>{acceptedRows.length - employees}</MetricValue>
-            <MetricLabel>Dependents</MetricLabel>
+            <MetricValue>{rows.length} lives</MetricValue>
+            <MetricLabel>Detected in your sheet</MetricLabel>
             <MetricIcon>
               <img src={assets.mlIconMetricUsers} alt="" />
             </MetricIcon>
           </MetricCard>
+          <MetricCard>
+            <MetricValue>{acceptedRows.length}</MetricValue>
+            <MetricLabel>{isDelete ? 'Being removed' : 'Being added'}</MetricLabel>
+            <MetricSubLabel>
+              {employees} {employees === 1 ? 'employee' : 'employees'} ·{' '}
+              {dependants} {dependants === 1 ? 'dependant' : 'dependants'}
+            </MetricSubLabel>
+            <MetricIcon>
+              <img src={assets.mlIconMetricBriefcase} alt="" />
+            </MetricIcon>
+          </MetricCard>
           {needsFix > 0 ? (
             <MetricCard $error>
-              <MetricValue>{needsFix} lives</MetricValue>
+              <MetricValue>{needsFix}</MetricValue>
               <MetricLabel>Need a fix</MetricLabel>
               <MetricIcon $error>
+                <img src={assets.mlIconMetricUser} alt="" />
+              </MetricIcon>
+            </MetricCard>
+          ) : null}
+          {ignoredCount > 0 ? (
+            <MetricCard $muted>
+              <MetricValue>{ignoredCount}</MetricValue>
+              <MetricLabel>Ignored</MetricLabel>
+              <MetricIcon>
                 <img src={assets.mlIconMetricUser} alt="" />
               </MetricIcon>
             </MetricCard>
@@ -309,12 +323,9 @@ const SectionDivider = styled.div`
   }
 `
 
-const Metrics = styled.div<{ $withFix: boolean }>`
+const Metrics = styled.div<{ $count: number }>`
   display: grid;
-  grid-template-columns: ${({ $withFix }) =>
-    $withFix
-      ? 'repeat(4, minmax(0, 1fr))'
-      : 'repeat(3, minmax(0, 1fr))'};
+  grid-template-columns: repeat(${({ $count }) => $count}, minmax(0, 1fr));
   gap: 16px;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
@@ -362,6 +373,15 @@ const MetricLabel = styled.p`
   color: ${({ theme }) => theme.colors.textSecondary};
   font-size: 12px;
   font-weight: 500;
+  line-height: 18px;
+  letter-spacing: 0.2px;
+`
+
+const MetricSubLabel = styled.p`
+  margin: 2px 0 0;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: 12px;
+  font-weight: 400;
   line-height: 18px;
   letter-spacing: 0.2px;
 `

@@ -9,7 +9,7 @@ import {
   formatINRExact,
   type CoverDefinition,
 } from '@/data/coverPlans'
-import type { BulkMemberRow } from '@/data/flexDeal'
+import { isReadyToSubmit, type BulkMemberRow } from '@/data/flexDeal'
 
 const NEXT_STEPS = [
   'Data will be reviewed by Loop to ensure compliance.',
@@ -27,7 +27,7 @@ export function EndorsementCostPanel({
   onDone: () => void
 }) {
   const acceptedRows = useMemo(
-    () => rows.filter((row) => !row.ignored && row.status !== 'fail'),
+    () => rows.filter(isReadyToSubmit),
     [rows],
   )
   const breakup = useMemo(() => buildCoverBreakup(acceptedRows), [acceptedRows])

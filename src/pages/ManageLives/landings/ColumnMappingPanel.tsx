@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import styled, { keyframes } from 'styled-components'
 
 import { assets } from '@/assets/figma'
+import { autoCorrectionFor } from '@/pages/ManageLives/bulk/normalizeFieldValue'
 import type { ColumnMapping } from '@/pages/ManageLives/bulk/parseAndValidate'
 
 /** How long the scanner "reads" each Loop field before revealing its match. */
@@ -147,6 +148,9 @@ export function ColumnMappingPanel({
               mapping.sourceColumn && sampleValues[mapping.sourceColumn]
                 ? sampleValues[mapping.sourceColumn]
                 : null
+            const correction = sample
+              ? autoCorrectionFor(mapping.loopField, sample)
+              : null
             const showMandatory = mapping.required && mapping.confidence !== 'manual'
 
             return (
@@ -215,6 +219,12 @@ export function ColumnMappingPanel({
                       <SampleBlock>
                         <SampleLabel>Extracted Sample:</SampleLabel>
                         <SampleValue>{sample}</SampleValue>
+                        {correction ? (
+                          <AutoCorrectNote>
+                            We’ll auto-correct this to{' '}
+                            <strong>{correction.to}</strong> for Loop’s format.
+                          </AutoCorrectNote>
+                        ) : null}
                       </SampleBlock>
                     ) : error ? (
                       <WarningCopy $error>{error}</WarningCopy>
@@ -566,6 +576,19 @@ const SampleValue = styled.span`
   letter-spacing: 0.2px;
   text-overflow: ellipsis;
   white-space: nowrap;
+`
+
+const AutoCorrectNote = styled.p`
+  margin: 2px 0 0;
+  color: ${({ theme }) => theme.colors.emerald};
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: 0.2px;
+
+  strong {
+    font-weight: 600;
+  }
 `
 
 const WarningCopy = styled.p<{ $error?: boolean }>`
