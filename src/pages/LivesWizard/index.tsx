@@ -64,7 +64,13 @@ const VALID_STEPS: WizardStep[] = [
 ]
 
 function LivesWizardInner() {
-  const { step } = useLivesWizard()
+  const { step, action, method, intakeMode } = useLivesWizard()
+  const hideAutofill =
+    (step === 'endo-costs' &&
+      action === 'add' &&
+      method === 'single' &&
+      intakeMode === 'form') ||
+    (step === 'delete-summary' && action === 'delete' && method === 'single')
 
   if (step === 'success') {
     const returning = new URLSearchParams(window.location.search).get('returnTo') === 'manage-lives'
@@ -110,7 +116,7 @@ function LivesWizardInner() {
       {step === 'edit-form' && <EditFormStep />}
       {step === 'edit-proof' && <EditProofStep />}
       {step === 'correction-batch' && <CorrectionBatchStep />}
-      <AutofillWidget />
+      {hideAutofill ? null : <AutofillWidget />}
     </Page>
   )
 }
@@ -171,11 +177,16 @@ export function LivesWizardPage() {
 const Page = styled.div`
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-height: calc(100vh - ${({ theme }) => theme.layout.topNavHeight});
   width: 100%;
   background: ${({ theme }) => theme.colors.surface0};
   max-width: 100%;
+  /* Steps that keep the legacy chrome must still scroll inside the
+     full-bleed guided shell, which clips its own overflow. */
+  max-height: 100%;
   overflow-x: hidden;
+  overflow-y: auto;
 `
 
 const Body = styled.div`

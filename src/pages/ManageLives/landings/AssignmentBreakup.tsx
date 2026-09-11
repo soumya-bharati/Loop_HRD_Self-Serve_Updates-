@@ -47,7 +47,13 @@ function coverHeading(coverId: string, name: string) {
   return name
 }
 
-export function AssignmentBreakup({ rows }: { rows: BulkMemberRow[] }) {
+export function AssignmentBreakup({
+  rows,
+  isDelete = false,
+}: {
+  rows: BulkMemberRow[]
+  isDelete?: boolean
+}) {
   const coverBreakup = useMemo(() => buildCoverBreakup(rows), [rows])
   const visibleCovers = coverBreakup.filter(
     (item) =>
@@ -71,8 +77,9 @@ export function AssignmentBreakup({ rows }: { rows: BulkMemberRow[] }) {
                   height={18}
                 />
               </ClipboardBadge>
-              {coverHeading(item.cover.id, item.cover.name)} will cover{' '}
-              {item.lives} {item.lives === 1 ? 'Life' : 'Lives'}
+              {coverHeading(item.cover.id, item.cover.name)}{' '}
+              {isDelete ? 'will end for' : 'will cover'} {item.lives}{' '}
+              {item.lives === 1 ? 'Life' : 'Lives'}
             </CoverHeading>
 
             <PlanGrid $cols={fullWidth ? 1 : Math.min(item.plans.length, 3)}>
@@ -91,7 +98,7 @@ export function AssignmentBreakup({ rows }: { rows: BulkMemberRow[] }) {
                           {plan.lives === 1 ? 'member' : 'members'}
                         </PlanCount>
                         <PlanAdded>
-                          Added in{' '}
+                          {isDelete ? 'Removed from' : 'Added in'}{' '}
                           <strong>
                             {plan.planLabel}
                             {plan.planLabel.toLowerCase().includes('plan')

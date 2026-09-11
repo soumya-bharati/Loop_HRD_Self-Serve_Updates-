@@ -390,6 +390,8 @@ export interface MemberCorrection {
   diffs: FieldDiff[]
   requiresKyc: boolean
   kycTriggerFields: CorrectableField[]
+  /** Official ID proof attached for this member's KYC-sensitive correction. */
+  proofFileName?: string
   accepted: boolean
   rejectionReason?: string
   affectedBenefitIds?: string[]

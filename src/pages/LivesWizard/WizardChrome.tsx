@@ -1,8 +1,8 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useState, type ReactNode } from 'react'
 import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
+import { ExitConfirmationModal } from '@/pages/LivesWizard/components/ExitConfirmationModal'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
 
 export function WizardChrome({
@@ -37,8 +37,6 @@ export function WizardChrome({
   primaryHint?: { title: string; body: string }
 }) {
   const { action, organisationEntityName } = useLivesWizard()
-  const navigate = useNavigate()
-  const [params] = useSearchParams()
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false)
   const [hintDismissed, setHintDismissed] = useState(false)
 
@@ -48,15 +46,6 @@ export function WizardChrome({
       : action === 'delete'
         ? 'This request is for'
         : 'This addition is for'
-
-  useEffect(() => {
-    if (!exitConfirmOpen) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setExitConfirmOpen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [exitConfirmOpen])
 
   return (
     <Page>
@@ -124,57 +113,14 @@ export function WizardChrome({
         </Actions>
       </BottomBar>
 
-      {exitConfirmOpen ? (
-        <ExitOverlay
-          role="presentation"
-          onClick={() => setExitConfirmOpen(false)}
-        >
-          <ExitDialog
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="exit-confirm-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ExitDialogHeader>
-              <ExitDialogTitle id="exit-confirm-title">
-                Exit this flow?
-              </ExitDialogTitle>
-              <ExitDialogClose
-                type="button"
-                aria-label="Close"
-                onClick={() => setExitConfirmOpen(false)}
-              >
-                <img src={assets.modalDismiss} alt="" width={24} height={24} />
-              </ExitDialogClose>
-            </ExitDialogHeader>
-            <ExitDialogBody>
-              Any progress you’ve made will be lost. Are you sure you want to
-              exit?
-            </ExitDialogBody>
-            <ExitDialogActions>
-              <ExitStayButton
-                type="button"
-                onClick={() => setExitConfirmOpen(false)}
-              >
-                Stay
-              </ExitStayButton>
-              <ExitConfirmButton
-                type="button"
-                onClick={() => {
-                  setExitConfirmOpen(false)
-                  if (params.get('returnTo') === 'manage-lives') {
-                    navigate('/manage-lives')
-                    return
-                  }
-                  onExit()
-                }}
-              >
-                Exit
-              </ExitConfirmButton>
-            </ExitDialogActions>
-          </ExitDialog>
-        </ExitOverlay>
-      ) : null}
+      <ExitConfirmationModal
+        open={exitConfirmOpen}
+        onStay={() => setExitConfirmOpen(false)}
+        onConfirm={() => {
+          setExitConfirmOpen(false)
+          onExit()
+        }}
+      />
     </Page>
   )
 }
@@ -283,105 +229,6 @@ const ExitButton = styled.button`
   &:hover {
     border-color: ${({ theme }) => theme.colors.emerald};
   }
-`
-
-const ExitOverlay = styled.div`
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(45, 55, 72, 0.45);
-`
-
-const ExitDialog = styled.div`
-  width: min(420px, 100%);
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 24px;
-  border-radius: 16px;
-  background: ${({ theme }) => theme.colors.surface1};
-  box-shadow: 0 16px 48px rgba(16, 24, 40, 0.16);
-  box-sizing: border-box;
-`
-
-const ExitDialogHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-`
-
-const ExitDialogTitle = styled.h2`
-  margin: 0;
-  font-size: 18px;
-  font-weight: 500;
-  line-height: 24px;
-  color: ${({ theme }) => theme.colors.textPrimary};
-`
-
-const ExitDialogClose = styled.button`
-  border: none;
-  background: transparent;
-  padding: 0;
-  width: 24px;
-  height: 24px;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-`
-
-const ExitDialogBody = styled.p`
-  margin: 0;
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 20px;
-  color: ${({ theme }) => theme.colors.textSecondary};
-`
-
-const ExitDialogActions = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 8px;
-`
-
-const ExitStayButton = styled.button`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 96px;
-  height: 40px;
-  padding: 0 16px;
-  border: 1px solid ${({ theme }) => theme.colors.emerald};
-  border-radius: ${({ theme }) => theme.radii.md};
-  background: transparent;
-  font-family: ${({ theme }) => theme.fontFamily};
-  font-size: 14px;
-  font-weight: 500;
-  color: ${({ theme }) => theme.colors.emerald};
-  cursor: pointer;
-`
-
-const ExitConfirmButton = styled.button`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 96px;
-  height: 40px;
-  padding: 0 16px;
-  border: none;
-  border-radius: ${({ theme }) => theme.radii.md};
-  background: ${({ theme }) => theme.colors.fillRed};
-  font-family: ${({ theme }) => theme.fontFamily};
-  font-size: 14px;
-  font-weight: 500;
-  color: ${({ theme }) => theme.colors.surface1};
-  cursor: pointer;
 `
 
 const BottomBar = styled.div`

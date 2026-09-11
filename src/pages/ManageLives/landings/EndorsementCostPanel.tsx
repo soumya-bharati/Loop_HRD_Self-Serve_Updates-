@@ -3,13 +3,15 @@ import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
 import {
-  breakupTotals,
-  buildCoverBreakup,
-  buildInsurerGroups,
-  formatINRExact,
-  type CoverDefinition,
-} from '@/data/coverPlans'
-import { isReadyToSubmit, type BulkMemberRow } from '@/data/flexDeal'
+  assignedPolicyCosts,
+  groupPolicyCosts,
+} from '@/data/assignedPolicyCosts'
+import { formatINRExact } from '@/data/coverPlans'
+import {
+  isReadyToSubmit,
+  type BulkMemberRow,
+  type PolicyCostBreakdown,
+} from '@/data/flexDeal'
 
 const NEXT_STEPS = [
   'Data will be reviewed by Loop to ensure compliance.',
@@ -19,10 +21,13 @@ const NEXT_STEPS = [
 
 export function EndorsementCostPanel({
   rows,
+  policies: policiesProp,
   isDelete = false,
   onDone,
 }: {
   rows: BulkMemberRow[]
+  /** When provided, these are the covers from earlier steps. */
+  policies?: PolicyCostBreakdown[]
   isDelete?: boolean
   onDone: () => void
 }) {
@@ -30,12 +35,33 @@ export function EndorsementCostPanel({
     () => rows.filter(isReadyToSubmit),
     [rows],
   )
-  const breakup = useMemo(() => buildCoverBreakup(acceptedRows), [acceptedRows])
-  const groups = useMemo(() => buildInsurerGroups(breakup), [breakup])
+  const policies = useMemo(() => {
+    const fromWizard = (policiesProp ?? []).filter(
+      (policy) => policy.livesAdded > 0,
+    )
+    if (fromWizard.length > 0) return fromWizard
+    return assignedPolicyCosts(acceptedRows)
+  }, [acceptedRows, policiesProp])
+  const groups = useMemo(() => groupPolicyCosts(policies), [policies])
   const totals = useMemo(
-    () => breakupTotals(acceptedRows, breakup),
-    [acceptedRows, breakup],
+    () => ({
+      lives: acceptedRows.length,
+      cost: policies.reduce((sum, policy) => sum + policy.endorsementCost, 0),
+    }),
+    [acceptedRows.length, policies],
   )
+  const totalInsurerRefund = acceptedRows.reduce(
+    (sum, row) => sum + (row.insurerRefund ?? 0),
+    0,
+  )
+  const totalEmployeeRefund = acceptedRows.reduce(
+    (sum, row) => sum + (row.payrollRefund ?? 0),
+    0,
+  )
+  const refundFor = (cost: number) =>
+    totals.cost > 0
+      ? Math.round((totalInsurerRefund * cost) / totals.cost)
+      : 0
 
   return (
     <Page>
@@ -47,7 +73,7 @@ export function EndorsementCostPanel({
           <CostCard>
             <Caption>
               {isDelete
-                ? 'Here is the cost of deletion'
+                ? 'Here is the estimated refund for deletion'
                 : 'Here is the cost of addition'}
             </Caption>
 
@@ -63,7 +89,7 @@ export function EndorsementCostPanel({
                       <AccountLine>
                         Account No:{' '}
                         <strong>
-                          {group.covers[0]?.cover.policyNumber.slice(-4) ?? '—'}
+                          {group.policies[0]?.policyNumber.slice(-4) ?? '—'}
                         </strong>
                       </AccountLine>
                     </div>
@@ -73,19 +99,27 @@ export function EndorsementCostPanel({
                     <strong>{formatINRExact(group.cdBalance)}</strong>
                   </CdPill>
                 </InsurerHeader>
-                {group.covers.map((item) => (
-                  <PolicyRow key={item.cover.id}>
+                {group.policies.map((item) => (
+                  <PolicyRow key={item.policyId}>
                     <PolicyCopy>
-                      <PolicyName>{item.cover.name}</PolicyName>
+                      <PolicyName>{item.policyName}</PolicyName>
                       <PolicyMeta>
-                        <span>ID: {item.cover.policyNumber}</span>
+                        <span>Policy number: {item.policyNumber}</span>
                         <Dot aria-hidden />
                         <span>
-                          {item.lives} Lives {isDelete ? 'Removed' : 'Added'}
+                          {item.livesAdded}{' '}
+                          {item.livesAdded === 1 ? 'Life' : 'Lives'}{' '}
+                          {isDelete ? 'Removed' : 'Added'}
                         </span>
                       </PolicyMeta>
                     </PolicyCopy>
-                    <PolicyCost>{formatINRExact(item.cost)}</PolicyCost>
+                    <PolicyCost>
+                      {formatINRExact(
+                        isDelete
+                          ? refundFor(item.endorsementCost)
+                          : item.endorsementCost,
+                      )}
+                    </PolicyCost>
                   </PolicyRow>
                 ))}
               </InsurerCard>
@@ -94,15 +128,29 @@ export function EndorsementCostPanel({
             <Divider aria-hidden />
 
             <TotalRow>
-              <span>Total Endorsement Cost</span>
-              <strong>{formatINRExact(totals.cost)}</strong>
+              <span>
+                {isDelete ? 'Total Insurer Refund' : 'Total Endorsement Cost'}
+              </span>
+              <strong>
+                {formatINRExact(
+                  isDelete ? totalInsurerRefund : totals.cost,
+                )}
+              </strong>
             </TotalRow>
+
+            {isDelete ? (
+              <RefundRow>
+                <span>Refund to employees</span>
+                <strong>{formatINRExact(totalEmployeeRefund)}</strong>
+              </RefundRow>
+            ) : null}
 
             <Warning>
               <img src={assets.mlIconInfoWarning} alt="" width={20} height={20} />
               <p>
-                Final amount includes GST, but it could change after the
-                endorsement is processed.
+                {isDelete
+                  ? 'Refunds are estimates and may change after the insurer processes the deletion endorsement.'
+                  : 'Final amount includes GST, but it could change after the endorsement is processed.'}
               </p>
             </Warning>
 
@@ -157,7 +205,7 @@ export function EndorsementCostPanel({
   )
 }
 
-function logoFor(logo: CoverDefinition['insurerLogo']) {
+function logoFor(logo: PolicyCostBreakdown['insurerLogo']) {
   if (logo === 'icici') return assets.iciciLogo
   if (logo === 'digit') return assets.digitLogo
   if (logo === 'aditya-birla') return assets.mlLogoIciciPru
@@ -463,6 +511,23 @@ const TotalRow = styled.div`
 
   strong {
     font-weight: 500;
+    text-align: right;
+  }
+`
+
+const RefundRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: 14px;
+  line-height: 20px;
+
+  strong {
+    color: ${({ theme }) => theme.colors.emerald};
+    font-weight: 600;
     text-align: right;
   }
 `

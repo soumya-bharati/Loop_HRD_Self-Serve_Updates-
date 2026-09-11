@@ -16,5 +16,4 @@ export const SINGLE_ADD_STEPS = [
 export const SINGLE_DEPENDANT_STEPS = [
   'Select employee',
   'Dependant details',
-  'Review',
 ] as const

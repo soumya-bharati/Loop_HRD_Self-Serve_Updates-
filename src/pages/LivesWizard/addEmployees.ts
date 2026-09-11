@@ -6,6 +6,7 @@ import {
   type Relationship,
 } from '@/data/employees'
 import type { AssignmentSource } from '@/domain/flex'
+import type { BulkMemberRow } from '@/data/flexDeal'
 
 export type IntakeMode = 'form' | 'excel'
 
@@ -72,6 +73,21 @@ export function isDependantValid(dependant: DependantFormData) {
   )
 }
 
+/** Official document required when adding a spouse or child from manage-family. */
+export function relationshipProofLabel(
+  relationship: string,
+): 'Marriage certificate' | 'Birth Certificate' | null {
+  if (relationship === 'Spouse') return 'Marriage certificate'
+  if (relationship === 'Child') return 'Birth Certificate'
+  return null
+}
+
+export function hasRequiredRelationshipProof(dependant: DependantFormData) {
+  const label = relationshipProofLabel(dependant.relationship)
+  if (!label) return true
+  return Boolean(dependant.supportingDocumentName.trim())
+}
+
 export function areMembersValid(members: AddEmployeeMember[]) {
   if (members.length === 0) return false
   return members.every(
@@ -128,6 +144,46 @@ export function flattenMembers(members: AddEmployeeMember[]): FlatLife[] {
     }
   }
   return lives
+}
+
+function bulkRelationship(
+  relationship: Relationship,
+): BulkMemberRow['relationship'] {
+  if (
+    relationship === 'Spouse' ||
+    relationship === 'Child' ||
+    relationship === 'Parent'
+  ) {
+    return relationship
+  }
+  if (relationship === 'Parent-in-law') return 'Parent'
+  return 'Self'
+}
+
+/** Map the single-add form into bulk rows so the post-submit cost panel can reuse the add-flow design. */
+export function bulkRowsFromAddEmployees(
+  members: AddEmployeeMember[],
+  dealId: string,
+): BulkMemberRow[] {
+  return flattenMembers(members).map((life) => {
+    const member = members.find((item) => item.id === life.memberId)
+    return {
+      id: life.id,
+      employeeId: life.employeeId,
+      name: life.name,
+      email: life.email,
+      department: member?.employee.customAttributes['attr-department'] ?? '',
+      relationship: bulkRelationship(life.relationship as Relationship),
+      assignedPlanId: member?.planId || 'plan-standard',
+      benefitIds: life.selectedBenefitIds,
+      purchaseGroupSelections: member?.purchaseGroupSelections ?? {},
+      assignmentSource: member?.assignmentSource ?? 'rule',
+      needsManualAssignment: false,
+      status: 'pass',
+      dealId,
+      payrollDelta: 0,
+    }
+  })
 }
 
 /** Parse CSV text into AddEmployeeMember[] grouped by Employee ID. */

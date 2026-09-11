@@ -104,6 +104,10 @@ export interface BulkMemberRow {
   ignored?: boolean
   dealId: string
   payrollDelta: number
+  /** Delete-flow refund amounts used by the bulk review prototype. */
+  insurerRefund?: number
+  payrollRefund?: number
+  dateOfLeaving?: string
   /** Mid-term: dependant coverage starts after employee start + endo already sent. */
   needsMidtermProof?: boolean
   coverageStartDate?: string

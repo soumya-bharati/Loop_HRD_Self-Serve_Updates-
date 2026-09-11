@@ -4,6 +4,7 @@ import styled, { keyframes } from 'styled-components'
 
 import { assets } from '@/assets/figma'
 import { bulkDeleteTemplateFileName } from '@/data/employees'
+import { ExitConfirmationModal } from '@/pages/LivesWizard/components/ExitConfirmationModal'
 import {
   detectSheetColumns,
   parseSheet,
@@ -13,11 +14,11 @@ import { ColumnMappingPanel } from '@/pages/ManageLives/landings/ColumnMappingPa
 import { EndorsementCostPanel } from '@/pages/ManageLives/landings/EndorsementCostPanel'
 import { EnrollmentSettingsModal } from '@/pages/ManageLives/landings/EnrollmentSettingsModal'
 import { ValidationIssuesPanel } from '@/pages/ManageLives/landings/ValidationIssuesPanel'
-import { ValidationResultsPanel } from '@/pages/ManageLives/landings/ValidationResultsPanel'
 import { usePendingChanges } from '@/pages/ManageLives/PendingChangesContext'
 import { nextPendingId } from '@/pages/ManageLives/pendingChanges'
 import {
   isReadyToSubmit,
+  sampleBulkDeleteRowsForPrototype,
   sampleBulkRowsForPrototype,
   validationIssuesFor,
   type BulkMemberRow,
@@ -60,16 +61,33 @@ const WIZARD_STEPS = [
   {
     title: 'Upload document',
     description: 'Choose an action and upload the sheet.',
+    icon: 'upload',
   },
   {
     title: 'Validate Data',
     description: 'Map your columns, then review lives and benefits.',
+    icon: 'validate',
   },
   {
     title: 'Review & Submit',
     description: 'Review the benefit assignments, then submit to Loop.',
+    icon: 'review',
   },
 ] as const
+
+function ReviewCheckIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 12 12" fill="none" aria-hidden>
+      <path
+        d="M10 3L4.5 8.5L2 6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
 
 type StepStatus = 'done' | 'active' | 'pending'
 
@@ -109,7 +127,8 @@ function formatFileSize(bytes: number) {
 
 export function CardsLanding() {
   const navigate = useNavigate()
-  const { entities, deals, includeValidationErrors } = useProtoConfig()
+  const { entities, deals, includeValidationErrors, allowProgressCollapse } =
+    useProtoConfig()
   const { addChange } = usePendingChanges()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const workspaceRef = useRef<HTMLElement>(null)
@@ -118,7 +137,31 @@ export function CardsLanding() {
     () => sampleBulkRowsForPrototype(includeValidationErrors),
     [includeValidationErrors],
   )
-
+  const deleteDemoRows = useMemo<BulkMemberRow[]>(
+    () =>
+      sampleBulkDeleteRowsForPrototype(includeValidationErrors).map((row) => ({
+        id: row.id,
+        employeeId: row.employeeId,
+        name: row.name,
+        email: '',
+        department: '',
+        relationship: 'Self',
+        assignedPlanId: 'plan-standard',
+        benefitIds: ['ben-gmc', 'ben-gpa'],
+        purchaseGroupSelections: { 'pg-core': ['opt-standard'] },
+        assignmentSource: 'sheet',
+        needsManualAssignment: false,
+        validationError: row.error,
+        validationField: row.error ? 'Employee ID' : undefined,
+        status: row.status,
+        dealId: deals[0]?.id ?? 'deal-default',
+        payrollDelta: 0,
+        insurerRefund: row.insurerRefund,
+        payrollRefund: row.payrollRefund,
+        dateOfLeaving: row.dateOfLeaving,
+      })),
+    [deals, includeValidationErrors],
+  )
   const [bulkMode, setBulkMode] = useState<BulkMode>('add')
   const [entityId, setEntityId] = useState(entities[0]?.id ?? 'symphony-eyc')
   const [file, setFile] = useState<File | null>(null)
@@ -132,31 +175,57 @@ export function CardsLanding() {
   const [assigningBenefits, setAssigningBenefits] = useState(false)
   const [scanStage, setScanStage] = useState(0)
   const [enrollmentOpen, setEnrollmentOpen] = useState(false)
+  const [exitConfirmOpen, setExitConfirmOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [progressCollapsed, setProgressCollapsed] = useState(false)
+  const rowsForMode = bulkMode === 'remove' ? deleteDemoRows : demoRows
+  const sidebarCollapsed = allowProgressCollapse && progressCollapsed
+
+  useEffect(() => {
+    if (!allowProgressCollapse) setProgressCollapsed(false)
+  }, [allowProgressCollapse])
 
   const wizardSteps = useMemo(
     () =>
-      WIZARD_STEPS.map((step, index) =>
-        index === 0
-          ? {
-              ...step,
-              description:
-                entities.length > 1
-                  ? 'Choose an action, select a company, and upload the sheet.'
-                  : 'Choose an action and upload the sheet.',
-            }
-          : step,
-      ),
-    [entities.length],
+      WIZARD_STEPS.map((step, index) => {
+        if (index === 0) {
+          return {
+            ...step,
+            description:
+              entities.length > 1
+                ? 'Choose an action, select a company, and upload the sheet.'
+                : 'Choose an action and upload the sheet.',
+          }
+        }
+        if (index === 1) {
+          return {
+            ...step,
+            description:
+              bulkMode === 'remove'
+                ? 'Map your columns, then review the lives being removed.'
+                : step.description,
+          }
+        }
+        if (index === 2) {
+          return {
+            ...step,
+            description:
+              bulkMode === 'remove'
+                ? 'Review the covers ending, then submit to Loop.'
+                : step.description,
+          }
+        }
+        return step
+      }),
+    [bulkMode, entities.length],
   )
   const dealId = deals[0]?.id
   const scanning = phase === 'scanning'
   const showingIssues = phase === 'issues'
-  const showingResults = phase === 'results'
   const showingCost = phase === 'cost'
   const activeWizardStep = showingCost
     ? 2
-    : scanning || showingIssues || showingResults
+    : scanning || showingIssues
       ? 1
       : 0
   const scanFile = pendingFileRef.current ?? file
@@ -171,12 +240,22 @@ export function CardsLanding() {
     if (phase !== 'scanning' || !assigningBenefits) return
 
     const timer = window.setTimeout(() => {
-      setValidatedRows(sampleBulkRowsForPrototype(includeValidationErrors))
-      setPhase(bulkMode === 'add' ? 'issues' : 'results')
+      setValidatedRows(
+        bulkMode === 'remove'
+          ? deleteDemoRows
+          : sampleBulkRowsForPrototype(includeValidationErrors),
+      )
+      setPhase('issues')
     }, ASSIGNING_BENEFITS_MS)
 
     return () => window.clearTimeout(timer)
-  }, [phase, assigningBenefits, bulkMode, includeValidationErrors])
+  }, [
+    phase,
+    assigningBenefits,
+    bulkMode,
+    includeValidationErrors,
+    deleteDemoRows,
+  ])
 
   useEffect(() => {
     if (phase !== 'scanning' || columnDetection || assigningBenefits) return
@@ -204,7 +283,7 @@ export function CardsLanding() {
     setError(null)
     setFile(next)
     setColumnDetection(null)
-    setValidatedRows(demoRows)
+    setValidatedRows(rowsForMode)
     setAssigningBenefits(false)
   }
 
@@ -220,7 +299,7 @@ export function CardsLanding() {
   function goBackToSetup() {
     pendingFileRef.current = null
     setColumnDetection(null)
-    setValidatedRows(demoRows)
+    setValidatedRows(rowsForMode)
     setAssigningBenefits(false)
     setScanStage(0)
     setPhase('idle')
@@ -238,7 +317,7 @@ export function CardsLanding() {
         ...current,
         mappings: current.mappings.map((mapping) =>
           mapping.id === mappingId
-            ? { ...mapping, sourceColumn, confidence: 'manual' }
+            ? { ...mapping, sourceColumn: sourceColumn || null, confidence: 'manual' }
             : mapping,
         ),
       }
@@ -255,6 +334,37 @@ export function CardsLanding() {
 
   function restoreValidationIssue(rowId: string) {
     setValidatedRows((current) => toggleIgnored(current, rowId, false))
+  }
+
+  function applyReverifiedSheet(next: File) {
+    pendingFileRef.current = next
+    setFile(next)
+    setValidatedRows((current) =>
+      current.map((row) => {
+        if (row.ignored) return row
+        const issues = validationIssuesFor(row)
+        if (issues.length === 0) return row
+        return {
+          ...row,
+          needsManualAssignment: false,
+          assignedPlanId: row.assignedPlanId ?? 'plan-standard',
+          benefitIds:
+            row.benefitIds.length > 0
+              ? row.benefitIds
+              : ['ben-gmc', 'ben-gpa'],
+          purchaseGroupSelections:
+            Object.keys(row.purchaseGroupSelections).length > 0
+              ? row.purchaseGroupSelections
+              : { 'pg-core': ['opt-standard'] },
+          assignmentSource: 'manual',
+          status: 'pass' as const,
+          validationIssues: [],
+          validationError: undefined,
+          validationField: undefined,
+          resolvedIssues: undefined,
+        }
+      }),
+    )
   }
 
   function resolveValidationIssue(
@@ -418,20 +528,74 @@ export function CardsLanding() {
 
   return (
     <Page>
-      <ProgressPanel>
-        <Logo src={assets.loopLogo} alt="loop" />
-        <ProgressList aria-label="Bulk update progress">
+      <ProgressPanel
+        id="bulk-progress-panel"
+        $collapsed={sidebarCollapsed}
+      >
+        {allowProgressCollapse ? (
+          <CollapseToggle
+            type="button"
+            aria-expanded={!sidebarCollapsed}
+            aria-controls="bulk-progress-panel"
+            aria-label={
+              sidebarCollapsed ? 'Expand progress' : 'Collapse progress'
+            }
+            onClick={() => setProgressCollapsed((collapsed) => !collapsed)}
+          >
+            <CollapseChevron
+              src={assets.chevronRight}
+              alt=""
+              $collapsed={sidebarCollapsed}
+            />
+          </CollapseToggle>
+        ) : null}
+        <Logo
+          src={assets.loopLogo}
+          alt="loop"
+          $collapsed={sidebarCollapsed}
+        />
+        <ProgressList
+          aria-label="Bulk update progress"
+          $collapsed={sidebarCollapsed}
+        >
           {wizardSteps.map((step, index) => {
             const status = stepStatus(index)
+            const iconSrc =
+              step.icon === 'upload'
+                ? assets.mlIconFileUploaded
+                : step.icon === 'validate'
+                  ? assets.mlIconInstructions
+                  : null
             return (
-              <ProgressStep key={step.title}>
-                <StepRail>
-                  <StepDot $status={status} aria-hidden />
+              <ProgressStep key={step.title} $collapsed={sidebarCollapsed}>
+                <StepRail $collapsed={sidebarCollapsed}>
+                  <StepDot
+                    $status={status}
+                    $collapsed={sidebarCollapsed}
+                    aria-hidden
+                  />
+                  <StepIconNode
+                    $status={status}
+                    $collapsed={sidebarCollapsed}
+                    title={step.title}
+                    aria-label={step.title}
+                    aria-hidden={!sidebarCollapsed}
+                  >
+                    {iconSrc ? (
+                      <StepIconImg src={iconSrc} alt="" />
+                    ) : (
+                      <ReviewCheckIcon />
+                    )}
+                    <VisuallyHidden>{step.title}</VisuallyHidden>
+                  </StepIconNode>
                   {index < wizardSteps.length - 1 ? (
                     <StepConnector $done={status === 'done'} />
                   ) : null}
                 </StepRail>
-                <StepCopy $last={index === wizardSteps.length - 1}>
+                <StepCopy
+                  $last={index === wizardSteps.length - 1}
+                  $collapsed={sidebarCollapsed}
+                >
                   <StepTitle>{step.title}</StepTitle>
                   <StepDesc>{step.description}</StepDesc>
                 </StepCopy>
@@ -442,7 +606,7 @@ export function CardsLanding() {
       </ProgressPanel>
 
       <Workspace ref={workspaceRef}>
-        <ExitButton type="button" onClick={() => navigate('/employees')}>
+        <ExitButton type="button" onClick={() => setExitConfirmOpen(true)}>
           Exit
         </ExitButton>
 
@@ -495,7 +659,9 @@ export function CardsLanding() {
                       height={12}
                     />
                     {assigningBenefits
-                      ? 'Assigning benefits to employees...'
+                      ? bulkMode === 'remove'
+                        ? 'Matching lives to existing cover...'
+                        : 'Assigning benefits to employees...'
                       : SCAN_STAGES[scanStage]}
                   </DetectionIntro>
                 </ScanPanel>
@@ -507,18 +673,12 @@ export function CardsLanding() {
             rows={validatedRows}
             fileName={scanFile?.name}
             fileSize={scanFile?.size}
+            isDelete={bulkMode === 'remove'}
             onResolve={resolveValidationIssue}
             onIgnore={ignoreValidationIssue}
             onRestore={restoreValidationIssue}
-            onReupload={goBackToSetup}
+            onReverify={applyReverifiedSheet}
             onBack={goBackToMapping}
-            onContinue={submitForReview}
-          />
-        ) : showingResults ? (
-          <ValidationResultsPanel
-            rows={validatedRows}
-            isDelete={bulkMode === 'remove'}
-            onBack={goBackToSetup}
             onContinue={submitForReview}
           />
         ) : (
@@ -601,9 +761,6 @@ export function CardsLanding() {
                 </ActionCards>
               </Section>
 
-              <PointerRow aria-hidden>
-                <UploadPointer $mode={bulkMode} />
-              </PointerRow>
               <UploadPanel>
                 <UploadHeading>
                   <SmallTitle>Upload your spreadsheet</SmallTitle>
@@ -762,6 +919,14 @@ export function CardsLanding() {
         onCancel={() => setEnrollmentOpen(false)}
         onConfirm={continueToReview}
       />
+      <ExitConfirmationModal
+        open={exitConfirmOpen}
+        onStay={() => setExitConfirmOpen(false)}
+        onConfirm={() => {
+          setExitConfirmOpen(false)
+          navigate('/employees')
+        }}
+      />
     </Page>
   )
 }
@@ -788,18 +953,21 @@ const Page = styled.div`
   }
 `
 
-const ProgressPanel = styled.aside`
+const ProgressPanel = styled.aside<{ $collapsed: boolean }>`
   position: relative;
   isolation: isolate;
-  width: 330px;
+  width: ${({ $collapsed }) => ($collapsed ? '72px' : '330px')};
   height: 100%;
   min-height: 0;
   flex-shrink: 0;
-  padding: 24px;
+  padding: ${({ $collapsed }) => ($collapsed ? '16px 12px' : '24px')};
   border-radius: 16px;
   background: ${({ theme }) => theme.colors.hoverSurface1};
   box-sizing: border-box;
   overflow: hidden;
+  transition:
+    width 200ms ease,
+    padding 200ms ease;
 
   &::before {
     content: '';
@@ -824,57 +992,113 @@ const ProgressPanel = styled.aside`
     background: url(${assets.mlBulkSidebarLeaves}) no-repeat center / contain;
     transform: rotate(0.45deg);
     pointer-events: none;
+    display: ${({ $collapsed }) => ($collapsed ? 'none' : 'block')};
   }
 
   @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
-    width: 270px;
+    width: ${({ $collapsed }) => ($collapsed ? '72px' : '270px')};
   }
 
   @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
     width: 100%;
     height: auto;
     min-height: 0;
+    padding: 24px;
+
+    &::after {
+      display: block;
+    }
   }
 `
 
-const Logo = styled.img`
+const CollapseToggle = styled.button`
+  position: absolute;
+  top: 16px;
+  right: 12px;
+  z-index: 3;
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
+  border-radius: ${({ theme }) => theme.radii.full};
+  background: ${({ theme }) => theme.colors.surface1};
+  cursor: pointer;
+
+  &:hover {
+    border-color: ${({ theme }) => theme.colors.emerald};
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    display: none;
+  }
+`
+
+const CollapseChevron = styled.img<{ $collapsed: boolean }>`
+  display: block;
+  width: 16px;
+  height: 16px;
+  transform: rotate(${({ $collapsed }) => ($collapsed ? '0deg' : '180deg')});
+  transition: transform 200ms ease;
+`
+
+const Logo = styled.img<{ $collapsed: boolean }>`
   position: relative;
   z-index: 2;
-  display: block;
+  display: ${({ $collapsed }) => ($collapsed ? 'none' : 'block')};
   width: 70px;
   height: 34px;
   object-fit: contain;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    display: block;
+  }
 `
 
-const ProgressList = styled.div`
+const ProgressList = styled.div<{ $collapsed: boolean }>`
   position: relative;
   z-index: 2;
   display: flex;
   flex-direction: column;
-  margin-top: 36px;
+  align-items: ${({ $collapsed }) => ($collapsed ? 'center' : 'stretch')};
+  margin-top: ${({ $collapsed }) => ($collapsed ? '48px' : '36px')};
 
   @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    align-items: stretch;
     margin-top: 24px;
   }
 `
 
-const ProgressStep = styled.div`
+const ProgressStep = styled.div<{ $collapsed: boolean }>`
   display: flex;
-  gap: 12px;
-  width: 100%;
+  gap: ${({ $collapsed }) => ($collapsed ? '0' : '12px')};
+  width: ${({ $collapsed }) => ($collapsed ? 'auto' : '100%')};
+  justify-content: ${({ $collapsed }) => ($collapsed ? 'center' : 'flex-start')};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    gap: 12px;
+    width: 100%;
+    justify-content: flex-start;
+  }
 `
 
-const StepRail = styled.div`
+const StepRail = styled.div<{ $collapsed: boolean }>`
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 14px;
+  width: ${({ $collapsed }) => ($collapsed ? '28px' : '14px')};
   flex-shrink: 0;
   padding-top: 4px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    width: 14px;
+  }
 `
 
-const StepDot = styled.span<{ $status: StepStatus }>`
-  display: block;
+const StepDot = styled.span<{ $status: StepStatus; $collapsed: boolean }>`
+  display: ${({ $collapsed }) => ($collapsed ? 'none' : 'block')};
   width: 14px;
   height: 14px;
   flex-shrink: 0;
@@ -886,6 +1110,55 @@ const StepDot = styled.span<{ $status: StepStatus }>`
     $status === 'pending'
       ? `1.5px solid ${theme.colors.defaultBorder}`
       : `2px solid ${theme.colors.emerald}`};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    display: block;
+  }
+`
+
+const StepIconNode = styled.span<{ $status: StepStatus; $collapsed: boolean }>`
+  position: relative;
+  display: ${({ $collapsed }) => ($collapsed ? 'flex' : 'none')};
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  box-sizing: border-box;
+  color: ${({ theme }) => theme.colors.emerald};
+  background: ${({ theme, $status }) =>
+    $status === 'pending' ? 'transparent' : theme.colors.fillGreen};
+  border: ${({ theme, $status }) =>
+    $status === 'pending'
+      ? `1.5px solid ${theme.colors.defaultBorder}`
+      : `2px solid ${theme.colors.emerald}`};
+  outline: ${({ theme, $status }) =>
+    $status === 'active' ? `2px solid ${theme.colors.emerald}` : 'none'};
+  outline-offset: 1px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    display: none;
+  }
+`
+
+const StepIconImg = styled.img`
+  display: block;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+`
+
+const VisuallyHidden = styled.span`
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 `
 
 const StepConnector = styled.span<{ $done?: boolean }>`
@@ -897,12 +1170,16 @@ const StepConnector = styled.span<{ $done?: boolean }>`
     ${({ theme }) => theme.colors.defaultBorder};
 `
 
-const StepCopy = styled.div<{ $last?: boolean }>`
-  display: flex;
+const StepCopy = styled.div<{ $last?: boolean; $collapsed?: boolean }>`
+  display: ${({ $collapsed }) => ($collapsed ? 'none' : 'flex')};
   flex-direction: column;
   flex: 1;
   min-width: 0;
   padding-bottom: ${({ $last }) => ($last ? '24px' : '36px')};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    display: flex;
+  }
 `
 
 const StepTitle = styled.p`
@@ -1249,39 +1526,6 @@ const SmallTitle = styled.h3`
   letter-spacing: 0.2px;
 `
 
-const PointerRow = styled.div`
-  position: relative;
-  height: 12px;
-  margin: -4px 0 -16px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
-    display: none;
-  }
-`
-
-/**
- * Cards are two equal flex children with a 16px gap, so their centres sit at
- * 25% - 4px and 75% + 4px of the row.
- */
-const UploadPointer = styled.span<{ $mode: BulkMode }>`
-  position: absolute;
-  bottom: 0;
-  left: ${({ $mode }) =>
-    $mode === 'add' ? 'calc(25% - 4px)' : 'calc(75% + 4px)'};
-  width: 0;
-  height: 0;
-  border-right: 12px solid transparent;
-  border-bottom: 12px solid ${({ theme }) => theme.colors.disableFill};
-  border-left: 12px solid transparent;
-  transform: translateX(-50%);
-  transition: left 260ms cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 1;
-
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-  }
-`
-
 const UploadPanel = styled.section`
   display: flex;
   flex-direction: column;
@@ -1289,16 +1533,13 @@ const UploadPanel = styled.section`
   width: 100%;
   padding: 16px;
   border: 1px solid ${({ theme }) => theme.colors.disableFill};
-  border-top-width: 4px;
   border-radius: 12px;
   background: ${({ theme }) => theme.colors.surface1};
   box-sizing: border-box;
   overflow: hidden;
 `
 
-const ScanPanel = styled(UploadPanel)`
-  border-top-width: 1px;
-`
+const ScanPanel = styled(UploadPanel)``
 
 const UploadHeading = styled.div`
   display: flex;

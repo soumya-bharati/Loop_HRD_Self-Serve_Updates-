@@ -25,14 +25,17 @@ const STORAGE_KEY = 'loop-proto-config'
 
 export type ProtoCardinality = 'single' | 'multiple'
 export type ProtoValidationFlow = 'with-errors' | 'clean'
+export type ProtoProgressCollapse = 'hidden' | 'shown'
 
 const DEFAULT_VALIDATION_FLOW: ProtoValidationFlow = 'with-errors'
+const DEFAULT_PROGRESS_COLLAPSE: ProtoProgressCollapse = 'hidden'
 
 interface StoredProtoConfig {
   entityIds: string[]
   dealIds: string[]
   versionId?: string
   validationFlow?: ProtoValidationFlow
+  progressCollapse?: ProtoProgressCollapse
   entitiesCatalog?: OrganisationEntity[]
   dealsCatalog?: FlexDealConfig[]
 }
@@ -67,6 +70,10 @@ interface ProtoConfigValue {
   validationFlow: ProtoValidationFlow
   setValidationFlow: (flow: ProtoValidationFlow) => void
   includeValidationErrors: boolean
+  /** Whether the bulk progress sidebar exposes a collapse control. */
+  progressCollapse: ProtoProgressCollapse
+  setProgressCollapse: (mode: ProtoProgressCollapse) => void
+  allowProgressCollapse: boolean
   reset: () => void
 }
 
@@ -108,6 +115,10 @@ function resolveValidationFlow(value: unknown): ProtoValidationFlow {
   return value === 'clean' ? 'clean' : DEFAULT_VALIDATION_FLOW
 }
 
+function resolveProgressCollapse(value: unknown): ProtoProgressCollapse {
+  return value === 'shown' ? 'shown' : DEFAULT_PROGRESS_COLLAPSE
+}
+
 function readStored(): StoredProtoConfig | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
@@ -122,6 +133,7 @@ function readStored(): StoredProtoConfig | null {
       versionId:
         typeof parsed.versionId === 'string' ? parsed.versionId : undefined,
       validationFlow: resolveValidationFlow(parsed.validationFlow),
+      progressCollapse: resolveProgressCollapse(parsed.progressCollapse),
       entitiesCatalog: Array.isArray(parsed.entitiesCatalog)
         ? parsed.entitiesCatalog.filter(isEntity)
         : undefined,
@@ -182,6 +194,11 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
       const stored = readStored()
       return resolveValidationFlow(stored?.validationFlow)
     })
+  const [progressCollapse, setProgressCollapseState] =
+    useState<ProtoProgressCollapse>(() => {
+      const stored = readStored()
+      return resolveProgressCollapse(stored?.progressCollapse)
+    })
 
   useEffect(() => {
     try {
@@ -192,6 +209,7 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
           dealIds,
           versionId,
           validationFlow,
+          progressCollapse,
           entitiesCatalog: allEntities,
           dealsCatalog: allDeals,
         }),
@@ -199,7 +217,15 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
     } catch {
       // Prototype-only preference — safe to lose when storage is unavailable.
     }
-  }, [entityIds, dealIds, versionId, validationFlow, allEntities, allDeals])
+  }, [
+    entityIds,
+    dealIds,
+    versionId,
+    validationFlow,
+    progressCollapse,
+    allEntities,
+    allDeals,
+  ])
 
   const entities = useMemo(
     () => allEntities.filter((entity) => entityIds.includes(entity.id)),
@@ -217,6 +243,10 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
 
   const setValidationFlow = useCallback((flow: ProtoValidationFlow) => {
     setValidationFlowState(resolveValidationFlow(flow))
+  }, [])
+
+  const setProgressCollapse = useCallback((mode: ProtoProgressCollapse) => {
+    setProgressCollapseState(resolveProgressCollapse(mode))
   }, [])
 
   const setEntityMode = useCallback(
@@ -371,6 +401,7 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
     setDealIds(dealsSeed.map((deal) => deal.id))
     setVersionIdState(DEFAULT_PROTO_VERSION_ID)
     setValidationFlowState(DEFAULT_VALIDATION_FLOW)
+    setProgressCollapseState(DEFAULT_PROGRESS_COLLAPSE)
   }, [])
 
   const value = useMemo<ProtoConfigValue>(
@@ -400,6 +431,9 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
       validationFlow,
       setValidationFlow,
       includeValidationErrors: validationFlow === 'with-errors',
+      progressCollapse,
+      setProgressCollapse,
+      allowProgressCollapse: progressCollapse === 'shown',
       reset,
     }),
     [
@@ -424,6 +458,8 @@ export function ProtoConfigProvider({ children }: { children: ReactNode }) {
       setVersionId,
       validationFlow,
       setValidationFlow,
+      progressCollapse,
+      setProgressCollapse,
       reset,
     ],
   )

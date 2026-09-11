@@ -62,7 +62,10 @@ export function ColumnMappingPanel({
 
     for (const mapping of mappings) {
       if (!mapping.sourceColumn) {
-        nextErrors[mapping.id] = `Select an uploaded column for ${mapping.loopField}.`
+        if (mapping.required) {
+          nextErrors[mapping.id] =
+            `Select an uploaded column for ${mapping.loopField}.`
+        }
         continue
       }
       if (
@@ -136,7 +139,8 @@ export function ColumnMappingPanel({
                 !usedColumns.has(column) || column === mapping.sourceColumn,
             )
             const pending = index >= scannedCount
-            const needsInput = !pending && !mapping.sourceColumn
+            const needsInput =
+              !pending && mapping.required && !mapping.sourceColumn
             const state = pending
               ? 'scanning'
               : error
@@ -151,7 +155,7 @@ export function ColumnMappingPanel({
             const correction = sample
               ? autoCorrectionFor(mapping.loopField, sample)
               : null
-            const showMandatory = mapping.required && mapping.confidence !== 'manual'
+            const showMandatory = mapping.required
 
             return (
               <MappingRow key={mapping.id} $state={state}>
@@ -189,13 +193,15 @@ export function ColumnMappingPanel({
                             const { [mapping.id]: _removed, ...rest } = current
                             return rest
                           })
-                          onMap(mapping.id, next)
+                          onMap(mapping.id, next || '')
                         }}
                         aria-invalid={Boolean(error)}
                         aria-label={`Uploaded column for ${mapping.loopField}`}
                       >
-                        <option value="" disabled>
-                          Select uploaded column
+                        <option value="" disabled={mapping.required}>
+                          {mapping.required
+                            ? 'Select uploaded column'
+                            : 'Skip this column'}
                         </option>
                         {options.map((column) => (
                           <option key={column} value={column}>

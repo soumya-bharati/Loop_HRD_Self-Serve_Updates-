@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
+import { ModalPortal } from '@/components/ModalPortal'
 import {
   emptyDependantForm,
   type DependantFormData,
@@ -9,22 +10,29 @@ import {
 } from '@/data/employees'
 import { parseDateOnly } from '@/domain/flex'
 import type { FamilyRelationship } from '@/domain/flex'
-import { isDependantValid } from '@/pages/LivesWizard/addEmployees'
+import {
+  isDependantValid,
+  relationshipProofLabel,
+} from '@/pages/LivesWizard/addEmployees'
 import { toDisplayDate } from '@/pages/LivesWizard/autofill/personas'
 
 export function AddDependantModal({
   open,
   relationship,
   initial,
+  requireRelationshipProof = false,
   onClose,
   onSave,
 }: {
   open: boolean
   relationship: FamilyRelationship
   initial?: DependantFormData | null
+  /** Spouse needs a marriage certificate; child needs a birth certificate. */
+  requireRelationshipProof?: boolean
   onClose: () => void
   onSave: (dependant: DependantFormData) => void
 }) {
+  const proofInputRef = useRef<HTMLInputElement>(null)
   const [draft, setDraft] = useState<DependantFormData>(
     emptyDependantForm('draft'),
   )
@@ -52,102 +60,138 @@ export function AddDependantModal({
   if (!open) return null
 
   const title = `${initial?.firstName ? 'Edit' : 'Add'} ${relationship.toLowerCase()}`
-  const canSave = isDependantValid({ ...draft, relationship })
+  const proofLabel = requireRelationshipProof
+    ? relationshipProofLabel(relationship)
+    : null
+  const canSave =
+    isDependantValid({ ...draft, relationship }) &&
+    (!proofLabel || Boolean(draft.supportingDocumentName.trim()))
   const update = (patch: Partial<DependantFormData>) =>
     setDraft((current) => ({ ...current, ...patch }))
 
   return (
-    <Overlay role="dialog" aria-modal="true" aria-label={title}>
-      <Dialog>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <CloseButton type="button" aria-label="Close" onClick={onClose}>
-            <img src={assets.modalDismiss} alt="" width={16} height={16} />
-          </CloseButton>
-        </DialogHeader>
-        <Form>
-          <Field>
-            <Label>
-              First Name<Required>*</Required>
-            </Label>
-            <Input
-              value={draft.firstName}
-              placeholder="Enter Here"
-              onChange={(event) => update({ firstName: event.target.value })}
-            />
-          </Field>
-          <Field>
-            <Label>Last Name</Label>
-            <Input
-              value={draft.lastName}
-              placeholder="Enter Here"
-              onChange={(event) => update({ lastName: event.target.value })}
-            />
-          </Field>
-          <Field>
-            <Label>
-              Date of Birth<Required>*</Required>
-            </Label>
-            <ModalDateInput
-              value={draft.dateOfBirth}
-              onChange={(dateOfBirth) => update({ dateOfBirth })}
-            />
-          </Field>
-          <Field>
-            <Label>
-              Gender<Required>*</Required>
-            </Label>
-            <GenderRow>
-              {(['Male', 'Female'] as const).map((gender) => (
-                <GenderPill
-                  key={gender}
-                  type="button"
-                  $selected={draft.gender === gender}
-                  onClick={() => update({ gender: gender as Gender })}
-                >
-                  {gender}
-                </GenderPill>
-              ))}
-            </GenderRow>
-          </Field>
-          <Field>
-            <Label>Mobile Number</Label>
-            <PhoneField>
-              <PhonePrefix>+91</PhonePrefix>
-              <PhoneDivider />
-              <PhoneInput
-                value={draft.mobile}
-                placeholder="Enter mobile number"
-                onChange={(event) => update({ mobile: event.target.value })}
+    <ModalPortal>
+      <Overlay role="dialog" aria-modal="true" aria-label={title}>
+        <Dialog>
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+            <CloseButton type="button" aria-label="Close" onClick={onClose}>
+              <img src={assets.modalDismiss} alt="" width={16} height={16} />
+            </CloseButton>
+          </DialogHeader>
+          <Form>
+            <Field>
+              <Label>
+                First Name<Required>*</Required>
+              </Label>
+              <Input
+                value={draft.firstName}
+                placeholder="Enter Here"
+                onChange={(event) => update({ firstName: event.target.value })}
               />
-            </PhoneField>
-          </Field>
-          <Field>
-            <Label>Email</Label>
-            <Input
-              type="email"
-              value={draft.email}
-              placeholder="Enter Here"
-              onChange={(event) => update({ email: event.target.value })}
-            />
-          </Field>
-        </Form>
-        <DialogFooter>
-          <SaveButton
-            type="button"
-            disabled={!canSave}
-            onClick={() =>
-              onSave({
-                ...draft,
-                relationship,
-              })
-            }
-          >
-            {title}
-          </SaveButton>
-        </DialogFooter>
-      </Dialog>
-    </Overlay>
+            </Field>
+            <Field>
+              <Label>Last Name</Label>
+              <Input
+                value={draft.lastName}
+                placeholder="Enter Here"
+                onChange={(event) => update({ lastName: event.target.value })}
+              />
+            </Field>
+            <Field>
+              <Label>
+                Date of Birth<Required>*</Required>
+              </Label>
+              <ModalDateInput
+                value={draft.dateOfBirth}
+                onChange={(dateOfBirth) => update({ dateOfBirth })}
+              />
+            </Field>
+            <Field>
+              <Label>
+                Gender<Required>*</Required>
+              </Label>
+              <GenderRow>
+                {(['Male', 'Female'] as const).map((gender) => (
+                  <GenderPill
+                    key={gender}
+                    type="button"
+                    $selected={draft.gender === gender}
+                    onClick={() => update({ gender: gender as Gender })}
+                  >
+                    {gender}
+                  </GenderPill>
+                ))}
+              </GenderRow>
+            </Field>
+            <Field>
+              <Label>Mobile Number</Label>
+              <PhoneField>
+                <PhonePrefix>+91</PhonePrefix>
+                <PhoneDivider />
+                <PhoneInput
+                  value={draft.mobile}
+                  placeholder="Enter mobile number"
+                  onChange={(event) => update({ mobile: event.target.value })}
+                />
+              </PhoneField>
+            </Field>
+            <Field>
+              <Label>Email</Label>
+              <Input
+                type="email"
+                value={draft.email}
+                placeholder="Enter Here"
+                onChange={(event) => update({ email: event.target.value })}
+              />
+            </Field>
+            {proofLabel ? (
+              <ProofField>
+                <Label>
+                  {proofLabel}
+                  <Required>*</Required>
+                </Label>
+                <ProofDrop
+                  type="button"
+                  onClick={() => proofInputRef.current?.click()}
+                >
+                  {draft.supportingDocumentName.trim() ||
+                    `Upload ${proofLabel} (PDF, JPG or PNG)`}
+                  <input
+                    ref={proofInputRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                    hidden
+                    onChange={(event) => {
+                      const file = event.target.files?.[0]
+                      if (file) update({ supportingDocumentName: file.name })
+                    }}
+                  />
+                </ProofDrop>
+                <ProofHint>
+                  This document is required for KYC before you can save this{' '}
+                  {relationship.toLowerCase()}.
+                </ProofHint>
+              </ProofField>
+            ) : null}
+          </Form>
+          <DialogFooter>
+            <SaveButton
+              type="button"
+              disabled={!canSave}
+              onClick={() =>
+                onSave({
+                  ...draft,
+                  relationship,
+                })
+              }
+            >
+              {title}
+            </SaveButton>
+          </DialogFooter>
+        </Dialog>
+      </Overlay>
+    </ModalPortal>
   )
 }
 
@@ -404,6 +448,29 @@ const PhoneDivider = styled.span`
   height: 20px;
   margin: 0 12px;
   background: ${({ theme }) => theme.colors.defaultBorder};
+`
+
+const ProofField = styled(Field)`
+  grid-column: 1 / -1;
+`
+
+const ProofDrop = styled.button`
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 1px dashed ${({ theme }) => theme.colors.defaultBorder};
+  border-radius: 8px;
+  background: ${({ theme }) => theme.colors.surface1};
+  color: ${({ theme }) => theme.colors.textPrimary};
+  font-family: ${({ theme }) => theme.fontFamily};
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+`
+
+const ProofHint = styled.span`
+  font-size: 12px;
+  line-height: 16px;
+  color: ${({ theme }) => theme.colors.textSecondary};
 `
 
 const PhoneInput = styled.input`

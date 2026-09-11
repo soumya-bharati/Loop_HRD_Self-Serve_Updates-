@@ -129,6 +129,7 @@ export const sampleEmployees: SearchableEmployee[] = [
       { kind: 'plan', id: 'plan-parental', label: 'Parental Plan', category: 'gmc', planId: 'plan-parental' },
       { kind: 'benefit', id: 'ben-gmc', label: 'Group Medical Cover', category: 'gmc', status: 'active' },
       { kind: 'benefit', id: 'ben-gpa', label: 'Group Personal Accidental', category: 'gpa', status: 'active' },
+      { kind: 'benefit', id: 'ben-gmc-parental', label: 'Group Medical Cover (Parental)', category: 'gmc', status: 'active' },
       { kind: 'policy', id: 'pol-gmc', label: 'Group Medical Coverage', status: 'active' },
     ],
     dependants: [

@@ -1,6 +1,7 @@
 import styled, { keyframes } from 'styled-components'
 
 import { assets } from '@/assets/figma'
+import { ModalPortal } from '@/components/ModalPortal'
 import { coverCatalog } from '@/data/coverPlans'
 import { flexDeal } from '@/data/flexDeal'
 
@@ -13,83 +14,85 @@ export function BulkAssignmentKnowMoreModal({ open, onClose }: Props) {
   if (!open) return null
 
   return (
-    <Overlay role="presentation" onMouseDown={onClose}>
-      <Dialog
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="bulk-know-more-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <Header>
-          <div>
-            <Title id="bulk-know-more-title">How benefits are assigned</Title>
-            <Subtitle>
-              We match each life against {flexDeal.name} assignment rules, then
-              fall back to the company default or sheet values.
-            </Subtitle>
-          </div>
-          <CloseButton type="button" aria-label="Close" onClick={onClose}>
-            <img src={assets.modalDismiss} alt="" width={16} height={16} />
-          </CloseButton>
-        </Header>
+    <ModalPortal>
+      <Overlay role="presentation" onMouseDown={onClose}>
+        <Dialog
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="bulk-know-more-title"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <Header>
+            <div>
+              <Title id="bulk-know-more-title">How benefits are assigned</Title>
+              <Subtitle>
+                We match each life against {flexDeal.name} assignment rules,
+                then fall back to the company default or sheet values.
+              </Subtitle>
+            </div>
+            <CloseButton type="button" aria-label="Close" onClick={onClose}>
+              <img src={assets.modalDismiss} alt="" width={16} height={16} />
+            </CloseButton>
+          </Header>
 
-        <Body>
-          <RuleCard>
-            <RuleLabel>1. Assignment rules</RuleLabel>
-            <RuleCopy>
-              Employee attributes (for example department) are matched to a
-              recommended plan — same logic as single-add auto-assign.
-            </RuleCopy>
-            <RuleList>
-              {flexDeal.assignmentRules.map((rule) => {
-                const plan = flexDeal.plans.find((p) => p.id === rule.planId)
-                return (
-                  <li key={rule.id}>
-                    {rule.department} → {plan?.name ?? rule.planId}
-                  </li>
-                )
-              })}
-            </RuleList>
-          </RuleCard>
+          <Body>
+            <RuleCard>
+              <RuleLabel>1. Assignment rules</RuleLabel>
+              <RuleCopy>
+                Employee attributes (for example department) are matched to a
+                recommended plan — same logic as single-add auto-assign.
+              </RuleCopy>
+              <RuleList>
+                {flexDeal.assignmentRules.map((rule) => {
+                  const plan = flexDeal.plans.find((p) => p.id === rule.planId)
+                  return (
+                    <li key={rule.id}>
+                      {rule.department} → {plan?.name ?? rule.planId}
+                    </li>
+                  )
+                })}
+              </RuleList>
+            </RuleCard>
 
-          <RuleCard>
-            <RuleLabel>2. Covers and plans</RuleLabel>
-            <RuleCopy>
-              That plan then decides which cover and which plan within it each
-              life is enrolled on.
-            </RuleCopy>
-            {coverCatalog.map((cover) => (
-              <CoverRule key={cover.id}>
-                <CoverRuleHead>
-                  <CoverRuleName>{cover.name}</CoverRuleName>
-                  <CoverRuleCode>{cover.shortLabel}</CoverRuleCode>
-                </CoverRuleHead>
-                <PlanPills>
-                  {cover.plans.map((plan) => (
-                    <PlanPill key={plan.id}>{plan.label}</PlanPill>
-                  ))}
-                </PlanPills>
-                <RuleCopy>{cover.assignmentNote}</RuleCopy>
-              </CoverRule>
-            ))}
-          </RuleCard>
+            <RuleCard>
+              <RuleLabel>2. Covers and plans</RuleLabel>
+              <RuleCopy>
+                That plan then decides which cover and which plan within it each
+                life is enrolled on.
+              </RuleCopy>
+              {coverCatalog.map((cover) => (
+                <CoverRule key={cover.id}>
+                  <CoverRuleHead>
+                    <CoverRuleName>{cover.name}</CoverRuleName>
+                    <CoverRuleCode>{cover.shortLabel}</CoverRuleCode>
+                  </CoverRuleHead>
+                  <PlanPills>
+                    {cover.plans.map((plan) => (
+                      <PlanPill key={plan.id}>{plan.label}</PlanPill>
+                    ))}
+                  </PlanPills>
+                  <RuleCopy>{cover.assignmentNote}</RuleCopy>
+                </CoverRule>
+              ))}
+            </RuleCard>
 
-          <RuleCard>
-            <RuleLabel>3. Sheet / manual</RuleLabel>
-            <RuleCopy>
-              Choose “Use plan/benefit from the sheet” to honour uploaded values,
-              or pick a plan inline when a life needs review.
-            </RuleCopy>
-          </RuleCard>
-        </Body>
+            <RuleCard>
+              <RuleLabel>3. Sheet / manual</RuleLabel>
+              <RuleCopy>
+                Choose “Use plan/benefit from the sheet” to honour uploaded
+                values, or pick a plan inline when a life needs review.
+              </RuleCopy>
+            </RuleCard>
+          </Body>
 
-        <Footer>
-          <PrimaryButton type="button" onClick={onClose}>
-            Got it
-          </PrimaryButton>
-        </Footer>
-      </Dialog>
-    </Overlay>
+          <Footer>
+            <PrimaryButton type="button" onClick={onClose}>
+              Got it
+            </PrimaryButton>
+          </Footer>
+        </Dialog>
+      </Overlay>
+    </ModalPortal>
   )
 }
 

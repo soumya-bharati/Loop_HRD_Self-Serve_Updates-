@@ -4,7 +4,9 @@ import styled from 'styled-components'
 
 import { assets } from '@/assets/figma'
 import { type PolicyCostBreakdown } from '@/data/flexDeal'
+import { bulkRowsFromAddEmployees } from '@/pages/LivesWizard/addEmployees'
 import { isWorkspaceReturn, wizardExitPath } from '@/pages/ManageLives/launchWizard'
+import { EndorsementCostPanel } from '@/pages/ManageLives/landings/EndorsementCostPanel'
 import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
 import { SINGLE_ADD_STEPS } from '@/pages/LivesWizard/singleAddSteps'
@@ -42,10 +44,20 @@ type InsurerGroup = {
 
 export function EndoCostsStep() {
   const navigate = useNavigate()
-  const { addEmployees, costEstimate, intakeMode, setStep, completeFlow } =
-    useLivesWizard()
+  const {
+    action,
+    method,
+    addEmployees,
+    activeDealId,
+    costEstimate,
+    intakeMode,
+    setStep,
+    completeFlow,
+  } = useLivesWizard()
   const returning = isWorkspaceReturn()
   const isFormEntry = intakeMode === 'form'
+  /** Only the single-employee route renders the full-bleed guided chrome. */
+  const isGuidedSingle = isFormEntry && action === 'add' && method === 'single'
   const employeeCount = addEmployees.length
   const dependantCount = addEmployees.reduce(
     (sum, member) => sum + member.dependants.length,
@@ -72,30 +84,18 @@ export function EndoCostsStep() {
   }, [costEstimate.policies])
 
   const livesCount = costEstimate.totalLivesAdded
+  const submittedRows = useMemo(
+    () => bulkRowsFromAddEmployees(addEmployees, activeDealId ?? 'deal-default'),
+    [addEmployees, activeDealId],
+  )
+  const goBack = () => setStep(isFormEntry ? 'user-details' : 'family')
+  const primaryLabel = returning
+    ? 'Add to Pending Changes'
+    : 'Continue to enrolment'
+  const onPrimary = () => (returning ? completeFlow() : setStep('enrolment'))
 
-  return (
-    <WizardChrome
-      title="Submit Addition Request"
-      onBack={() => setStep(isFormEntry ? 'user-details' : 'family')}
-      onExit={() => navigate(wizardExitPath())}
-      secondaryLabel="Go Back"
-      onSecondary={() => setStep(isFormEntry ? 'user-details' : 'family')}
-      primaryLabel={returning ? 'Add to Pending Changes' : 'Continue to enrolment'}
-      primaryDisabled={livesCount === 0}
-      onPrimary={() => (returning ? completeFlow() : setStep('enrolment'))}
-      primaryHint={{
-        title: 'Submit Your Endo! ⚡',
-        body: 'If everything looks good click below to submit your endo!',
-      }}
-    >
-      {isFormEntry ? null : (
-        <FlowStepper
-          steps={[...SINGLE_ADD_STEPS]}
-          activeIndex={3}
-          bare
-        />
-      )}
-
+  const summary = (
+    <>
       <LivesSummary>
         <SummaryStat>
           <SummaryValue>{totalLives}</SummaryValue>
@@ -185,9 +185,49 @@ export function EndoCostsStep() {
           <ReceiptJagged aria-hidden />
         </ReceiptCard>
       </Layout>
+    </>
+  )
+
+  // After submit, the single-employee flow uses the same confirmation as bulk add.
+  if (isGuidedSingle) {
+    return (
+      <SubmittedStage>
+        <EndorsementCostPanel
+          rows={submittedRows}
+          policies={costEstimate.policies}
+          onDone={() => navigate('/employees')}
+        />
+      </SubmittedStage>
+    )
+  }
+
+  return (
+    <WizardChrome
+      title="Submit Addition Request"
+      onBack={goBack}
+      onExit={() => navigate(wizardExitPath())}
+      secondaryLabel="Go Back"
+      onSecondary={goBack}
+      primaryLabel={primaryLabel}
+      primaryDisabled={livesCount === 0}
+      onPrimary={onPrimary}
+      primaryHint={{
+        title: 'Submit Your Endo! ⚡',
+        body: 'If everything looks good click below to submit your endo!',
+      }}
+    >
+      <FlowStepper steps={[...SINGLE_ADD_STEPS]} activeIndex={3} bare />
+      {summary}
     </WizardChrome>
   )
 }
+
+const SubmittedStage = styled.div`
+  display: flex;
+  flex: 1;
+  width: 100%;
+  min-height: 100vh;
+`
 
 const LivesSummary = styled.section`
   display: grid;

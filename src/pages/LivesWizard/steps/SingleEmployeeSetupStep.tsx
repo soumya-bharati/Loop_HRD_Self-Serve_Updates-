@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import styled from 'styled-components'
+import styled, { keyframes } from 'styled-components'
 
 import { assets } from '@/assets/figma'
 import type { DependantFormData } from '@/data/employees'
@@ -23,23 +23,39 @@ import { AddDependantModal } from '@/pages/LivesWizard/components/AddDependantMo
 import { BulkAssignmentKnowMoreModal } from '@/pages/LivesWizard/components/BulkAssignmentKnowMoreModal'
 import { DependantSlotSelector } from '@/pages/LivesWizard/components/DependantSlotSelector'
 import { GuidedFlowChrome } from '@/pages/LivesWizard/components/GuidedFlowChrome'
+import { SINGLE_GUIDED_STEPS } from '@/pages/LivesWizard/guidedFlowSteps'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
-import { wizardExitPath } from '@/pages/ManageLives/launchWizard'
+import { EnrollmentSettingsModal } from '@/pages/ManageLives/landings/EnrollmentSettingsModal'
 
-const FLOW_STEPS = [
-  {
-    title: 'Provide Details',
-    description: 'Choose an action, select companies, and upload the sheet.',
-  },
-  {
-    title: 'View Benefits & Add Dependant',
-    description: 'Review lives, plan distribution, and validation errors.',
-  },
-  {
-    title: 'Review Cost',
-    description: 'Check the Endo cost, CD balance, and any shortfall.',
-  },
-] as const
+/** Who a cover insures, used to tell same-named covers apart. */
+function coverScopeLabel(familyDefinition: { relationship: FamilyRelationship }[]) {
+  const relationships = familyDefinition.map((slot) => slot.relationship)
+  const parents = relationships.some(
+    (relationship) =>
+      relationship === 'Parent' || relationship === 'Parent-in-law',
+  )
+  const spouseOrChild = relationships.some(
+    (relationship) => relationship === 'Spouse' || relationship === 'Child',
+  )
+  if (parents && !spouseOrChild) return 'Parents'
+  if (parents) return 'Self & family'
+  if (spouseOrChild) return 'Self, spouse & kids'
+  return 'Self only'
+}
+
+const ASSIGNING_BENEFITS_MS = 1800
+
+function slabDetails(label: string | undefined) {
+  if (!label) {
+    return { sumInsured: 'As per policy', familyStructure: null }
+  }
+  const match = label.match(
+    /^Sum Insured\s*-\s*(.*?),\s*Family Structure\s*-\s*(.*)$/i,
+  )
+  return match
+    ? { sumInsured: match[1], familyStructure: match[2] }
+    : { sumInsured: label, familyStructure: null }
+}
 
 export function SingleEmployeeSetupStep() {
   const navigate = useNavigate()
@@ -52,10 +68,11 @@ export function SingleEmployeeSetupStep() {
     setStep,
   } = useLivesWizard()
   const member = addEmployees[0] ?? null
-  const [view, setView] = useState<'details' | 'benefits'>(() =>
+  const [view, setView] = useState<'details' | 'assigning' | 'benefits'>(() =>
     member?.assignmentCompleted ? 'benefits' : 'details',
   )
   const [knowMoreOpen, setKnowMoreOpen] = useState(false)
+  const [enrollmentOpen, setEnrollmentOpen] = useState(false)
   const [dependantModal, setDependantModal] = useState<{
     relationship: FamilyRelationship
     dependant?: DependantFormData
@@ -118,9 +135,80 @@ export function SingleEmployeeSetupStep() {
   }, [activeDeal, recommendation?.benefitIds, selectedBenefitIds])
 
   const selectedPlan = activeDeal?.plans.find((plan) => plan.id === planId)
-  const benefitLabels = Object.fromEntries(
-    (activeDeal?.benefits ?? []).map((benefit) => [benefit.id, benefit.name]),
-  )
+
+  /**
+   * A deal can hold two covers under one name (e.g. the employee GMC and the
+   * parental GMC), so repeated names get a scope suffix to tell them apart.
+   */
+  const coverLabels = useMemo(() => {
+    const benefits = activeDeal?.benefits ?? []
+    const nameCounts = new Map<string, number>()
+    for (const benefit of benefits) {
+      nameCounts.set(benefit.name, (nameCounts.get(benefit.name) ?? 0) + 1)
+    }
+    return Object.fromEntries(
+      benefits.map((benefit) => [
+        benefit.id,
+        (nameCounts.get(benefit.name) ?? 0) > 1
+          ? `${benefit.name} (${coverScopeLabel(benefit.familyDefinition)})`
+          : benefit.name,
+      ]),
+    )
+  }, [activeDeal?.benefits])
+
+  const benefitLabels = coverLabels
+
+  const familyStructureOnCover = (
+    benefit: (typeof assignedCovers)[number],
+  ) => {
+    const relationships = benefit.familyDefinition.map(
+      (slot) => slot.relationship,
+    )
+    const coversParents = relationships.some(
+      (relationship) =>
+        relationship === 'Parent' || relationship === 'Parent-in-law',
+    )
+    const coversSpouseOrChild = relationships.some(
+      (relationship) =>
+        relationship === 'Spouse' || relationship === 'Child',
+    )
+    const included = [
+      ...(coversParents && !coversSpouseOrChild ? [] : ['Employee']),
+      ...dependants
+        .filter((dependant) =>
+          (dependant.selectedBenefitIds ?? []).includes(benefit.id),
+        )
+        .map((dependant) => dependant.relationship),
+    ]
+    if (included.length === 0) return 'No lives added yet'
+
+    const counts = included.reduce<Record<string, number>>((result, item) => {
+      result[item] = (result[item] ?? 0) + 1
+      return result
+    }, {})
+    return Object.entries(counts)
+      .map(([label, count]) => (count > 1 ? `${count} ${label}` : label))
+      .join(' + ')
+  }
+
+  /** Lives this cover insures: the employee unless it is parents-only, plus its dependants. */
+  const livesOnCover = (benefit: (typeof assignedCovers)[number]) => {
+    const relationships = benefit.familyDefinition.map(
+      (slot) => slot.relationship,
+    )
+    const coversParents = relationships.some(
+      (relationship) =>
+        relationship === 'Parent' || relationship === 'Parent-in-law',
+    )
+    const coversSpouseOrChild = relationships.some(
+      (relationship) => relationship === 'Spouse' || relationship === 'Child',
+    )
+    const employeeLives = coversParents && !coversSpouseOrChild ? 0 : 1
+    const dependantLives = dependants.filter((dependant) =>
+      (dependant.selectedBenefitIds ?? []).includes(benefit.id),
+    ).length
+    return employeeLives + dependantLives
+  }
   const familySummary = useMemo((): FamilySlotSummary => {
     if (!activeDeal) {
       return {
@@ -147,13 +235,14 @@ export function SingleEmployeeSetupStep() {
     })
   }, [activeDeal, dependants, recommendation?.benefitIds, selectedBenefitIds])
 
-  const slotProgress = useMemo(() => {
-    const used = familySummary.slots.reduce((sum, slot) => sum + slot.usedSlots, 0)
-    const max = familySummary.slots.reduce((sum, slot) => sum + slot.maxSlots, 0)
-    const total = max + 1
-    const filled = used + 1
-    return Math.round((filled / Math.max(total, 1)) * 100)
-  }, [familySummary.slots])
+  useEffect(() => {
+    if (view !== 'assigning') return
+    const timer = window.setTimeout(
+      () => setView('benefits'),
+      ASSIGNING_BENEFITS_MS,
+    )
+    return () => window.clearTimeout(timer)
+  }, [view])
 
   function openBenefitsView() {
     if (!activeDeal || !member || !recommendation) return
@@ -181,10 +270,10 @@ export function SingleEmployeeSetupStep() {
     setPlanId(recommendation.planId ?? member.planId ?? '')
     setAssignmentSource(recommendation.source ?? member.assignmentSource ?? 'rule')
     if (member.dependants.length > 0) setDependants(member.dependants)
-    setView('benefits')
+    setView('assigning')
   }
 
-  function saveAndReviewCost() {
+  function saveAssignment() {
     if (!member) return
     completeAddEmployeeAssignment(member.id, {
       planId: planId || null,
@@ -194,15 +283,24 @@ export function SingleEmployeeSetupStep() {
       selectedBenefitIds,
       dependants,
     })
+  }
+
+  function submitForReview() {
+    saveAssignment()
+    setEnrollmentOpen(true)
+  }
+
+  function continueToCost() {
+    setEnrollmentOpen(false)
     setStep('endo-costs')
   }
 
   if (!member || !activeDeal) {
     return (
       <GuidedFlowChrome
-        steps={FLOW_STEPS}
+        steps={SINGLE_GUIDED_STEPS}
         activeIndex={0}
-        onExit={() => navigate(wizardExitPath())}
+        onExit={() => navigate('/employees')}
       >
         <EmptyMessage>
           Employee details are unavailable. Exit and select a Flex deal to
@@ -217,9 +315,9 @@ export function SingleEmployeeSetupStep() {
 
   return (
     <GuidedFlowChrome
-      steps={FLOW_STEPS}
+      steps={SINGLE_GUIDED_STEPS}
       activeIndex={view === 'benefits' ? 1 : 0}
-      onExit={() => navigate(wizardExitPath())}
+      onExit={() => navigate('/employees')}
     >
       {view === 'details' ? (
         <Content>
@@ -437,6 +535,29 @@ export function SingleEmployeeSetupStep() {
             Assign Benefits to this Employee
           </AssignButton>
         </Content>
+      ) : view === 'assigning' ? (
+        <AssigningContent role="status" aria-live="polite" aria-busy>
+          <AssigningCard>
+            <AssigningSpinner
+              src={assets.mlIconLoaderScan}
+              alt=""
+              width={48}
+              height={48}
+            />
+            <AssigningTitle>Assigning benefits</AssigningTitle>
+            <AssigningCopy>
+              We’re matching this employee’s details with the policy rules,
+              eligible plans, sum insured, and family coverage.
+            </AssigningCopy>
+            <AssigningSteps aria-hidden>
+              <span>Checking eligibility</span>
+              <i />
+              <span>Matching policies</span>
+              <i />
+              <span>Building summary</span>
+            </AssigningSteps>
+          </AssigningCard>
+        </AssigningContent>
       ) : (
         <BenefitsContent>
           <SummaryBlock>
@@ -451,31 +572,55 @@ export function SingleEmployeeSetupStep() {
             </SummaryHeader>
             {assignedCovers.length > 0 ? (
               <CoverGrid>
-                {assignedCovers.map((cover) => (
-                  <CoverCard key={cover.id}>
-                    <CoverName>{cover.name}</CoverName>
-                    <PlanChip>
-                      <PlanLeft>
-                        <PlanDot />
-                        <PlanName>{selectedPlan?.name ?? 'Base'}</PlanName>
-                      </PlanLeft>
-                      <PlanCount>
-                        <strong>{lifeCount}</strong>{' '}
-                        {lifeCount === 1 ? 'employee' : 'employees'}{' '}
-                        <PlanShare>(100%)</PlanShare>
-                      </PlanCount>
-                    </PlanChip>
-                  </CoverCard>
-                ))}
+                {assignedCovers.map((cover) => {
+                  const lives = livesOnCover(cover)
+                  const selectedSlab = cover.policySlabs?.find(
+                    (slab) => slab.id === policySlabIds[cover.id],
+                  )
+                  const details = slabDetails(selectedSlab?.label)
+                  const familyStructure =
+                    details.familyStructure ?? familyStructureOnCover(cover)
+                  return (
+                    <CoverCard key={cover.id}>
+                      <CoverHeader>
+                        <div>
+                          <CoverEyebrow>Insurance</CoverEyebrow>
+                          <CoverName>
+                            {coverLabels[cover.id] ?? cover.name}
+                          </CoverName>
+                        </div>
+                        <LivesBadge>
+                          {lives === 0
+                            ? 'No lives yet'
+                            : `${lives} ${lives === 1 ? 'life' : 'lives'}`}
+                        </LivesBadge>
+                      </CoverHeader>
+                      <CoverDetails>
+                        <DetailItem>
+                          <DetailLabel>Plan</DetailLabel>
+                          <DetailValue>
+                            {selectedPlan?.name ?? 'Base Plan'}
+                          </DetailValue>
+                        </DetailItem>
+                        <DetailItem>
+                          <DetailLabel>Sum insured</DetailLabel>
+                          <DetailValue>{details.sumInsured}</DetailValue>
+                        </DetailItem>
+                        <DetailItem $wide>
+                          <DetailLabel>Family structure</DetailLabel>
+                          <DetailValue>{familyStructure}</DetailValue>
+                        </DetailItem>
+                      </CoverDetails>
+                    </CoverCard>
+                  )
+                })}
               </CoverGrid>
             ) : (
               <EmptyCovers>
                 No cover could be auto assigned for this employee.
               </EmptyCovers>
             )}
-            <Track aria-hidden>
-              <TrackFill $percent={Math.min(100, Math.max(8, slotProgress))} />
-            </Track>
+            <Divider aria-hidden />
           </SummaryBlock>
 
           <DependantSlotSelector
@@ -503,9 +648,10 @@ export function SingleEmployeeSetupStep() {
             <PrimaryButton
               type="button"
               disabled={assignedCovers.length === 0}
-              onClick={saveAndReviewCost}
+              onClick={submitForReview}
             >
-              Review Cost of Adding
+              Submit {lifeCount} {lifeCount === 1 ? 'Life' : 'Lives'} for
+              Addition
             </PrimaryButton>
           </Footer>
         </BenefitsContent>
@@ -543,6 +689,12 @@ export function SingleEmployeeSetupStep() {
         open={knowMoreOpen}
         onClose={() => setKnowMoreOpen(false)}
       />
+      <EnrollmentSettingsModal
+        open={enrollmentOpen}
+        recipientCount={1}
+        onCancel={() => setEnrollmentOpen(false)}
+        onConfirm={continueToCost}
+      />
     </GuidedFlowChrome>
   )
 }
@@ -550,19 +702,15 @@ export function SingleEmployeeSetupStep() {
 const Content = styled.div`
   display: flex;
   width: 100%;
-  max-width: 1080px;
+  max-width: none;
   flex-direction: column;
   align-items: flex-start;
   gap: 24px;
-  padding: 72px 56px 40px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
-    padding-right: 32px;
-    padding-left: 32px;
-  }
+  padding: 72px 40px 24px;
+  box-sizing: border-box;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
-    padding: 72px 16px 32px;
+    padding: 72px ${({ theme }) => theme.layout.contentPadXMobile} 32px;
   }
 `
 
@@ -763,7 +911,7 @@ const AssignButton = styled.button`
 `
 
 const EmptyMessage = styled.p`
-  margin: 72px 56px;
+  margin: 72px 40px 24px;
   color: ${({ theme }) => theme.colors.textSecondary};
   font-size: 14px;
 `
@@ -771,14 +919,93 @@ const EmptyMessage = styled.p`
 const BenefitsContent = styled.div`
   display: flex;
   width: 100%;
-  max-width: 1032px;
+  max-width: none;
   flex-direction: column;
-  gap: 36px;
-  padding: 72px 24px 40px;
+  gap: 24px;
+  padding: 72px 40px 24px;
+  box-sizing: border-box;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
-    padding: 72px 16px 32px;
-    gap: 24px;
+    padding: 72px ${({ theme }) => theme.layout.contentPadXMobile} 32px;
+  }
+`
+
+const assigningSpin = keyframes`
+  to {
+    transform: rotate(360deg);
+  }
+`
+
+const AssigningContent = styled(BenefitsContent)`
+  min-height: 520px;
+  align-items: center;
+  justify-content: center;
+`
+
+const AssigningCard = styled.div`
+  display: flex;
+  width: min(620px, 100%);
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 32px;
+  border: 1px solid ${({ theme }) => theme.colors.disableFill};
+  border-radius: 16px;
+  background: ${({ theme }) => theme.colors.surface1};
+  box-sizing: border-box;
+  text-align: center;
+`
+
+const AssigningSpinner = styled.img`
+  display: block;
+  margin-bottom: 4px;
+  animation: ${assigningSpin} 1s linear infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+`
+
+const AssigningTitle = styled.h1`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.textPrimary};
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+`
+
+const AssigningCopy = styled.p`
+  max-width: 480px;
+  margin: 0;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: 14px;
+  line-height: 20px;
+`
+
+const AssigningSteps = styled.div`
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: 12px;
+  line-height: 18px;
+
+  i {
+    width: 32px;
+    height: 1px;
+    background: ${({ theme }) => theme.colors.defaultBorder};
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+    align-items: flex-start;
+    flex-direction: column;
+
+    i {
+      display: none;
+    }
   }
 `
 
@@ -836,75 +1063,84 @@ const CoverGrid = styled.div`
 const CoverCard = styled.article`
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
   min-width: 0;
-  padding: 24px 16px;
+  padding: 20px;
   overflow: hidden;
+  border: 1px solid ${({ theme }) => theme.colors.disableFill};
   border-radius: ${({ theme }) => theme.radii.md};
   background: ${({ theme }) => theme.colors.surface1};
 `
 
-const CoverName = styled.p`
+const CoverHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+`
+
+const CoverEyebrow = styled.p`
   margin: 0;
   color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+`
+
+const CoverName = styled.p`
+  margin: 4px 0 0;
+  color: ${({ theme }) => theme.colors.textPrimary};
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
+  letter-spacing: 0.2px;
+`
+
+const LivesBadge = styled.span`
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: ${({ theme }) => theme.colors.planeGreenLight};
+  color: ${({ theme }) => theme.colors.emerald};
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+`
+
+const CoverDetails = styled.dl`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+`
+
+const DetailItem = styled.div<{ $wide?: boolean }>`
+  min-width: 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: ${({ theme }) => theme.colors.surface0};
+  grid-column: ${({ $wide }) => ($wide ? '1 / -1' : 'auto')};
+`
+
+const DetailLabel = styled.dt`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+`
+
+const DetailValue = styled.dd`
+  margin: 4px 0 0;
+  color: ${({ theme }) => theme.colors.textPrimary};
   font-size: 14px;
   font-weight: 500;
   line-height: 20px;
-  letter-spacing: 0.2px;
-`
-
-const PlanChip = styled.div`
-  display: flex;
-  width: min(290px, 100%);
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 4px 12px;
-  border-radius: 43px;
-  background: ${({ theme }) => theme.colors.surface0};
-`
-
-const PlanLeft = styled.span`
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-`
-
-const PlanDot = styled.span`
-  width: 10px;
-  height: 10px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: ${({ theme }) => theme.colors.turquoise};
-`
-
-const PlanName = styled.span`
-  min-width: 0;
-  flex: 1;
-  color: ${({ theme }) => theme.colors.textPrimary};
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 18px;
-  letter-spacing: 0.2px;
-`
-
-const PlanCount = styled.span`
-  color: ${({ theme }) => theme.colors.textPrimary};
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 20px;
-  letter-spacing: 0.2px;
-  white-space: nowrap;
-
-  strong {
-    font-weight: 500;
-  }
-`
-
-const PlanShare = styled.span`
-  color: ${({ theme }) => theme.colors.textSecondary};
-  font-weight: 400;
 `
 
 const EmptyCovers = styled.p`
@@ -914,22 +1150,6 @@ const EmptyCovers = styled.p`
   background: ${({ theme }) => theme.colors.surface1};
   color: ${({ theme }) => theme.colors.textSecondary};
   font-size: 14px;
-`
-
-const Track = styled.div`
-  width: 100%;
-  height: 6px;
-  overflow: hidden;
-  border-radius: 20px;
-  background: ${({ theme }) => theme.colors.disableFill};
-`
-
-const TrackFill = styled.span<{ $percent: number }>`
-  display: block;
-  width: ${({ $percent }) => $percent}%;
-  height: 100%;
-  border-radius: 20px;
-  background: ${({ theme }) => theme.colors.defaultBorder};
 `
 
 const Footer = styled.div`

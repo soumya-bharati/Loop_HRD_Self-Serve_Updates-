@@ -14,10 +14,16 @@ import {
   type CoverageMember,
 } from '@/pages/LivesWizard/components/AssignmentSummary'
 import { CostAndCdSummary } from '@/pages/LivesWizard/components/CostAndCdSummary'
+import { GuidedStepLayout } from '@/pages/LivesWizard/components/GuidedStepLayout'
+import { editGuidedSteps } from '@/pages/LivesWizard/guidedFlowSteps'
 import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
-import { SINGLE_ADD_STEPS, SINGLE_DEPENDANT_STEPS } from '@/pages/LivesWizard/singleAddSteps'
-import { isWorkspaceReturn, wizardExitPath } from '@/pages/ManageLives/launchWizard'
+import { SINGLE_ADD_STEPS } from '@/pages/LivesWizard/singleAddSteps'
+import {
+  employeeDetailsPath,
+  isWorkspaceReturn,
+  wizardExitPath,
+} from '@/pages/ManageLives/launchWizard'
 
 function upsertMember(
   map: Map<string, CoverageGroup>,
@@ -51,6 +57,8 @@ export function VerifyStep() {
     costEstimate,
     resolvedAssignment,
     editBlocked,
+    pendingCorrection,
+    correctionBatch,
     setStep,
     completeFlow,
   } = useLivesWizard()
@@ -62,11 +70,7 @@ export function VerifyStep() {
     (e) => e.id === selectedEmployeeId,
   )
 
-  const steps = isEdit
-    ? ['Search', 'Edit details', 'Review']
-    : isSingleDependant
-      ? [...SINGLE_DEPENDANT_STEPS]
-      : [...SINGLE_ADD_STEPS]
+  const guidedSteps = editGuidedSteps()
 
   const employeeName = isSingleDependant
     ? selectedEmployee
@@ -79,6 +83,80 @@ export function VerifyStep() {
     meta: isSingleDependant
       ? `${selectedEmployee?.employeeId ?? ''} · Self`
       : `${employee.employeeId || '—'} · Self`,
+  }
+
+  if (isEdit) {
+    const correction =
+      pendingCorrection ??
+      correctionBatch.find(
+        (item) =>
+          item.memberId === (selectedEmployeeId ?? item.memberId),
+      ) ??
+      correctionBatch.at(-1)
+    const proofReady =
+      !correction?.requiresKyc || Boolean(correction.proofFileName)
+    const verified = Boolean(correction?.accepted && proofReady && !editBlocked)
+
+    return (
+      <GuidedStepLayout
+        steps={guidedSteps}
+        activeIndex={1}
+        onExit={() => navigate(employeeDetailsPath(selectedEmployeeId))}
+        title={verified ? 'Details verified' : 'Verification required'}
+        onBack={() => setStep('edit-form')}
+        primaryLabel="Save edit"
+        primaryDisabled={!verified}
+        onPrimary={completeFlow}
+      >
+        <VerificationLead>
+          We checked this correction against the member’s existing cover and
+          payroll setup before saving.
+        </VerificationLead>
+
+        <VerificationCard>
+          <CheckRow $passed={Boolean(correction?.accepted)}>
+            <CheckIcon aria-hidden>
+              {correction?.accepted ? '✓' : '!'}
+            </CheckIcon>
+            <CheckCopy>
+              <strong>Details and benefit eligibility</strong>
+              <span>
+                {correction?.accepted
+                  ? 'Verified. Existing plan and benefit assignments remain valid.'
+                  : correction?.rejectionReason ??
+                    'Return to the form and review the correction.'}
+              </span>
+            </CheckCopy>
+          </CheckRow>
+          <CheckRow $passed={Boolean(correction?.accepted)}>
+            <CheckIcon aria-hidden>
+              {correction?.accepted ? '✓' : '!'}
+            </CheckIcon>
+            <CheckCopy>
+              <strong>Payroll deduction</strong>
+              <span>
+                {correction?.accepted
+                  ? 'No change to the employee’s payroll deduction.'
+                  : 'The edit cannot be saved if payroll deductions are affected.'}
+              </span>
+            </CheckCopy>
+          </CheckRow>
+          {correction?.requiresKyc ? (
+            <CheckRow $passed={proofReady}>
+              <CheckIcon aria-hidden>{proofReady ? '✓' : '!'}</CheckIcon>
+              <CheckCopy>
+                <strong>KYC document</strong>
+                <span>
+                  {proofReady
+                    ? `${correction.proofFileName} is ready for verification.`
+                    : 'Upload the required document on the previous step.'}
+                </span>
+              </CheckCopy>
+            </CheckRow>
+          ) : null}
+        </VerificationCard>
+      </GuidedStepLayout>
+    )
   }
 
   const coverageGroups: CoverageGroup[] = (() => {
@@ -181,69 +259,51 @@ export function VerifyStep() {
     return [...map.values()]
   })()
 
-  if (isEdit && editBlocked) {
-    return (
-      <WizardChrome
-        title="Correction blocked"
-        onBack={() => setStep('edit-form')}
-        onExit={() => navigate(wizardExitPath())}
-        primaryLabel="Back to edit"
-        onPrimary={() => setStep('edit-form')}
-      >
-        <Blocked>
-          This correction would make the member ineligible for a benefit they
-          currently hold. The edit is blocked with no override path.
-        </Blocked>
-      </WizardChrome>
-    )
+  const backStep = 'dependant-details'
+
+  const title = 'Review Addition Cost'
+  const primaryLabel = isWorkspaceReturn()
+      ? 'Add to Pending Changes'
+      : 'Continue to enrolment'
+  const onPrimary = () => {
+    if (isSingleDependant || isWorkspaceReturn()) {
+      completeFlow()
+      return
+    }
+    setStep('enrolment')
   }
 
-  const backStep = isEdit
-    ? selectedEmployee?.requiresProofOnEdit
-      ? 'edit-proof'
-      : 'edit-form'
-    : isSingleDependant
-      ? selectedEmployee &&
-        selectedEmployee.plans.filter((p) => p.category === 'gmc').length > 1
-        ? 'dependant-plan'
-        : 'dependant-details'
-      : 'dependant-details'
+  const summary = (
+    <Grid>
+      <AssignmentSummary groups={coverageGroups} />
+      <CostAndCdSummary
+        estimate={costEstimate}
+        currentPayrollDeduction={
+          isSingleDependant
+            ? selectedEmployee?.currentPayrollDeduction
+            : undefined
+        }
+      />
+    </Grid>
+  )
 
   return (
     <WizardChrome
-      title={isEdit ? 'Review correction' : 'Review Addition Cost'}
+      title={title}
       onBack={() => setStep(backStep)}
       onExit={() => navigate(wizardExitPath())}
       secondaryLabel="Back"
       onSecondary={() => setStep(backStep)}
-      primaryLabel={
-        isEdit
-          ? 'Confirm correction'
-          : isWorkspaceReturn()
-            ? 'Add to Pending Changes'
-            : 'Continue to enrolment'
-      }
-      onPrimary={() => {
-        if (isEdit || isSingleDependant || isWorkspaceReturn()) {
-          completeFlow()
-          return
-        }
-        setStep('enrolment')
-      }}
+      primaryLabel={primaryLabel}
+      onPrimary={onPrimary}
     >
-      <FlowStepper steps={steps} activeIndex={steps.length - 1} bare />
+      <FlowStepper
+        steps={[...SINGLE_ADD_STEPS]}
+        activeIndex={SINGLE_ADD_STEPS.length - 1}
+        bare
+      />
 
-      <Grid>
-        <AssignmentSummary groups={coverageGroups} />
-        <CostAndCdSummary
-          estimate={costEstimate}
-          currentPayrollDeduction={
-            isSingleDependant
-              ? selectedEmployee?.currentPayrollDeduction
-              : undefined
-          }
-        />
-      </Grid>
+      {summary}
     </WizardChrome>
   )
 }
@@ -258,12 +318,61 @@ const Grid = styled.div`
   }
 `
 
-const Blocked = styled.div`
-  padding: 20px 24px;
-  border-radius: 12px;
-  background: #fdecec;
-  border: 1px solid #f5b5b5;
+const VerificationLead = styled.p`
+  margin: 0;
   color: ${({ theme }) => theme.colors.textPrimary};
   font-size: 14px;
   line-height: 20px;
+`
+
+const VerificationCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
+  border-radius: 12px;
+  overflow: hidden;
+  background: ${({ theme }) => theme.colors.surface1};
+`
+
+const CheckRow = styled.div<{ $passed: boolean }>`
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px;
+  background: ${({ theme, $passed }) =>
+    $passed ? theme.colors.surface1 : theme.colors.fillRed};
+
+  &:not(:first-child) {
+    border-top: 1px solid ${({ theme }) => theme.colors.defaultBorder};
+  }
+`
+
+const CheckIcon = styled.span`
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 50%;
+  background: ${({ theme }) => theme.colors.fillGreen};
+  color: ${({ theme }) => theme.colors.emerald};
+  font-size: 13px;
+  font-weight: 700;
+`
+
+const CheckCopy = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  strong {
+    color: ${({ theme }) => theme.colors.textPrimary};
+    font-size: 14px;
+  }
+
+  span {
+    color: ${({ theme }) => theme.colors.textSecondary};
+    font-size: 13px;
+    line-height: 19px;
+  }
 `

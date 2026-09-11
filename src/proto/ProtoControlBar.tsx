@@ -18,6 +18,7 @@ export function ProtoControlBar() {
     setVersionId,
     version,
     validationFlow,
+    progressCollapse,
   } = useProtoConfig()
 
   return (
@@ -29,7 +30,10 @@ export function ProtoControlBar() {
             {countLabel(entities.length, 'entity', 'entities')} ·{' '}
             {countLabel(deals.length, 'flex deal', 'flex deals')} ·{' '}
             {version.label} ·{' '}
-            {validationFlow === 'clean' ? 'No errors' : 'With errors'}
+            {validationFlow === 'clean' ? 'No errors' : 'With errors'} ·{' '}
+            {progressCollapse === 'shown'
+              ? 'Collapse shown'
+              : 'Collapse hidden'}
           </Summary>
         </Left>
         <Right>

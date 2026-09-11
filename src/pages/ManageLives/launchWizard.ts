@@ -40,3 +40,13 @@ export function isWorkspaceReturn() {
 export function wizardExitPath() {
   return isWorkspaceReturn() ? '/manage-lives' : '/endorsements'
 }
+
+/** True when the wizard was launched against a specific employee. */
+export function launchedForEmployee() {
+  return Boolean(new URLSearchParams(window.location.search).get('employee'))
+}
+
+/** Exit target for flows that act on one existing employee. */
+export function employeeDetailsPath(employeeId?: string | null) {
+  return employeeId ? `/manage-lives/employee/${employeeId}` : '/employees'
+}

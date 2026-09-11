@@ -9,6 +9,7 @@ import {
   sampleEmployees,
   type SearchableEmployee,
 } from '@/data/employees'
+import { toDisplayDate } from '@/pages/LivesWizard/autofill/personas'
 import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
 
@@ -93,7 +94,7 @@ export function SearchEmployeeStep() {
         firstName: dep.firstName,
         lastName: dep.lastName,
         gender: dep.gender,
-        dateOfBirth: dep.dateOfBirth,
+        dateOfBirth: toDisplayDate(dep.dateOfBirth),
         email: dep.email,
         mobile: dep.mobile,
         relationship: dep.relationship,
@@ -105,11 +106,15 @@ export function SearchEmployeeStep() {
         firstName: emp.firstName,
         lastName: emp.lastName,
         gender: emp.gender,
-        dateOfBirth: emp.dateOfBirth,
+        dateOfBirth: toDisplayDate(emp.dateOfBirth),
         email: emp.email,
         mobile: emp.mobile,
-        dateOfJoining: emp.dateOfJoining,
+        dateOfJoining: toDisplayDate(emp.dateOfJoining),
         relationship: 'Self',
+        customAttributes: {
+          ...(emp.department ? { 'attr-department': emp.department } : {}),
+          ...(emp.dealAttributes ?? {}),
+        },
       })
     }
     setStep('edit-form')

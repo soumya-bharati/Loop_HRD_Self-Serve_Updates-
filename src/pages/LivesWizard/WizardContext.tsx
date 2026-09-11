@@ -47,6 +47,7 @@ import {
   type AddEmployeeMember,
   type IntakeMode,
 } from '@/pages/LivesWizard/addEmployees'
+import { toDisplayDate } from '@/pages/LivesWizard/autofill/personas'
 import { useProtoConfig } from '@/proto/ProtoConfigContext'
 
 export type LifeAction = 'add' | 'edit' | 'delete'
@@ -211,6 +212,8 @@ interface LivesWizardContextValue {
 
   dateOfLeaving: string
   setDateOfLeaving: (value: string) => void
+  reasonOfLeaving: string
+  setReasonOfLeaving: (value: string) => void
   bulkDeleteRows: BulkDeleteRow[]
 
   editProofFileName: string | null
@@ -290,7 +293,7 @@ function hydrateFromRoster(
           firstName: dependant.firstName,
           lastName: dependant.lastName,
           gender: dependant.gender,
-          dateOfBirth: dependant.dateOfBirth,
+          dateOfBirth: toDisplayDate(dependant.dateOfBirth),
           email: dependant.email,
           mobile: dependant.mobile,
           relationship: dependant.relationship,
@@ -301,11 +304,15 @@ function hydrateFromRoster(
           firstName: emp.firstName,
           lastName: emp.lastName,
           gender: emp.gender,
-          dateOfBirth: emp.dateOfBirth,
+          dateOfBirth: toDisplayDate(emp.dateOfBirth),
           email: emp.email,
           mobile: emp.mobile,
-          dateOfJoining: emp.dateOfJoining,
+          dateOfJoining: toDisplayDate(emp.dateOfJoining),
           relationship: 'Self' as const,
+          customAttributes: {
+            ...(emp.department ? { 'attr-department': emp.department } : {}),
+            ...(emp.dealAttributes ?? {}),
+          },
         }
 
   return {
@@ -452,6 +459,7 @@ export function LivesWizardProvider({
   const [midtermProofUploaded, setMidtermProofUploaded] = useState(false)
   const [processingProgress, setProcessingProgress] = useState(0)
   const [dateOfLeaving, setDateOfLeaving] = useState(initialLeavingDate ?? '')
+  const [reasonOfLeaving, setReasonOfLeaving] = useState('')
   const [bulkDeleteRows] = useState(() =>
     sampleBulkDeleteRows.map((r) => ({ ...r })),
   )
@@ -526,10 +534,16 @@ export function LivesWizardProvider({
   const addPendingCorrection = useCallback(() => {
     setPendingCorrection((pending) => {
       if (!pending?.accepted) return pending
-      addCorrection(pending)
+      if (pending.requiresKyc && !editProofFileName) return pending
+      addCorrection({
+        ...pending,
+        proofFileName: pending.requiresKyc
+          ? editProofFileName ?? undefined
+          : undefined,
+      })
       return null
     })
-  }, [addCorrection])
+  }, [addCorrection, editProofFileName])
 
   const removeCorrection = useCallback((memberId: string) => {
     setCorrectionBatch((current) =>
@@ -1144,6 +1158,14 @@ export function LivesWizardProvider({
   }, [action, method, selectedEmployee, bulkDeleteRows, activeDeal])
 
   const completeFlow = useCallback(() => {
+    if (
+      action === 'edit' &&
+      correctionBatch.some(
+        (correction) => correction.requiresKyc && !correction.proofFileName,
+      )
+    ) {
+      return
+    }
     if (action === 'edit' && simulateEditSaveFailure && editProofFileName) {
       setEditProofFileName(null)
       setSimulateEditSaveFailure(false)
@@ -1154,7 +1176,12 @@ export function LivesWizardProvider({
       return
     }
     setStep('success')
-  }, [action, simulateEditSaveFailure, editProofFileName])
+  }, [
+    action,
+    correctionBatch,
+    simulateEditSaveFailure,
+    editProofFileName,
+  ])
 
   const resetWizard = useCallback(() => {
     setStep(initialStep)
@@ -1183,6 +1210,7 @@ export function LivesWizardProvider({
     setMidtermProofUploaded(false)
     setProcessingProgress(0)
     setDateOfLeaving('')
+    setReasonOfLeaving('')
     setEditProofFileName(null)
     setEditBlocked(false)
     setSimulateEditSaveFailure(false)
@@ -1273,6 +1301,8 @@ export function LivesWizardProvider({
       startProcessing,
       dateOfLeaving,
       setDateOfLeaving,
+      reasonOfLeaving,
+      setReasonOfLeaving,
       bulkDeleteRows,
       editProofFileName,
       setEditProofFileName,
@@ -1356,6 +1386,7 @@ export function LivesWizardProvider({
       processingProgress,
       startProcessing,
       dateOfLeaving,
+      reasonOfLeaving,
       bulkDeleteRows,
       editProofFileName,
       editBlocked,

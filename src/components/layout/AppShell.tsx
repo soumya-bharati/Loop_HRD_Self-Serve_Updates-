@@ -12,10 +12,15 @@ export function AppShell() {
   const normalized = pathname.replace(/\/+$/, '') || '/'
   const params = new URLSearchParams(search)
   // These setup screens provide their own full-bleed guided-flow chrome.
+  const method = params.get('method') ?? ''
+  const isSingleMethod = method === 'single' || method === 'single-dependant'
   const isGuidedSetup =
     normalized === '/manage-lives' ||
-    (normalized === '/endorsements/lives/add' &&
-      params.get('method') === 'single')
+    (normalized === '/endorsements/lives/add' && method === 'single') ||
+    // Edit / add-dependant / delete are guided once they target one employee.
+    (/^\/endorsements\/lives\/(add|edit|delete)$/.test(normalized) &&
+      isSingleMethod &&
+      Boolean(params.get('employee')))
   const showProtoBar =
     normalized === '/endorsements' ||
     normalized === '/manage-lives' ||
@@ -65,6 +70,10 @@ export function AppShell() {
 }
 
 const Shell = styled.div<{ $fillViewport?: boolean }>`
+  /* Height available to guided-flow chrome, which the top nav eats into. */
+  --guided-viewport: ${({ $fillViewport, theme }) =>
+    $fillViewport ? '100vh' : `calc(100vh - ${theme.layout.topNavHeight})`};
+
   ${({ $fillViewport }) =>
     $fillViewport
       ? `

@@ -9,25 +9,25 @@ import {
   type BulkMemberRow,
   type BulkValidationIssue,
 } from '@/data/flexDeal'
-import { downloadAssignmentSheet } from '@/pages/ManageLives/bulk/downloadAssignmentSheet'
+import {
+  downloadAssignmentSheet,
+  downloadDeletionSheet,
+  downloadIssuesSheet,
+} from '@/pages/ManageLives/bulk/downloadAssignmentSheet'
 import { AssignmentBreakup } from '@/pages/ManageLives/landings/AssignmentBreakup'
+import { ReverifyModal } from '@/pages/ManageLives/landings/ReverifyModal'
 
 type Props = {
   rows: BulkMemberRow[]
   fileName?: string
   fileSize?: number
+  isDelete?: boolean
   onResolve: (rowId: string, fixes: { field: string; value: string }[]) => void
   onIgnore: (rowId: string) => void
   onRestore: (rowId: string) => void
-  onReupload: () => void
+  onReverify: (file: File) => void
   onBack: () => void
   onContinue: () => void
-}
-
-function formatFileSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function controlKind(field: string) {
@@ -53,12 +53,11 @@ function displayFixValue(field: string, value: string | undefined) {
 
 export function ValidationIssuesPanel({
   rows,
-  fileName = 'Uploaded employee list.xlsx',
-  fileSize = 0,
+  isDelete = false,
   onResolve,
   onIgnore,
   onRestore,
-  onReupload,
+  onReverify,
   onBack,
   onContinue,
 }: Props) {
@@ -71,6 +70,8 @@ export function ValidationIssuesPanel({
       ? 'attention'
       : 'ready',
   )
+  const [proceedWithApproved, setProceedWithApproved] = useState(false)
+  const [reverifyOpen, setReverifyOpen] = useState(false)
   const issueRows = rows.filter(
     (row) =>
       validationIssuesFor(row).length > 0 ||
@@ -95,6 +96,8 @@ export function ValidationIssuesPanel({
     (row) => row.relationship === 'Self',
   ).length
   const readyDependants = acceptedRows.length - readyEmployees
+  const showAttention = openRows.length > 0
+  const activeTab = showAttention && tab === 'attention' ? 'attention' : 'ready'
 
   function cardState(row: BulkMemberRow): 'open' | 'ignored' | 'fixed' {
     if (row.ignored) return 'ignored'
@@ -132,85 +135,114 @@ export function ValidationIssuesPanel({
   }
 
   return (
+    <>
     <Panel>
       <Content>
-        <TabBar role="tablist" aria-label="Validation review">
-          <Tab
-            type="button"
-            role="tab"
-            aria-selected={tab === 'ready'}
-            $active={tab === 'ready'}
-            onClick={() => setTab('ready')}
-          >
-            Members ready for submission
-          </Tab>
-          <Tab
-            type="button"
-            role="tab"
-            aria-selected={tab === 'attention'}
-            $active={tab === 'attention'}
-            onClick={() => setTab('attention')}
-          >
-            Members who need attention({openRows.length})
-          </Tab>
-        </TabBar>
+        <Summary aria-live="polite">
+          <SummaryTitle>
+            {acceptedRows.length} of {rows.length}{' '}
+            {rows.length === 1 ? 'member' : 'members'} ready to submit
+          </SummaryTitle>
+          <SummarySub>
+            which includes {readyEmployees}{' '}
+            {readyEmployees === 1 ? 'employee' : 'employees'} &{' '}
+            {readyDependants}{' '}
+            {readyDependants === 1 ? 'Dependant' : 'Dependants'}
+          </SummarySub>
+        </Summary>
 
-        {tab === 'ready' ? (
+        {showAttention ? (
+          <TabBar role="tablist" aria-label="Validation review">
+            <Tab
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'ready'}
+              $active={activeTab === 'ready'}
+              onClick={() => setTab('ready')}
+            >
+              Members ready for submission({acceptedRows.length})
+            </Tab>
+            <Tab
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'attention'}
+              $active={activeTab === 'attention'}
+              onClick={() => setTab('attention')}
+            >
+              Members who need attention({openRows.length})
+            </Tab>
+          </TabBar>
+        ) : null}
+
+        {activeTab === 'ready' ? (
           <>
             <ReadyBanner>
               <div>
                 <ReadyTitle>
                   {acceptedRows.length}{' '}
-                  {acceptedRows.length === 1 ? 'member' : 'members'} ready for
-                  addition
+                  {acceptedRows.length === 1 ? 'member' : 'members'} ready for{' '}
+                  {isDelete ? 'deletion' : 'addition'}
                 </ReadyTitle>
-                <ReadySub>
-                  which includes {readyEmployees}{' '}
-                  {readyEmployees === 1 ? 'employee' : 'employees'} &{' '}
-                  {readyDependants}{' '}
-                  {readyDependants === 1 ? 'Dependant' : 'Dependants'}
-                </ReadySub>
               </div>
               <DownloadOutline
                 type="button"
-                onClick={() => downloadAssignmentSheet(acceptedRows)}
+                onClick={() =>
+                  isDelete
+                    ? downloadDeletionSheet(acceptedRows)
+                    : downloadAssignmentSheet(acceptedRows)
+                }
               >
-                Download list with Assignments
+                {isDelete
+                  ? 'Download deletion list'
+                  : 'Download list with Assignments'}
               </DownloadOutline>
             </ReadyBanner>
 
             <AssignHeader>
-              <AssignLabel>Here are the assigned benefits</AssignLabel>
+              <AssignLabel>
+                {isDelete
+                  ? 'Here are the covers being removed'
+                  : 'Here are the assigned benefits'}
+              </AssignLabel>
               <AssignRule />
               <KnowHow type="button">
-                Know how it’s assigned
+                {isDelete ? 'Know how it’s removed' : 'Know how it’s assigned'}
                 <KnowTip role="tooltip">
-                  Loop assigns each life to a plan from your sheet and the
-                  policy rules for this account. Download the assignment list
-                  to review every employee and dependant.
+                  {isDelete
+                    ? 'Loop matches each life to their current covers, then ends those covers on the leaving date. Download the deletion list to review every employee and dependant.'
+                    : 'Loop assigns each life to a plan from your sheet and the policy rules for this account. Download the assignment list to review every employee and dependant.'}
                 </KnowTip>
               </KnowHow>
             </AssignHeader>
 
-            <AssignmentBreakup rows={acceptedRows} />
+            <AssignmentBreakup rows={acceptedRows} isDelete={isDelete} />
           </>
         ) : (
           <>
-            <FileCard>
-              <FileMeta>
-                <FileIcon>
-                  <img src={assets.mlIconFileUploaded} alt="" />
-                </FileIcon>
-                <FileCopy>
-                  <FileName title={fileName}>{fileName}</FileName>
-                  <FileSize>{formatFileSize(fileSize)}</FileSize>
-                </FileCopy>
-              </FileMeta>
-              <ReuploadButton type="button" onClick={onReupload}>
-                <img src={assets.mlIconReupload} alt="" />
-                Re-Upload
-              </ReuploadButton>
-            </FileCard>
+            <ReadyBanner $tone="error">
+              <div>
+                <ReadyTitle $tone="error">
+                  {openRows.length}{' '}
+                  {openRows.length === 1 ? 'member' : 'members'} need attention
+                </ReadyTitle>
+              </div>
+              <BannerActions>
+                <DownloadOutline
+                  type="button"
+                  $tone="error"
+                  onClick={() => downloadIssuesSheet(openRows)}
+                >
+                  Download sheet with issues
+                </DownloadOutline>
+                <DownloadOutline
+                  type="button"
+                  $tone="error"
+                  onClick={() => setReverifyOpen(true)}
+                >
+                  Re-Upload
+                </DownloadOutline>
+              </BannerActions>
+            </ReadyBanner>
 
             {issueRows.length > 0 ? (
           <IssueSection>
@@ -456,30 +488,55 @@ export function ValidationIssuesPanel({
           </>
         )}
 
-        {tab === 'ready' ? (
+        {activeTab === 'ready' ? (
           <FooterActions>
-            <BackButton type="button" onClick={onBack}>
-              Go Back
-            </BackButton>
-            <ContinueButton
-              type="button"
-              disabled={acceptedRows.length === 0}
-              onClick={onContinue}
-            >
-              Submit {acceptedRows.length}{' '}
-              {acceptedRows.length === 1 ? 'life' : 'lives'} for Addition
-            </ContinueButton>
-            {acceptedRows.length > 0 && openRows.length > 0 ? (
-              <ContinueHint>
-                {openRows.length}{' '}
-                {openRows.length === 1 ? 'life still has' : 'lives still have'}{' '}
-                issues and will be left out.
-              </ContinueHint>
+            {openRows.length > 0 ? (
+              <ProceedCheck htmlFor="proceed-approved-lives">
+                <input
+                  id="proceed-approved-lives"
+                  type="checkbox"
+                  checked={proceedWithApproved}
+                  onChange={(event) =>
+                    setProceedWithApproved(event.target.checked)
+                  }
+                />
+                Proceed with the {acceptedRows.length} approved{' '}
+                {acceptedRows.length === 1 ? 'life' : 'lives'} and leave out{' '}
+                {openRows.length} with issues
+              </ProceedCheck>
             ) : null}
+            <FooterButtons>
+              <BackButton type="button" onClick={onBack}>
+                Go Back
+              </BackButton>
+              <ContinueButton
+                type="button"
+                disabled={
+                  acceptedRows.length === 0 ||
+                  (openRows.length > 0 && !proceedWithApproved)
+                }
+                onClick={onContinue}
+              >
+                Submit {acceptedRows.length}{' '}
+                {acceptedRows.length === 1 ? 'life' : 'lives'} for{' '}
+                {isDelete ? 'Deletion' : 'Addition'}
+              </ContinueButton>
+            </FooterButtons>
           </FooterActions>
         ) : null}
       </Content>
     </Panel>
+    <ReverifyModal
+      open={reverifyOpen}
+      onCancel={() => setReverifyOpen(false)}
+      onVerified={(file) => {
+        setReverifyOpen(false)
+        setTab('ready')
+        setProceedWithApproved(false)
+        onReverify(file)
+      }}
+    />
+    </>
   )
 }
 
@@ -497,85 +554,6 @@ const Panel = styled.div`
   }
 `
 
-const FileCard = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  width: 100%;
-  padding: 16px 20px;
-  border-radius: 12px;
-  background: ${({ theme }) => theme.colors.hoverSurface1};
-  box-sizing: border-box;
-`
-
-const FileMeta = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  min-width: 0;
-`
-
-const FileIcon = styled.div`
-  display: grid;
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
-  place-items: center;
-  border-radius: 50%;
-  background: ${({ theme }) => theme.colors.planeGreenLight};
-
-  img {
-    width: 20px;
-    height: 20px;
-  }
-`
-
-const FileCopy = styled.div`
-  min-width: 0;
-`
-
-const FileName = styled.p`
-  margin: 0;
-  overflow: hidden;
-  color: ${({ theme }) => theme.colors.textPrimary};
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 20px;
-  letter-spacing: 0.2px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-const FileSize = styled.p`
-  margin: 2px 0 0;
-  color: ${({ theme }) => theme.colors.textSecondary};
-  font-size: 12px;
-  line-height: 18px;
-`
-
-const ReuploadButton = styled.button`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: ${({ theme }) => theme.colors.emerald};
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 18px;
-  letter-spacing: -0.28px;
-  cursor: pointer;
-
-  img {
-    width: 20px;
-    height: 20px;
-  }
-`
-
 const Content = styled.div`
   display: flex;
   min-width: 0;
@@ -585,6 +563,30 @@ const Content = styled.div`
   flex-direction: column;
   gap: 24px;
   padding-top: 13px;
+`
+
+const Summary = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`
+
+const SummaryTitle = styled.p`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.emerald};
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: 0.2px;
+`
+
+const SummarySub = styled.p`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  letter-spacing: 0.2px;
 `
 
 const TabBar = styled.div`
@@ -615,49 +617,56 @@ const Tab = styled.button<{ $active: boolean }>`
   cursor: pointer;
 `
 
-const ReadyBanner = styled.div`
+const ReadyBanner = styled.div<{ $tone?: 'error' }>`
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   width: 100%;
   padding: 16px 20px;
+  border: 1px solid
+    ${({ $tone }) => ($tone === 'error' ? '#f1b7b7' : 'transparent')};
   border-radius: 12px;
-  background: ${({ theme }) => theme.colors.hoverSurface1};
+  background: ${({ $tone, theme }) =>
+    $tone === 'error' ? '#fffafa' : theme.colors.hoverSurface1};
   box-sizing: border-box;
 `
 
-const ReadyTitle = styled.p`
+const ReadyTitle = styled.p<{ $tone?: 'error' }>`
   margin: 0;
-  color: ${({ theme }) => theme.colors.emerald};
+  color: ${({ $tone, theme }) =>
+    $tone === 'error' ? theme.colors.textError : theme.colors.emerald};
   font-size: 24px;
   font-weight: 500;
   line-height: 28px;
 `
 
-const ReadySub = styled.p`
-  margin: 2px 0 0;
-  color: ${({ theme }) => theme.colors.textSecondary};
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 18px;
-  letter-spacing: 0.2px;
-`
-
-const DownloadOutline = styled.button`
+const DownloadOutline = styled.button<{ $tone?: 'error' }>`
   flex-shrink: 0;
   height: 36px;
   padding: 8px 16px;
-  border: 1px solid ${({ theme }) => theme.colors.emerald};
+  border: 1px solid
+    ${({ $tone, theme }) =>
+      $tone === 'error' ? theme.colors.textError : theme.colors.emerald};
   border-radius: 8px;
   background: transparent;
-  color: ${({ theme }) => theme.colors.emerald};
+  color: ${({ $tone, theme }) =>
+    $tone === 'error' ? theme.colors.textError : theme.colors.emerald};
   font: inherit;
   font-size: 12px;
   font-weight: 500;
   line-height: 18px;
   letter-spacing: 0.2px;
   cursor: pointer;
+`
+
+const BannerActions = styled.div`
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 `
 
 const AssignHeader = styled.div`
@@ -1068,19 +1077,38 @@ const SuccessCopy = styled.p`
 
 const FooterActions = styled.div`
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+`
+
+const FooterButtons = styled.div`
+  display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 `
 
-const ContinueHint = styled.p`
+const ProceedCheck = styled.label`
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   margin: 0;
-  flex-basis: 100%;
   color: ${({ theme }) => theme.colors.textSecondary};
   font-size: 12px;
   font-weight: 400;
   line-height: 18px;
   letter-spacing: 0.2px;
+  cursor: pointer;
+
+  input {
+    margin: 2px 0 0;
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    accent-color: ${({ theme }) => theme.colors.emerald};
+    cursor: pointer;
+  }
 `
 
 const BackButton = styled.button`

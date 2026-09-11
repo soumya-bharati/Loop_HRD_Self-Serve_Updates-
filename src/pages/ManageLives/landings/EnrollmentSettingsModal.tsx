@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import styled, { keyframes } from 'styled-components'
 
 import { assets } from '@/assets/figma'
+import { ModalPortal } from '@/components/ModalPortal'
 
 type Props = {
   open: boolean
@@ -33,88 +34,59 @@ export function EnrollmentSettingsModal({
   if (!open) return null
 
   return (
-    <Overlay role="presentation" onMouseDown={onCancel}>
-      <Dialog
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="enrollment-settings-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <Header>
-          <Title id="enrollment-settings-title">Enrollment Settings</Title>
-          <CloseButton type="button" aria-label="Close" onClick={onCancel}>
-            <img src={assets.mlIconModalClose24} alt="" width={24} height={24} />
-          </CloseButton>
-        </Header>
+    <ModalPortal>
+      <Overlay role="presentation" onMouseDown={onCancel}>
+        <Dialog
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="enrollment-settings-title"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <Header>
+            <Title id="enrollment-settings-title">Enrollment Settings</Title>
+            <CloseButton type="button" aria-label="Close" onClick={onCancel}>
+              <img
+                src={assets.mlIconModalClose24}
+                alt=""
+                width={24}
+                height={24}
+              />
+            </CloseButton>
+          </Header>
 
-        <Body>
-          <Field>
-            <Question>
-              Do you want to launch an enrollment window for these employee?
-            </Question>
-            <Choices role="group" aria-label="Launch enrollment window">
-              <Choice
-                type="button"
-                $active={launchEnrolment}
-                aria-pressed={launchEnrolment}
-                onClick={() => setLaunchEnrolment(true)}
-              >
-                Yes, launch enrolment
-              </Choice>
-              <Choice
-                type="button"
-                $active={!launchEnrolment}
-                aria-pressed={!launchEnrolment}
-                onClick={() => setLaunchEnrolment(false)}
-              >
-                No, just add the employee
-              </Choice>
-            </Choices>
-          </Field>
+          <Body>
+            <Field>
+              <Question>
+                Do you want to launch an enrollment window for these employee?
+              </Question>
+              <Choices role="group" aria-label="Launch enrollment window">
+                <Choice
+                  type="button"
+                  $active={launchEnrolment}
+                  aria-pressed={launchEnrolment}
+                  onClick={() => setLaunchEnrolment(true)}
+                >
+                  Yes, launch enrolment
+                </Choice>
+                <Choice
+                  type="button"
+                  $active={!launchEnrolment}
+                  aria-pressed={!launchEnrolment}
+                  onClick={() => setLaunchEnrolment(false)}
+                >
+                  No, just add the employee
+                </Choice>
+              </Choices>
+            </Field>
 
-          {launchEnrolment ? (
-            <>
-              <Field>
-                <FieldLabel htmlFor="enrollment-due-date">
-                  Enrollment due date<Required>*</Required>
-                </FieldLabel>
-                <TextBox>
-                  <input id="enrollment-due-date" defaultValue="27/08/2026" />
-                  <img
-                    src={assets.mlIconCalendarField24}
-                    alt=""
-                    width={24}
-                    height={24}
-                  />
-                </TextBox>
-              </Field>
-
-              <Field>
-                <Question as="p">Invitation email</Question>
-                <Choices role="group" aria-label="Invitation email timing">
-                  <Choice
-                    type="button"
-                    $active={inviteSchedule === 'now'}
-                    aria-pressed={inviteSchedule === 'now'}
-                    onClick={() => setInviteSchedule('now')}
-                  >
-                    Send Invite Now
-                  </Choice>
-                  <Choice
-                    type="button"
-                    $active={inviteSchedule === 'later'}
-                    aria-pressed={inviteSchedule === 'later'}
-                    onClick={() => setInviteSchedule('later')}
-                  >
-                    Schedule for a later date
-                  </Choice>
-                </Choices>
-              </Field>
-
-              {inviteSchedule === 'later' ? (
-                <FieldRow>
+            {launchEnrolment ? (
+              <>
+                <Field>
+                  <FieldLabel htmlFor="enrollment-due-date">
+                    Enrollment due date<Required>*</Required>
+                  </FieldLabel>
                   <TextBox>
-                    <input defaultValue="14/8/2026" aria-label="Invite date" />
+                    <input id="enrollment-due-date" defaultValue="27/08/2026" />
                     <img
                       src={assets.mlIconCalendarField24}
                       alt=""
@@ -122,43 +94,82 @@ export function EnrollmentSettingsModal({
                       height={24}
                     />
                   </TextBox>
-                  <TextBox>
-                    <input defaultValue="09:00 AM" aria-label="Invite time" />
-                    <img
-                      src={assets.mlIconChevronDownField}
-                      alt=""
-                      width={24}
-                      height={24}
-                    />
-                  </TextBox>
-                </FieldRow>
-              ) : null}
+                </Field>
 
-              <Divider />
+                <Field>
+                  <Question as="p">Invitation email</Question>
+                  <Choices role="group" aria-label="Invitation email timing">
+                    <Choice
+                      type="button"
+                      $active={inviteSchedule === 'now'}
+                      aria-pressed={inviteSchedule === 'now'}
+                      onClick={() => setInviteSchedule('now')}
+                    >
+                      Send Invite Now
+                    </Choice>
+                    <Choice
+                      type="button"
+                      $active={inviteSchedule === 'later'}
+                      aria-pressed={inviteSchedule === 'later'}
+                      onClick={() => setInviteSchedule('later')}
+                    >
+                      Schedule for a later date
+                    </Choice>
+                  </Choices>
+                </Field>
 
-              <SendTo>
-                Send to : All {recipientCount}{' '}
-                {recipientCount === 1 ? 'Employee' : 'Employees'}
-              </SendTo>
+                {inviteSchedule === 'later' ? (
+                  <FieldRow>
+                    <TextBox>
+                      <input
+                        defaultValue="14/8/2026"
+                        aria-label="Invite date"
+                      />
+                      <img
+                        src={assets.mlIconCalendarField24}
+                        alt=""
+                        width={24}
+                        height={24}
+                      />
+                    </TextBox>
+                    <TextBox>
+                      <input defaultValue="09:00 AM" aria-label="Invite time" />
+                      <img
+                        src={assets.mlIconChevronDownField}
+                        alt=""
+                        width={24}
+                        height={24}
+                      />
+                    </TextBox>
+                  </FieldRow>
+                ) : null}
 
-              <EmailPreview>
-                <img src={assets.mlEnrollmentEmailPreview} alt="" />
-              </EmailPreview>
-            </>
-          ) : null}
-        </Body>
+                <Divider />
 
-        <Footer>
-          <ReportLink type="button">Report an Issue</ReportLink>
-          <SecondaryButton type="button" onClick={onCancel}>
-            Cancel
-          </SecondaryButton>
-          <PrimaryButton type="button" onClick={onConfirm}>
-            Confirm &amp; Submit
-          </PrimaryButton>
-        </Footer>
-      </Dialog>
-    </Overlay>
+                <SendTo>
+                  Send to : All {recipientCount}{' '}
+                  {recipientCount === 1 ? 'Employee' : 'Employees'}
+                </SendTo>
+
+                <EmailPreview>
+                  <img src={assets.mlEnrollmentEmailPreview} alt="" />
+                </EmailPreview>
+              </>
+            ) : null}
+          </Body>
+
+          <Footer>
+            <ReportLink type="button">Report an Issue</ReportLink>
+            <SecondaryButton type="button" onClick={onCancel}>
+              Cancel
+            </SecondaryButton>
+            <PrimaryButton type="button" onClick={onConfirm}>
+              Confirm &amp; Submit
+            </PrimaryButton>
+          </Footer>
+        </Dialog>
+      </Overlay>
+    </ModalPortal>
   )
 }
 

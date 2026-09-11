@@ -2,9 +2,13 @@ import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { emptyEmployeeForm } from '@/data/employees'
-import { FlowStepper, WizardChrome } from '@/pages/LivesWizard/WizardChrome'
+import { GuidedStepLayout } from '@/pages/LivesWizard/components/GuidedStepLayout'
+import { editGuidedSteps } from '@/pages/LivesWizard/guidedFlowSteps'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
-import { wizardExitPath } from '@/pages/ManageLives/launchWizard'
+import {
+  employeeDetailsPath,
+  launchedForEmployee,
+} from '@/pages/ManageLives/launchWizard'
 
 export function CorrectionBatchStep() {
   const navigate = useNavigate()
@@ -12,6 +16,7 @@ export function CorrectionBatchStep() {
     correctionBatch,
     removeCorrection,
     setEmployee,
+    selectedEmployeeId,
     setSelectedEmployeeId,
     setSelectedDependantId,
     completeFlow,
@@ -25,29 +30,40 @@ export function CorrectionBatchStep() {
     setStep('search-employee')
   }
 
+  // A flow launched for one employee stays on that employee.
+  const canAddAnother = !launchedForEmployee()
+  const steps = editGuidedSteps(
+    correctionBatch.some((correction) => correction.requiresKyc),
+  )
+  const missingKycProof = correctionBatch.some(
+    (correction) => correction.requiresKyc && !correction.proofFileName,
+  )
+
   return (
-    <WizardChrome
+    <GuidedStepLayout
+      steps={steps}
+      activeIndex={steps.length - 1}
+      onExit={() => navigate(employeeDetailsPath(selectedEmployeeId))}
       title="Corrections to Submit"
       onBack={() => setStep('edit-form')}
-      onExit={() => navigate(wizardExitPath())}
-      secondaryLabel="Add another correction"
-      onSecondary={addAnother}
+      secondaryLabel={canAddAnother ? 'Add another correction' : undefined}
+      onSecondary={canAddAnother ? addAnother : undefined}
       primaryLabel={`Submit ${correctionBatch.length} correction${
         correctionBatch.length === 1 ? '' : 's'
       }`}
-      primaryDisabled={correctionBatch.length === 0}
+      primaryDisabled={correctionBatch.length === 0 || missingKycProof}
       onPrimary={completeFlow}
     >
-      <FlowStepper
-        steps={['Search', 'Edit details', 'Corrections']}
-        activeIndex={2}
-        bare
-      />
-
       <Note>
         Only changed fields will be submitted. Plan and benefit assignments
         remain unchanged.
       </Note>
+      {missingKycProof ? (
+        <KycError>
+          Official ID proof is required for every correction to name, gender,
+          or date of birth before submission.
+        </KycError>
+      ) : null}
 
       {correctionBatch.length === 0 ? (
         <Empty>No valid corrections have been added yet.</Empty>
@@ -73,6 +89,9 @@ export function CorrectionBatchStep() {
                     </span>
                   </Diff>
                 ))}
+                {correction.requiresKyc && correction.proofFileName ? (
+                  <Proof>Official ID proof: {correction.proofFileName}</Proof>
+                ) : null}
               </Diffs>
               <Remove
                 type="button"
@@ -85,7 +104,7 @@ export function CorrectionBatchStep() {
           ))}
         </Table>
       )}
-    </WizardChrome>
+    </GuidedStepLayout>
   )
 }
 
@@ -93,6 +112,20 @@ const Note = styled.p`
   margin: 0;
   font-size: 13px;
   color: ${({ theme }) => theme.colors.textSecondary};
+`
+
+const KycError = styled.p`
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fdecec;
+  color: ${({ theme }) => theme.colors.textError};
+  font-size: 13px;
+`
+
+const Proof = styled.span`
+  color: ${({ theme }) => theme.colors.emerald};
+  font-size: 12px;
 `
 
 const Empty = styled.div`

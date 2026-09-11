@@ -77,8 +77,6 @@ export function EmployeeDetailsPage() {
   const [tab, setTab] = useState<DetailTab>('plans')
   const [notice, setNotice] = useState<string | null>(null)
   const [removeDependantId, setRemoveDependantId] = useState<string | null>(null)
-  const [leaveOpen, setLeaveOpen] = useState(false)
-  const [leaveDate, setLeaveDate] = useState('')
 
   const openClaims = employee?.hasClaimOnGmc ? 1 : 0
 
@@ -142,27 +140,6 @@ export function EmployeeDetailsPage() {
     setNotice('Dependant removal added to Pending Changes.')
   }
 
-  const confirmLeave = () => {
-    if (!leaveDate) return
-    addChange({
-      id: nextPendingId(),
-      employeeId: employee.employeeId,
-      employeeName: `${employee.firstName} ${employee.lastName}`,
-      entityId: entity,
-      entityName: entityNameForEmployee(employee),
-      dealId: employee.dealId,
-      dealName: dealNameForEmployee(employee),
-      action: 'employee_exit',
-      description: `Mark as leaving on ${leaveDate}`,
-      effectiveDate: leaveDate,
-      costImpact: refundImpact(employee.hasClaimOnGmc ? 0 : 1800),
-      createdAt: new Date().toISOString(),
-      payload: { employeeId: employee.id, leavingDate: leaveDate },
-    })
-    setLeaveOpen(false)
-    setNotice('Exit added to Pending Changes. The employee stays on the roster.')
-  }
-
   const planCards = employee.plans.length
     ? employee.plans
     : flexDeal.plans.filter((plan) =>
@@ -194,19 +171,15 @@ export function EmployeeDetailsPage() {
         <TopActions>
           <OutlineBtn
             type="button"
-            onClick={() => navigate(wizard('edit', 'single'))}
+            onClick={() => navigate(wizard('add', 'single-dependant'))}
           >
             <img src={assets.edIconEdit} alt="" width={20} height={20} />
-            Edit Details
+            Manage Employee Family Details
           </OutlineBtn>
           <OutlineBtn
             type="button"
-            onClick={() => navigate(wizard('add', 'single-dependant'))}
+            onClick={() => navigate(wizard('delete', 'single'))}
           >
-            <img src={assets.edIconAddDependant} alt="" width={20} height={20} />
-            Add New Dependant
-          </OutlineBtn>
-          <OutlineBtn type="button" onClick={() => setLeaveOpen(true)}>
             <img src={assets.edIconDelete} alt="" width={20} height={20} />
             Delete Employee
           </OutlineBtn>
@@ -578,12 +551,12 @@ export function EmployeeDetailsPage() {
                 onClick={() => navigate(wizard('add', 'single-dependant'))}
               >
                 <img
-                  src={assets.edIconAddDependant}
+                  src={assets.edIconEdit}
                   alt=""
                   width={20}
                   height={20}
                 />
-                Add New Dependant
+                Manage Employee Family Details
               </EmeraldOutline>
             </DepHeader>
             {employee.dependants.length === 0 ? (
@@ -651,47 +624,6 @@ export function EmployeeDetailsPage() {
               </OutlineBtn>
               <Danger type="button" onClick={confirmRemoveDependant}>
                 Add to Pending Changes
-              </Danger>
-            </ButtonRow>
-          </Dialog>
-        </Overlay>
-      ) : null}
-
-      {leaveOpen ? (
-        <Overlay>
-          <Dialog>
-            <h2>Delete employee</h2>
-            <p>
-              Choose a date of leaving. Continue in the off-board flow for full
-              coverage and refund review, or queue a mocked exit here.
-            </p>
-            <DateInput
-              type="date"
-              value={leaveDate}
-              onChange={(event) => setLeaveDate(event.target.value)}
-            />
-            <ButtonRow>
-              <OutlineBtn type="button" onClick={() => setLeaveOpen(false)}>
-                Cancel
-              </OutlineBtn>
-              <Primary
-                type="button"
-                onClick={() =>
-                  navigate(
-                    wizard('delete', 'single', {
-                      leaving: leaveDate || undefined,
-                    }),
-                  )
-                }
-              >
-                Continue in off-board flow
-              </Primary>
-              <Danger
-                type="button"
-                disabled={!leaveDate}
-                onClick={confirmLeave}
-              >
-                Queue mocked exit
               </Danger>
             </ButtonRow>
           </Dialog>
@@ -1363,12 +1295,4 @@ const Primary = styled.button`
 const Danger = styled(Primary)`
   background: ${({ theme }) => theme.colors.fillRed};
   color: ${({ theme }) => theme.colors.textTertiary};
-`
-
-const DateInput = styled.input`
-  height: 44px;
-  padding: 0 12px;
-  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
-  border-radius: 8px;
-  font: inherit;
 `

@@ -24,6 +24,22 @@ function samePerson(left: DependantFormData, right: DependantFormData) {
   return left.id === right.id
 }
 
+function defaultMaxSlots(relationship: FamilyRelationship) {
+  if (relationship === 'Parent' || relationship === 'Parent-in-law') return 2
+  if (relationship === 'Child') return 2
+  if (relationship === 'Spouse') return 1
+  return 0
+}
+
+function emptySlotLabel(
+  addSlotLabel: string | undefined,
+  relationship: FamilyRelationship,
+) {
+  return addSlotLabel
+    ? `${addSlotLabel} ${relationship}`
+    : `Add ${relationship.toLowerCase()}`
+}
+
 function uncoveredKnown(
   covered: DependantFormData[],
   known: DependantFormData[],
@@ -50,6 +66,7 @@ export function DependantSlotSelector({
   onEditSelf,
   showCovers = true,
   addSlotLabel,
+  hideEmptySlots = false,
 }: {
   summary: FamilySlotSummary
   selected?: string
@@ -64,6 +81,7 @@ export function DependantSlotSelector({
   onEditSelf?: () => void
   showCovers?: boolean
   addSlotLabel?: string
+  hideEmptySlots?: boolean
 }) {
   if (employee) {
     return (
@@ -79,6 +97,7 @@ export function DependantSlotSelector({
         onEditSelf={onEditSelf}
         showCovers={showCovers}
         addSlotLabel={addSlotLabel}
+        hideEmptySlots={hideEmptySlots}
       />
     )
   }
@@ -140,6 +159,7 @@ function FamilyBoard({
   onEditSelf,
   showCovers,
   addSlotLabel,
+  hideEmptySlots,
 }: {
   summary: FamilySlotSummary
   employee: EmployeeFormData
@@ -152,6 +172,7 @@ function FamilyBoard({
   onEditSelf?: () => void
   showCovers: boolean
   addSlotLabel?: string
+  hideEmptySlots: boolean
 }) {
   const spouseSlot = summary.slots.find((slot) => slot.relationship === 'Spouse')
   const childSlot = summary.slots.find((slot) => slot.relationship === 'Child')
@@ -189,17 +210,17 @@ function FamilyBoard({
   const uncoveredSpouses = uncoveredKnown(spouses, knownDependants, 'Spouse')
   const children = dependants.filter((item) => item.relationship === 'Child')
   const uncoveredChildren = uncoveredKnown(children, knownDependants, 'Child')
-  const childCount = Math.max(
-    childSlot?.maxSlots ?? 0,
-    children.length + uncoveredChildren.length,
-  )
+  const enrolledChildCount = children.length + uncoveredChildren.length
+  const childCount = hideEmptySlots
+    ? enrolledChildCount
+    : Math.max(childSlot?.maxSlots ?? 0, enrolledChildCount)
   const spouseEmptyCount = Math.max(
     0,
-    (spouseSlot?.remainingSlots ?? 0) - uncoveredSpouses.length,
+    (spouseSlot?.maxSlots ?? 0) - spouses.length - uncoveredSpouses.length,
   )
   const childEmptyCount = Math.max(
     0,
-    (childSlot?.remainingSlots ?? 0) - uncoveredChildren.length,
+    (childSlot?.maxSlots ?? 0) - enrolledChildCount,
   )
 
   return (
@@ -225,7 +246,7 @@ function FamilyBoard({
               </Identity>
               {onEditSelf ? (
                 <IconButton type="button" aria-label="Edit employee" onClick={onEditSelf}>
-                  <img src={assets.iconEditGreen} alt="" width={20} height={20} />
+                  <img src={assets.iconEditPencil} alt="" width={20} height={20} />
                 </IconButton>
               ) : null}
             </CardTop>
@@ -267,21 +288,25 @@ function FamilyBoard({
               onEdit={onEditDependant}
             />
           ))}
-          {Array.from({ length: spouseEmptyCount }, (_, index) => (
-            <EmptySlot
-              key={`spouse-empty-${index}`}
-              label={addSlotLabel ?? 'Add spouse'}
-              disabled={!onAddSlot}
-              onClick={() => onAddSlot?.('Spouse')}
-            />
-          ))}
+          {!hideEmptySlots
+            ? Array.from({ length: spouseEmptyCount }, (_, index) => (
+                <EmptySlot
+                  key={`spouse-empty-${index}`}
+                  label={emptySlotLabel(addSlotLabel, 'Spouse')}
+                  disabled={!onAddSlot}
+                  onClick={() => onAddSlot?.('Spouse')}
+                />
+              ))
+            : null}
         </Row>
       </Section>
 
       {childCount > 0 ? (
         <Section>
           <SectionHeading>
-            <SectionTitle>{childCount} Kids</SectionTitle>
+            <SectionTitle>
+              {childCount} {childCount === 1 ? 'Kid' : 'Kids'}
+            </SectionTitle>
             <SectionHint>
               This insures {childSlot?.maxSlots ?? childCount} kids, with
               maximum age of 25 years.
@@ -307,14 +332,16 @@ function FamilyBoard({
               onEdit={onEditDependant}
             />
           ))}
-          {Array.from({ length: childEmptyCount }, (_, index) => (
-            <EmptySlot
-              key={`child-empty-${index}`}
-              label={addSlotLabel ?? 'Add child'}
-              disabled={!onAddSlot}
-              onClick={() => onAddSlot?.('Child')}
-            />
-            ))}
+          {!hideEmptySlots
+            ? Array.from({ length: childEmptyCount }, (_, index) => (
+                <EmptySlot
+                  key={`child-empty-${index}`}
+                  label={emptySlotLabel(addSlotLabel, 'Child')}
+                  disabled={!onAddSlot}
+                  onClick={() => onAddSlot?.('Child')}
+                />
+              ))
+            : null}
           </Row>
         </Section>
       ) : null}
@@ -327,8 +354,20 @@ function FamilyBoard({
         const uncovered = uncoveredKnown(members, knownDependants, relationship)
         const emptyCount = Math.max(
           0,
-          (slot?.remainingSlots ?? 0) - uncovered.length,
+          (slot?.maxSlots ?? defaultMaxSlots(relationship)) -
+            members.length -
+            uncovered.length,
         )
+        if (
+          hideEmptySlots &&
+          members.length === 0 &&
+          uncovered.length === 0
+        ) {
+          return null
+        }
+        if (members.length === 0 && uncovered.length === 0 && emptyCount === 0) {
+          return null
+        }
         return (
           <Section key={relationship}>
             <SectionTitle>{relationship}</SectionTitle>
@@ -352,14 +391,16 @@ function FamilyBoard({
                   onEdit={onEditDependant}
                 />
               ))}
-              {Array.from({ length: emptyCount }, (_, index) => (
-                <EmptySlot
-                  key={`${relationship}-empty-${index}`}
-                  label={addSlotLabel ?? `Add ${relationship.toLowerCase()}`}
-                  disabled={!onAddSlot}
-                  onClick={() => onAddSlot?.(relationship)}
-                />
-              ))}
+              {!hideEmptySlots
+                ? Array.from({ length: emptyCount }, (_, index) => (
+                    <EmptySlot
+                      key={`${relationship}-empty-${index}`}
+                      label={emptySlotLabel(addSlotLabel, relationship)}
+                      disabled={!onAddSlot}
+                      onClick={() => onAddSlot?.(relationship)}
+                    />
+                  ))
+                : null}
             </Row>
           </Section>
         )
@@ -407,7 +448,7 @@ function FilledMemberCard({
             aria-label={`Edit ${dependant.relationship}`}
             onClick={() => onEdit(dependant)}
           >
-            <img src={assets.iconEditGreen} alt="" width={20} height={20} />
+            <img src={assets.iconEditPencil} alt="" width={20} height={20} />
           </IconButton>
         ) : null}
       </CardTop>

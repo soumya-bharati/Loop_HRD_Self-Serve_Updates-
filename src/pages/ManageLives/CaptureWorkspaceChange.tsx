@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { sampleEmployees } from '@/data/employees'
+import { employeeDetailsPath } from '@/pages/ManageLives/launchWizard'
 import { usePendingChanges } from '@/pages/ManageLives/PendingChangesContext'
 import {
   chargeImpact,
@@ -20,9 +21,13 @@ export function CaptureWorkspaceChange() {
 
   useEffect(() => {
     if (params.get('returnTo') !== 'manage-lives') return
-    const change = changeFromWizard(wizard)
+    const change = pendingChangeFromWizard(wizard)
     if (change) addChange(change)
-    navigate('/manage-lives', { replace: true })
+    // Flows launched from one employee go back to that employee, not the hub.
+    const employeeId = params.get('employee')
+    navigate(employeeId ? employeeDetailsPath(employeeId) : '/manage-lives', {
+      replace: true,
+    })
     // Capture once when success is shown.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -34,7 +39,7 @@ export function CaptureWorkspaceChange() {
   )
 }
 
-function changeFromWizard(
+export function pendingChangeFromWizard(
   wizard: ReturnType<typeof useLivesWizard>,
 ): PendingChange | null {
   const selected = sampleEmployees.find((item) => item.id === wizard.selectedEmployeeId)
@@ -125,6 +130,7 @@ function changeFromWizard(
       payload: {
         employeeId: selected?.id ?? selected?.employeeId,
         leavingDate: wizard.dateOfLeaving,
+        reasonOfLeaving: wizard.reasonOfLeaving || undefined,
       },
     }
   }

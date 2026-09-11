@@ -139,9 +139,9 @@ export async function detectSheetColumns(
         },
         {
           id: 'confirm-delete',
-          loopField: 'Confirm Delete',
-          required: true,
-          sourceColumn: 'Remove Record',
+          loopField: 'Reason of Leaving',
+          required: false,
+          sourceColumn: 'Reason for Exit',
           confidence: 'high',
         },
       ],

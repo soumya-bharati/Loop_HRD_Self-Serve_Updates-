@@ -5,6 +5,7 @@ import { assets } from '@/assets/figma'
 import {
   useProtoConfig,
   type ProtoCardinality,
+  type ProtoProgressCollapse,
   type ProtoValidationFlow,
 } from '@/proto/ProtoConfigContext'
 
@@ -27,6 +28,23 @@ const VALIDATION_FLOW_OPTIONS: {
     id: 'clean',
     label: 'No errors',
     hint: 'Happy path — columns map cleanly and every life passes straight to final validation.',
+  },
+]
+
+const PROGRESS_COLLAPSE_OPTIONS: {
+  id: ProtoProgressCollapse
+  label: string
+  hint: string
+}[] = [
+  {
+    id: 'hidden',
+    label: 'Hidden',
+    hint: 'The bulk progress sidebar stays expanded with step titles. No collapse control.',
+  },
+  {
+    id: 'shown',
+    label: 'Shown',
+    hint: 'Adds a control to collapse the bulk progress timeline to step icons.',
   },
 ]
 
@@ -65,6 +83,8 @@ export function ProtoConfigModal({
     removeDeal,
     validationFlow,
     setValidationFlow,
+    progressCollapse,
+    setProgressCollapse,
     reset,
   } = useProtoConfig()
 
@@ -163,6 +183,32 @@ export function ProtoConfigModal({
             {
               VALIDATION_FLOW_OPTIONS.find(
                 (option) => option.id === validationFlow,
+              )?.hint
+            }
+          </SectionHint>
+        </Section>
+
+        <Section>
+          <SectionHead>
+            <SectionTitle>Progress sidebar collapse</SectionTitle>
+            <ModeSwitch role="group" aria-label="Progress sidebar collapse">
+              {PROGRESS_COLLAPSE_OPTIONS.map((option) => (
+                <ModeButton
+                  key={option.id}
+                  type="button"
+                  $active={progressCollapse === option.id}
+                  aria-pressed={progressCollapse === option.id}
+                  onClick={() => setProgressCollapse(option.id)}
+                >
+                  {option.label}
+                </ModeButton>
+              ))}
+            </ModeSwitch>
+          </SectionHead>
+          <SectionHint>
+            {
+              PROGRESS_COLLAPSE_OPTIONS.find(
+                (option) => option.id === progressCollapse,
               )?.hint
             }
           </SectionHint>
