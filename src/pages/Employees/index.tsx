@@ -15,7 +15,6 @@ import {
   buildEmployeeRows,
   filterRoster,
   formatCount,
-  rosterToCsv,
   type RosterRow,
 } from '@/pages/Employees/stats'
 import { launchWizardPath } from '@/pages/ManageLives/launchWizard'
@@ -131,6 +130,11 @@ export function EmployeesPage() {
     tab === 'active' &&
     !query.trim() &&
     entityFilter === 'all'
+  const activeCount =
+    scopeTab === 'all' && !query.trim() && entityFilter === 'all'
+      ? FIGMA_DEMO_TOTAL
+      : activeRows.length
+  const deletedCount = deletedRows.length
   const displayTotal = useFigmaDemo ? FIGMA_DEMO_TOTAL : rows.length
   const displayRows = useFigmaDemo ? figmaDemoRows : rows
   const pageCount = Math.max(1, Math.ceil(displayTotal / PAGE_SIZE))
@@ -148,17 +152,6 @@ export function EmployeesPage() {
     displayTotal === 0 ? 0 : safePage * PAGE_SIZE + 1
   const rangeEnd = Math.min(displayTotal, safePage * PAGE_SIZE + PAGE_SIZE)
   const showPolicyColumns = scopeTab === 'policy'
-
-  function downloadRoster() {
-    const csv = rosterToCsv(rows)
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = 'payroll-report.csv'
-    anchor.click()
-    URL.revokeObjectURL(url)
-  }
 
   async function copyEmployeeId(employeeId: string) {
     try {
@@ -257,16 +250,6 @@ export function EmployeesPage() {
             <Chevron src={assets.employeesChevronDown} alt="" />
           </FilterSelectWrap>
         </FilterGroup>
-
-        <PayrollButton type="button" onClick={downloadRoster}>
-          <img
-            src={assets.employeesPayrollDownload}
-            alt=""
-            width={20}
-            height={20}
-          />
-          Payroll Report
-        </PayrollButton>
       </FiltersRow>
       </PageIntro>
 
@@ -277,62 +260,60 @@ export function EmployeesPage() {
               type="button"
               role="tab"
               aria-selected={tab === 'active'}
+              aria-label={`Active, ${activeCount} employees`}
               $active={tab === 'active'}
               onClick={() => {
                 setTab('active')
                 setPage(0)
               }}
             >
-              Active
+              Active ({formatCount(activeCount)})
             </Pill>
             <Pill
               type="button"
               role="tab"
               aria-selected={tab === 'deleted'}
+              aria-label={`Deleted, ${deletedCount} employees`}
               $active={tab === 'deleted'}
               onClick={() => {
                 setTab('deleted')
                 setPage(0)
               }}
             >
-              Deleted
+              Deleted ({formatCount(deletedCount)})
             </Pill>
           </PillTabs>
 
-          <SearchWrap>
-            <SearchIcon src={assets.searchPerson} alt="" />
-            <Search
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value)
-                setPage(0)
-              }}
-              placeholder="Search by name, employee ID, or user ID..."
-              aria-label="Search employees"
-            />
-          </SearchWrap>
+          <ToolbarActions>
+            <SearchWrap>
+              <SearchIcon src={assets.searchPerson} alt="" />
+              <Search
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value)
+                  setPage(0)
+                }}
+                placeholder="Search by name, employee ID, or user ID..."
+                aria-label="Search employees"
+              />
+            </SearchWrap>
+            <AddEmployeeButton
+              type="button"
+              onClick={() =>
+                navigate(
+                  launchWizardPath({
+                    action: 'add',
+                    method: 'single',
+                    entity: entities[0]?.id ?? 'symphony-eyc',
+                    deal: deals[0]?.id,
+                  }),
+                )
+              }
+            >
+              Add Single Employee
+            </AddEmployeeButton>
+          </ToolbarActions>
         </Toolbar>
-
-        <CountBar>
-          <SectionTitle>
-            Total Employees ({formatCount(displayTotal)})
-          </SectionTitle>
-          <AddEmployeeButton
-            type="button"
-            onClick={() =>
-              navigate(
-                launchWizardPath({
-                  action: 'add',
-                  method: 'single',
-                  entity: entities[0]?.id ?? 'symphony-eyc',
-                  deal: deals[0]?.id,
-                }),
-              )
-            }
-          >
-            Add Single Employee
-          </AddEmployeeButton>
-        </CountBar>
 
         {displayRows.length === 0 ? (
           <EmptyCard>
@@ -738,28 +719,6 @@ const Chevron = styled.img`
   pointer-events: none;
 `
 
-const PayrollButton = styled.button`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  height: 48px;
-  padding: 0 24px;
-  border: 1px solid ${({ theme }) => theme.colors.emerald};
-  border-radius: ${({ theme }) => theme.radii.md};
-  background: ${({ theme }) => theme.colors.surface1};
-  color: ${({ theme }) => theme.colors.emerald};
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.2px;
-  line-height: 20px;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  box-sizing: border-box;
-`
-
 const RosterCard = styled.section`
   background: ${({ theme }) => theme.colors.surface1};
   width: 100%;
@@ -797,7 +756,16 @@ const Pill = styled.button<{ $active: boolean }>`
   font-weight: ${({ $active }) => ($active ? 500 : 400)};
   letter-spacing: 0.2px;
   line-height: 18px;
+  white-space: nowrap;
   cursor: pointer;
+`
+
+const ToolbarActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  min-width: 0;
 `
 
 const SearchWrap = styled.label`
@@ -812,7 +780,6 @@ const SearchWrap = styled.label`
   border-radius: 8px;
   background: ${({ theme }) => theme.colors.surface1};
   box-sizing: border-box;
-  margin-left: auto;
 `
 
 const SearchIcon = styled.img`
@@ -842,25 +809,6 @@ const Search = styled.input`
   &:focus {
     outline: none;
   }
-`
-
-const CountBar = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  min-height: 70px;
-  padding: 16px 56px;
-  box-sizing: border-box;
-`
-
-const SectionTitle = styled.h2`
-  margin: 0;
-  font-size: 18px;
-  font-weight: 500;
-  line-height: 24px;
-  color: ${({ theme }) => theme.colors.textPrimary};
 `
 
 const AddEmployeeButton = styled.button`
