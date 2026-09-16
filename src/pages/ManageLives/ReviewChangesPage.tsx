@@ -5,6 +5,7 @@ import styled from 'styled-components'
 import { EnrolmentSettings } from '@/pages/LivesWizard/components/EnrolmentSettings'
 import { emptyEnrolmentSettings } from '@/data/flexDeal'
 import { usePendingChanges } from '@/pages/ManageLives/PendingChangesContext'
+import { EndorsementCostPanel } from '@/pages/ManageLives/landings/EndorsementCostPanel'
 import {
   GROUP_LABELS,
   actionGroup,
@@ -21,6 +22,7 @@ export function ReviewChangesPage() {
     reference: string
     count: number
     net: number
+    hasAdditions: boolean
   } | null>(null)
   const [simulateFailure, setSimulateFailure] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -74,24 +76,33 @@ export function ReviewChangesPage() {
     const reference = `ENDO-${Date.now().toString(36).toUpperCase()}`
     const count = changes.length
     const net = totals.net
+    const hasAdditions = changes.some(
+      (change) =>
+        change.action === 'add_employee' || change.action === 'bulk_add',
+    )
     clearChanges()
     setSubmitting(false)
-    setSubmitted({ reference, count, net })
+    setSubmitted({ reference, count, net, hasAdditions })
   }
 
   if (submitted) {
     return (
-      <Page>
-        <Card>
-          <h1>Changes submitted successfully</h1>
-          <p>Reference {submitted.reference}</p>
-          <p>{submitted.count} change(s) · estimated net {formatINR(submitted.net)}</p>
-          <p>Processing status: queued (mocked).</p>
-          <Primary type="button" onClick={() => navigate('/manage-lives')}>
-            Return to Manage Lives
-          </Primary>
-        </Card>
-      </Page>
+      <SubmittedStage>
+        <EndorsementCostPanel
+          rows={[]}
+          title="You’ve successfully submitted your data to Loop!"
+          caption="Here is your submission summary"
+          summaryItems={[
+            { label: 'Reference number', value: submitted.reference },
+            { label: 'Changes submitted', value: `${submitted.count}` },
+            { label: 'Estimated net impact', value: formatINR(submitted.net) },
+            { label: 'Processing status', value: 'Queued' },
+          ]}
+          notice="Your changes will be reviewed by Loop before they are sent to the insurer."
+          showAccess={submitted.hasAdditions}
+          onDone={() => navigate('/manage-lives')}
+        />
+      </SubmittedStage>
     )
   }
 
@@ -205,6 +216,12 @@ const Page = styled.div`
   @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
     padding: 20px ${({ theme }) => theme.layout.contentPadXMobile} 40px;
   }
+`
+
+const SubmittedStage = styled.div`
+  display: flex;
+  width: 100%;
+  min-height: calc(100vh - ${({ theme }) => theme.layout.topNavHeight});
 `
 
 const Back = styled(Link)`

@@ -74,11 +74,15 @@ function LivesWizardInner() {
 
   if (step === 'success') {
     const returning = new URLSearchParams(window.location.search).get('returnTo') === 'manage-lives'
-    return (
+    return returning ? (
       <Page>
         <Body>
-          {returning ? <CaptureWorkspaceChange /> : <SuccessStep />}
+          <CaptureWorkspaceChange />
         </Body>
+      </Page>
+    ) : (
+      <Page>
+        <SuccessStep />
       </Page>
     )
   }

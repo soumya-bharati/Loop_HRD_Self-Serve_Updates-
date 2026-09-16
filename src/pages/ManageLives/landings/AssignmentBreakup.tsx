@@ -63,34 +63,36 @@ export function AssignmentBreakup({
   return (
     <Wrap>
       {visibleCovers.map((item) => {
-        const fullWidth =
-          item.cover.id === 'cover-term-life' || item.plans.length === 1
-
         return (
           <CoverBlock key={item.cover.id}>
             <CoverHeading>
-              <ClipboardBadge>
-                <img
-                  src={assets.mlIconClipboardText}
-                  alt=""
-                  width={18}
-                  height={18}
-                />
-              </ClipboardBadge>
-              {coverHeading(item.cover.id, item.cover.name)}{' '}
-              {isDelete ? 'will end for' : 'will cover'} {item.lives}{' '}
-              {item.lives === 1 ? 'Life' : 'Lives'}
+              <CoverIcon
+                src={assets.mlIconTableOfContent}
+                alt=""
+                width={36}
+                height={36}
+              />
+              <CoverTitle>
+                <CoverName>
+                  {coverHeading(item.cover.id, item.cover.name)}
+                </CoverName>
+                <CoverMeta>
+                  : {item.lives} {item.lives === 1 ? 'Life' : 'Lives'} will be{' '}
+                  {isDelete ? 'removed' : 'added'}
+                </CoverMeta>
+              </CoverTitle>
             </CoverHeading>
 
-            <PlanGrid $cols={fullWidth ? 1 : Math.min(item.plans.length, 3)}>
+            <PlanGrid $cols={Math.min(item.plans.length, 3)}>
               {item.plans.map((plan) => {
                 const mix = assignmentDescription(
                   rows,
                   item.cover.id,
                   plan.planId,
                 )
+                const showShield = item.cover.id === 'cover-health'
                 return (
-                  <PlanCard key={plan.planId}>
+                  <PlanCard key={plan.planId} $narrow={!showShield && item.plans.length === 1}>
                     <PlanTop>
                       <div>
                         <PlanCount>
@@ -98,7 +100,7 @@ export function AssignmentBreakup({
                           {plan.lives === 1 ? 'member' : 'members'}
                         </PlanCount>
                         <PlanAdded>
-                          {isDelete ? 'Removed from' : 'Added in'}{' '}
+                          {isDelete ? 'Will be removed from' : 'Will be added in'}{' '}
                           <strong>
                             {plan.planLabel}
                             {plan.planLabel.toLowerCase().includes('plan')
@@ -107,12 +109,14 @@ export function AssignmentBreakup({
                           </strong>
                         </PlanAdded>
                       </div>
-                      <Shield
-                        src={planShield(plan.planLabel)}
-                        alt=""
-                        width={40}
-                        height={40}
-                      />
+                      {showShield ? (
+                        <Shield
+                          src={planShield(plan.planLabel)}
+                          alt=""
+                          width={42}
+                          height={42}
+                        />
+                      ) : null}
                     </PlanTop>
                     {mix ? <MixChip>({mix})</MixChip> : null}
                   </PlanCard>
@@ -136,37 +140,44 @@ const Wrap = styled.div`
 const CoverBlock = styled.section`
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
   width: 100%;
 `
 
 const CoverHeading = styled.h2`
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   margin: 0;
   color: ${({ theme }) => theme.colors.textPrimary};
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 24px;
-  letter-spacing: 0.2px;
 `
 
-const ClipboardBadge = styled.span`
-  display: grid;
+const CoverIcon = styled.img`
+  display: block;
   width: 36px;
   height: 36px;
   flex: 0 0 36px;
-  place-items: center;
-  border-radius: 50%;
-  background: ${({ theme }) => theme.colors.turquoise};
+`
 
-  img {
-    display: block;
-    width: 18px;
-    height: 18px;
-    object-fit: contain;
-  }
+const CoverTitle = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+`
+
+const CoverName = styled.span`
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+`
+
+const CoverMeta = styled.span`
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.2px;
 `
 
 const PlanGrid = styled.div<{ $cols: number }>`
@@ -186,21 +197,22 @@ const PlanGrid = styled.div<{ $cols: number }>`
   }
 `
 
-const PlanCard = styled.article`
+const PlanCard = styled.article<{ $narrow?: boolean }>`
   display: flex;
   flex-direction: column;
   gap: 16px;
   min-width: 0;
-  padding: 17px;
-  border: 1px solid ${({ theme }) => theme.colors.disableFill};
-  border-radius: 16px;
+  max-width: ${({ $narrow }) => ($narrow ? '338px' : 'none')};
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
   background: ${({ theme }) => theme.colors.surface1};
   box-sizing: border-box;
 `
 
 const PlanTop = styled.div`
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 `
@@ -209,14 +221,14 @@ const PlanCount = styled.p`
   margin: 0;
   color: ${({ theme }) => theme.colors.textPrimary};
   font-size: 16px;
-  font-weight: 600;
-  line-height: 20px;
-  letter-spacing: -0.4px;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: 0.2px;
 `
 
 const PlanAdded = styled.p`
   margin: 0;
-  color: ${({ theme }) => theme.colors.textSecondary};
+  color: ${({ theme }) => theme.colors.textPrimary};
   font-size: 12px;
   font-weight: 400;
   line-height: 18px;
@@ -224,26 +236,26 @@ const PlanAdded = styled.p`
 
   strong {
     color: ${({ theme }) => theme.colors.textPrimary};
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 500;
-    line-height: 20px;
-    letter-spacing: -0.3px;
+    line-height: 18px;
+    letter-spacing: 0.2px;
   }
 `
 
 const Shield = styled.img`
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
   object-fit: contain;
 `
 
 const MixChip = styled.p`
   margin: 0;
   overflow: hidden;
-  padding: 9px 12px;
+  padding: 8px 12px;
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.04);
+  background: #f3f4f6;
   color: ${({ theme }) => theme.colors.textPrimary};
   font-size: 12px;
   font-weight: 500;

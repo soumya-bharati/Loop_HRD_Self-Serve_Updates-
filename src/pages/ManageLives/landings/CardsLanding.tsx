@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import styled, { keyframes } from 'styled-components'
 
 import { assets } from '@/assets/figma'
@@ -26,6 +26,10 @@ import {
 import { useProtoConfig } from '@/proto/ProtoConfigContext'
 
 type BulkMode = 'add' | 'remove'
+
+function bulkModeFromSearch(value: string | null): BulkMode {
+  return value === 'remove' || value === 'delete' ? 'remove' : 'add'
+}
 
 function toggleIgnored(
   rows: BulkMemberRow[],
@@ -70,7 +74,7 @@ const WIZARD_STEPS = [
   },
   {
     title: 'Review & Submit',
-    description: 'Review the benefit assignments, then submit to Loop.',
+    description: 'Review the assignments, then submit to Loop.',
     icon: 'review',
   },
 ] as const
@@ -127,6 +131,7 @@ function formatFileSize(bytes: number) {
 
 export function CardsLanding() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { entities, deals, includeValidationErrors, allowProgressCollapse } =
     useProtoConfig()
   const { addChange } = usePendingChanges()
@@ -162,7 +167,9 @@ export function CardsLanding() {
       })),
     [deals, includeValidationErrors],
   )
-  const [bulkMode, setBulkMode] = useState<BulkMode>('add')
+  const [bulkMode, setBulkMode] = useState<BulkMode>(() =>
+    bulkModeFromSearch(searchParams.get('mode')),
+  )
   const [entityId, setEntityId] = useState(entities[0]?.id ?? 'symphony-eyc')
   const [file, setFile] = useState<File | null>(null)
   const [phase, setPhase] = useState<
@@ -596,8 +603,10 @@ export function CardsLanding() {
                   $last={index === wizardSteps.length - 1}
                   $collapsed={sidebarCollapsed}
                 >
-                  <StepTitle>{step.title}</StepTitle>
-                  <StepDesc>{step.description}</StepDesc>
+                  <StepTitle $status={status}>{step.title}</StepTitle>
+                  {status === 'active' ? (
+                    <StepDesc>{step.description}</StepDesc>
+                  ) : null}
                 </StepCopy>
               </ProgressStep>
             )
@@ -765,11 +774,17 @@ export function CardsLanding() {
                 <UploadHeading>
                   <SmallTitle>Upload your spreadsheet</SmallTitle>
                   <UploadDescription>
-                    {file
-                      ? 'We’ll read this sheet and match your columns next. You can swap the file if this isn’t the right one.'
-                      : bulkMode === 'add'
-                        ? 'Upload any XLS, XLSX, or CSV with employees and their dependants. It doesn’t need to match our layout — we’ll map the columns after you upload.'
-                        : 'Upload any XLS, XLSX, or CSV with the people you want to remove. Your own columns are fine — we’ll map them after you upload.'}
+                    {file ? (
+                      'We’ll read this sheet and match your columns next. You can swap the file if this isn’t the right one.'
+                    ) : (
+                      <>
+                        Use the sheet you already have. It{' '}
+                        <DescriptionEmphasis>
+                          doesn’t need to follow a specific format
+                        </DescriptionEmphasis>
+                        , we’ll help you map your columns after upload.
+                      </>
+                    )}
                   </UploadDescription>
                 </UploadHeading>
 
@@ -845,7 +860,7 @@ export function CardsLanding() {
                         </DropInner>
                       </DropZone>
                       <Formats>
-                        <span>Supported formats: XLS, XLSX, CSV</span>
+                        <span>Supported Formats: XLS, XLSX</span>
                         <span>Maximum Size: 25MB</span>
                       </Formats>
                     </>
@@ -869,28 +884,27 @@ export function CardsLanding() {
                       <i aria-hidden />
                     </OrSeparator>
                     <UploadHeading>
-                      <SmallTitle>
-                        Optional sample for{' '}
-                        {bulkMode === 'add' ? 'adding lives' : 'removing lives'}
-                      </SmallTitle>
+                      <SmallTitle>Prefer a ready-made format?</SmallTitle>
                       <UploadDescription>
-                        A ready-made sheet with the columns we usually look for.
-                        Use it if it helps, or skip it and upload your own.
+                        Use our template if you’d rather start with predefined
+                        columns.
                       </UploadDescription>
                     </UploadHeading>
                     <TemplateCard>
                       <TemplateCopy>
                         <TemplateTitle>
-                          <ExcelMark aria-hidden>X</ExcelMark>
+                          <ExcelMark
+                            src={assets.mlIconExcelFile}
+                            alt=""
+                            aria-hidden
+                          />
                           {bulkMode === 'add'
-                            ? ADD_SAMPLE_TEMPLATE_FILE_NAME
-                            : bulkDeleteTemplateFileName.replace(
-                                '.xlsx',
-                                '.csv',
-                              )}
+                            ? 'Sample Template for Addition'
+                            : 'Sample Template for Deletion'}
                         </TemplateTitle>
                         <TemplateDescription>
-                          {bulkMode === 'add' ? 'XLSX' : 'CSV'} · Sample template
+                          Use this template with predefined columns and enter
+                          details
                         </TemplateDescription>
                       </TemplateCopy>
                       <DownloadButton
@@ -1062,8 +1076,9 @@ const ProgressList = styled.div<{ $collapsed: boolean }>`
   z-index: 2;
   display: flex;
   flex-direction: column;
+  gap: 4px;
   align-items: ${({ $collapsed }) => ($collapsed ? 'center' : 'stretch')};
-  margin-top: ${({ $collapsed }) => ($collapsed ? '48px' : '36px')};
+  margin-top: ${({ $collapsed }) => ($collapsed ? '48px' : '38px')};
 
   @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
     align-items: stretch;
@@ -1163,7 +1178,7 @@ const VisuallyHidden = styled.span`
 
 const StepConnector = styled.span<{ $done?: boolean }>`
   flex: 1;
-  min-height: 44px;
+  min-height: 8px;
   margin-top: 8px;
   border-left: 1px
     ${({ $done }) => ($done ? 'solid' : 'dashed')}
@@ -1182,13 +1197,16 @@ const StepCopy = styled.div<{ $last?: boolean; $collapsed?: boolean }>`
   }
 `
 
-const StepTitle = styled.p`
+const StepTitle = styled.p<{ $status: StepStatus }>`
   margin: 0;
   font-size: 16px;
   font-weight: 500;
   line-height: 24px;
   letter-spacing: 0.2px;
-  color: ${({ theme }) => theme.colors.textPrimary};
+  color: ${({ theme, $status }) =>
+    $status === 'pending'
+      ? theme.colors.textSecondary
+      : theme.colors.textPrimary};
 `
 
 const StepDesc = styled.p`
@@ -1556,6 +1574,10 @@ const UploadDescription = styled.p`
   letter-spacing: 0.2px;
 `
 
+const DescriptionEmphasis = styled.span`
+  font-weight: 500;
+`
+
 const OrSeparator = styled.div`
   display: flex;
   align-items: center;
@@ -1610,17 +1632,11 @@ const TemplateTitle = styled.p`
   letter-spacing: 0.2px;
 `
 
-const ExcelMark = styled.span`
-  display: grid;
+const ExcelMark = styled.img`
+  display: block;
   width: 16px;
   height: 16px;
   flex: 0 0 16px;
-  place-items: center;
-  border-radius: 2px;
-  background: #168443;
-  color: white;
-  font-size: 9px;
-  font-weight: 600;
 `
 
 const TemplateDescription = styled.p`

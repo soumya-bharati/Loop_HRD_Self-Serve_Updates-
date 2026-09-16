@@ -2,8 +2,10 @@ import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { sampleEmployees } from '@/data/employees'
-import { formatINR, selectablePolicies } from '@/data/flexDeal'
+import type { BulkMemberRow, PolicyCostBreakdown, RefundEstimate } from '@/data/flexDeal'
+import { bulkRowsFromAddEmployees } from '@/pages/LivesWizard/addEmployees'
 import { useLivesWizard } from '@/pages/LivesWizard/WizardContext'
+import { EndorsementCostPanel } from '@/pages/ManageLives/landings/EndorsementCostPanel'
 
 export function SuccessStep() {
   const navigate = useNavigate()
@@ -13,14 +15,13 @@ export function SuccessStep() {
     costEstimate,
     refundEstimate,
     enrolment,
-    employee,
     dependants,
     addEmployees,
     activeDeal,
-    resolvedAssignment,
+    activeDealId,
+    rows,
     bulkDeleteRows,
     editProofFileName,
-    simulateEditSaveFailure,
     selectedEmployeeId,
     dateOfLeaving,
     correctionBatch,
@@ -29,366 +30,148 @@ export function SuccessStep() {
     (item) => item.id === selectedEmployeeId,
   )
 
-  const policies = selectablePolicies.filter((p) =>
-    resolvedAssignment.policyIds.includes(p.id),
-  )
-  const addedBenefits =
-    action === 'add' && method === 'single' && activeDeal
-      ? activeDeal.benefits.filter((benefit) =>
-          addEmployees.some(
-            (member) =>
-              member.selectedBenefitIds.includes(benefit.id) ||
-              member.dependants.some((dependant) =>
-                dependant.selectedBenefitIds.includes(benefit.id),
-              ),
-          ),
-        )
-      : []
-
-  if (action === 'edit' && simulateEditSaveFailure === false && !editProofFileName) {
-    // after failed save simulation, proof cleared — show failure if somehow landed here incorrectly
-  }
-
-  let title = 'Employee added successfully'
-  let subtitle = `${employee.firstName || 'Employee'} has been added${
-    dependants.length
-      ? ` with ${dependants.length} dependant${dependants.length > 1 ? 's' : ''}`
-      : ''
-  }.`
-
-  if (action === 'add' && method === 'single') {
-    const employeeCount = addEmployees.length
-    const dependantCount = addEmployees.reduce(
-      (total, member) => total + member.dependants.length,
-      0,
-    )
-    title =
-      employeeCount === 1
-        ? 'Employee added successfully'
-        : 'Employees added successfully'
-    subtitle = `${employeeCount} employee${employeeCount === 1 ? '' : 's'} added${
-      dependantCount
-        ? ` with ${dependantCount} dependant${dependantCount === 1 ? '' : 's'}`
-        : ''
-    }.`
-  }
-
-  if (action === 'delete') {
-    title =
-      method === 'bulk'
-        ? 'Bulk delete submitted'
-        : 'Employee off-boarded successfully'
-    subtitle =
-      method === 'bulk'
-        ? `${bulkDeleteRows.filter((r) => r.status === 'pass').length} employees removed. Rejected rows available in the error sheet.`
-        : `${selectedEmployee?.firstName ?? 'Employee'} was off-boarded with ${
-            selectedEmployee?.dependants.length ?? 0
-          } dependant${
-            selectedEmployee?.dependants.length === 1 ? '' : 's'
-          }, effective ${dateOfLeaving || 'the selected leaving date'}.`
-  } else if (action === 'edit') {
-    title = 'Corrections submitted'
-    subtitle = `${Math.max(correctionBatch.length, 1)} member${
-      correctionBatch.length === 1 ? '' : 's'
-    } updated. Plan and benefit assignments remain unchanged.`
-  } else if (method === 'bulk') {
-    title = 'Bulk lives added successfully'
-    subtitle = `${costEstimate.totalLivesAdded} lives verified and submitted for endorsement.`
-  } else if (method === 'single-dependant') {
-    title = 'Dependant added successfully'
-    subtitle = `${dependants.length || 1} dependant added with selected benefits.`
-  }
-
   const scheduled =
     enrolment.runEnrolment !== false && enrolment.mode === 'schedule'
 
+  const submittedRows =
+    action === 'add'
+      ? method === 'bulk'
+        ? rows
+        : bulkRowsFromAddEmployees(addEmployees, activeDealId ?? 'deal-default')
+      : action === 'delete' && method === 'bulk'
+        ? bulkDeleteRows.map<BulkMemberRow>((row) => ({
+            id: row.id,
+            employeeId: row.employeeId,
+            name: row.name,
+            email: '',
+            department: '',
+            relationship: 'Self',
+            assignedPlanId: 'plan-standard',
+            benefitIds: [],
+            purchaseGroupSelections: {},
+            assignmentSource: 'sheet',
+            needsManualAssignment: false,
+            status: row.status,
+            dealId: activeDealId ?? 'deal-default',
+            payrollDelta: 0,
+            insurerRefund: row.insurerRefund,
+            payrollRefund: row.payrollRefund,
+            dateOfLeaving: row.dateOfLeaving,
+          }))
+        : []
+
+  const policies =
+    action === 'delete' && refundEstimate
+      ? policiesFromRefund(refundEstimate, activeDeal)
+      : action === 'add'
+        ? costEstimate.policies
+        : []
+
+  const summaryItems: Array<{ label: string; value: string }> = []
+  let caption = 'Submission details'
+  let notice =
+    'Your request will be reviewed by Loop before it is sent to the insurer.'
+
+  if (action === 'edit') {
+    const updated = Math.max(correctionBatch.length, 1)
+    caption = 'Here is the correction summary'
+    summaryItems.push(
+      { label: 'Members updated', value: `${updated}` },
+      { label: 'Plan and benefit assignments', value: 'Unchanged' },
+    )
+    if (editProofFileName) {
+      summaryItems.push({ label: 'Official ID proof', value: editProofFileName })
+    }
+  } else if (action === 'delete') {
+    caption = 'Here is the deletion summary'
+    summaryItems.push({
+      label: 'Lives removed',
+      value: `${refundEstimate?.totalLivesDeleted ?? 0}`,
+    })
+    if (method === 'single') {
+      summaryItems.push(
+        {
+          label: 'Employee',
+          value: selectedEmployee
+            ? `${selectedEmployee.firstName} ${selectedEmployee.lastName}`
+            : 'Employee',
+        },
+        { label: 'Effective date', value: dateOfLeaving || 'Selected date' },
+      )
+    } else {
+      summaryItems.push({
+        label: 'Rows needing attention',
+        value: `${bulkDeleteRows.filter((row) => row.status === 'fail').length}`,
+      })
+    }
+    notice =
+      'Refunds are estimates and may change after the insurer processes the deletion endorsement.'
+  } else if (method === 'single-dependant') {
+    caption = 'Here is the dependant addition summary'
+    summaryItems.push({
+      label: 'Dependants added',
+      value: `${dependants.length || 1}`,
+    })
+  }
+
+  if (action === 'add' && scheduled) {
+    summaryItems.push({
+      label: 'Invitations scheduled for',
+      value: enrolment.dueDate,
+    })
+  } else if (
+    action === 'add' &&
+    enrolment.runEnrolment !== false &&
+    enrolment.mode === 'now'
+  ) {
+    summaryItems.push({ label: 'Invitations', value: 'Send now' })
+  }
+
   return (
-    <Wrap>
-      <Hero>
-        <CheckCircle aria-hidden>✓</CheckCircle>
-        <Title>{title}</Title>
-        <Subtitle>{subtitle}</Subtitle>
-        {scheduled ? (
-          <Subtitle>
-            Invitations scheduled for due date {enrolment.dueDate}. They will
-            appear under Manage Invites.
-          </Subtitle>
-        ) : enrolment.runEnrolment !== false &&
-          enrolment.mode === 'now' &&
-          action === 'add' ? (
-          <Subtitle>Invitations will be sent now.</Subtitle>
-        ) : null}
-      </Hero>
-
-      {action === 'delete' && refundEstimate ? (
-        <Totals>
-          <TotalRow>
-            <span>Lives deleted</span>
-            <strong>{refundEstimate.totalLivesDeleted}</strong>
-          </TotalRow>
-          <TotalRow>
-            <span>Insurer refund</span>
-            <strong>{formatINR(refundEstimate.totalInsurerRefund)}</strong>
-          </TotalRow>
-          <TotalRow>
-            <span>Employee refund</span>
-            <strong>{formatINR(refundEstimate.totalEmployeeRefund)}</strong>
-          </TotalRow>
-        </Totals>
-      ) : null}
-
-      {action === 'delete' &&
-      refundEstimate?.lines.some((line) => line.staysActive) ? (
-        <ErrorSheet>
-          Retained benefits:{' '}
-          {refundEstimate.lines
-            .filter((line) => line.staysActive)
-            .map((line) => line.label)
-            .join(', ')}
-          . These remain active until their configured end date.
-        </ErrorSheet>
-      ) : null}
-
-      {action === 'delete' && method === 'bulk' ? (
-        <ErrorSheet>
-          Error sheet (rejected rows):{' '}
-          {bulkDeleteRows
-            .filter((r) => r.status === 'fail')
-            .map((r) => r.employeeId)
-            .join(', ') || 'none'}
-        </ErrorSheet>
-      ) : null}
-
-      {action === 'add' && method !== 'bulk' ? (
-        <PolicyGrid>
-          {addedBenefits.length > 0
-            ? addedBenefits.map((benefit) => (
-                <PolicyCard key={benefit.id}>
-                  <PolicyName>{benefit.name}</PolicyName>
-                  <PolicyMeta>
-                    {benefit.insurerName} · Policy No: {benefit.policyNumber}
-                  </PolicyMeta>
-                </PolicyCard>
-              ))
-            : policies.map((policy) => (
-                <PolicyCard key={policy.id}>
-                  <PolicyName>{policy.name}</PolicyName>
-                  <PolicyMeta>
-                    {policy.insurerName} · Policy No: {policy.policyNumber}
-                  </PolicyMeta>
-                </PolicyCard>
-              ))}
-        </PolicyGrid>
-      ) : null}
-
-      {action === 'add' ? (
-        <Totals>
-          <TotalRow>
-            <span>Lives added</span>
-            <strong>{costEstimate.totalLivesAdded}</strong>
-          </TotalRow>
-          <TotalRow>
-            <span>Estimated endorsement cost</span>
-            <strong>{formatINR(costEstimate.totalEndorsementCost)}</strong>
-          </TotalRow>
-          <TotalRow>
-            <span>Payroll deduction</span>
-            <strong>{formatINR(costEstimate.totalPayrollDeduction)}</strong>
-          </TotalRow>
-        </Totals>
-      ) : null}
-
-      <Actions>
-        <Secondary type="button" onClick={() => navigate('/endorsements')}>
-          Back to Endorsements
-        </Secondary>
-        <Primary type="button" onClick={() => navigate('/endorsements')}>
-          Done
-        </Primary>
-      </Actions>
-    </Wrap>
+    <SubmittedStage>
+      <EndorsementCostPanel
+        rows={submittedRows}
+        policies={policies}
+        isDelete={action === 'delete'}
+        caption={caption}
+        summaryItems={summaryItems}
+        notice={notice}
+        showAccess={action === 'add'}
+        onDone={() => navigate('/endorsements')}
+      />
+    </SubmittedStage>
   )
 }
 
-const Wrap = styled.div`
+function policiesFromRefund(
+  estimate: RefundEstimate,
+  deal: ReturnType<typeof useLivesWizard>['activeDeal'],
+): PolicyCostBreakdown[] {
+  return estimate.policiesByCd.flatMap((group) =>
+    group.policies.map((policy, index) => {
+      const benefit = deal?.benefits.find(
+        (item) =>
+          item.policyName === policy.policyName || item.name === policy.policyName,
+      )
+      return {
+        policyId: `${group.cdAccountId}-${index}-${policy.policyName}`,
+        policyName: policy.policyName,
+        insurerName: benefit?.insurerName ?? 'Care Health Insurance',
+        insurerLogo: benefit?.insurerLogo ?? 'care',
+        policyNumber: benefit?.policyNumber ?? '',
+        livesAdded: policy.lives,
+        endorsementCost: policy.refund,
+        cdAccountId: group.cdAccountId,
+        cdAccountName: group.cdAccountName,
+        cdBalance: group.cdBalance,
+      }
+    }),
+  )
+}
+
+const SubmittedStage = styled.div`
   display: flex;
-  flex-direction: column;
-  gap: 24px;
   flex: 1;
-  max-width: 800px;
   width: 100%;
-  margin: 0 auto;
-  padding: 48px 24px;
-  box-sizing: border-box;
-  overflow-x: hidden;
-
-  @media (max-width: 640px) {
-    padding: 24px 16px;
-    gap: 16px;
-  }
-`
-
-const Hero = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  text-align: center;
-`
-
-const CheckCircle = styled.div`
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: ${({ theme }) => theme.colors.fillGreen};
-  color: ${({ theme }) => theme.colors.emerald};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  font-weight: 700;
-`
-
-const Title = styled.h1`
-  margin: 0;
-  font-size: 22px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.beyondGrey};
-
-  @media (max-width: 640px) {
-    font-size: 20px;
-  }
-`
-
-const Subtitle = styled.p`
-  margin: 0;
-  font-size: 14px;
-  line-height: 20px;
-  color: ${({ theme }) => theme.colors.textSecondary};
-`
-
-const PolicyGrid = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-
-  @media (max-width: 640px) {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-`
-
-const PolicyCard = styled.div`
-  padding: 16px;
-  border-radius: 12px;
-  background: ${({ theme }) => theme.colors.surface1};
-  border: 1px solid ${({ theme }) => theme.colors.disableFill};
-
-  @media (max-width: 640px) {
-    padding: 12px;
-  }
-`
-
-const PolicyName = styled.div`
-  font-size: 14px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.textPrimary};
-`
-
-const PolicyMeta = styled.div`
-  margin-top: 4px;
-  font-size: 12px;
-  color: ${({ theme }) => theme.colors.textSecondary};
-`
-
-const Totals = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px 20px;
-  border-radius: 12px;
-  background: ${({ theme }) => theme.colors.planeGreenLight};
-
-  @media (max-width: 640px) {
-    padding: 12px 14px;
-    gap: 8px;
-  }
-`
-
-const TotalRow = styled.div`
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 14px;
-  color: ${({ theme }) => theme.colors.textPrimary};
-
-  strong {
-    color: ${({ theme }) => theme.colors.emerald};
-    text-align: right;
-    flex-shrink: 0;
-  }
-
-  @media (max-width: 640px) {
-    font-size: 13px;
-    flex-wrap: wrap;
-  }
-`
-
-const ErrorSheet = styled.div`
-  padding: 12px 16px;
-  border-radius: 8px;
-  background: #fdecec;
-  font-size: 13px;
-  color: ${({ theme }) => theme.colors.textPrimary};
-  word-break: break-word;
-
-  @media (max-width: 640px) {
-    padding: 10px 12px;
-    font-size: 12px;
-  }
-`
-
-const Actions = styled.div`
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-
-  @media (max-width: 640px) {
-    flex-direction: column-reverse;
-    align-items: stretch;
-    gap: 10px;
-  }
-`
-
-const Secondary = styled.button`
-  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
-  background: ${({ theme }) => theme.colors.surface1};
-  border-radius: ${({ theme }) => theme.radii.sm};
-  padding: 12px 20px;
-  font-family: ${({ theme }) => theme.fontFamily};
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-
-  @media (max-width: 640px) {
-    width: 100%;
-    box-sizing: border-box;
-  }
-`
-
-const Primary = styled.button`
-  border: none;
-  background: ${({ theme }) => theme.colors.fillGreen};
-  color: ${({ theme }) => theme.colors.emerald};
-  border-radius: ${({ theme }) => theme.radii.sm};
-  padding: 12px 24px;
-  font-family: ${({ theme }) => theme.fontFamily};
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-
-  @media (max-width: 640px) {
-    width: 100%;
-    box-sizing: border-box;
-  }
+  min-height: 100vh;
 `

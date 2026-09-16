@@ -10,6 +10,7 @@ import {
   FIGMA_DEAL_LABEL,
   figmaDemoRows,
 } from '@/pages/Employees/figmaDemoRows'
+import { BulkActionsBanner } from '@/pages/Employees/BulkActionsBanner'
 import {
   PAGE_SIZE,
   buildEmployeeRows,
@@ -171,12 +172,7 @@ export function EmployeesPage() {
               Comprehensive list of all employees and dependents in your company
             </Subtitle>
           </HeaderCopy>
-          <BulkLivesButton
-            type="button"
-            onClick={() => navigate('/manage-lives')}
-          >
-            Add/Deletes Lives in Bulk
-          </BulkLivesButton>
+          <BulkActionsBanner />
         </Header>
 
         <ScopeTabs role="tablist" aria-label="Employees scope">
@@ -566,9 +562,9 @@ const Header = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 36px 0 42px;
+  padding: 36px 0;
 
-  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -577,8 +573,9 @@ const Header = styled.div`
 const HeaderCopy = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
+  max-width: 387px;
 `
 
 const Title = styled.h1`
@@ -595,23 +592,6 @@ const Subtitle = styled.p`
   line-height: 20px;
   letter-spacing: 0.2px;
   color: ${({ theme }) => theme.colors.textSecondary};
-`
-
-const BulkLivesButton = styled.button`
-  flex-shrink: 0;
-  height: 48px;
-  padding: 14px 24px;
-  border: none;
-  border-radius: ${({ theme }) => theme.radii.md};
-  background: ${({ theme }) => theme.colors.fillGreen};
-  color: ${({ theme }) => theme.colors.emerald};
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 20px;
-  letter-spacing: 0.2px;
-  cursor: pointer;
-  white-space: nowrap;
 `
 
 const ScopeTabs = styled.div`

@@ -93,6 +93,7 @@ import employeesPayrollDownload from '@/assets/figma/employees/icon-download-pay
 import employeesClock from '@/assets/figma/employees/icon-clock.svg'
 import employeesSort from '@/assets/figma/employees/icon-sort.svg'
 import bannerPersonDesk from '@/assets/figma/employees/banner-person-desk.svg'
+import bannerManageLives from '@/assets/figma/employees/banner-manage-lives.png'
 import mlShowingForDot from '@/assets/figma/manage-lives/showing-for-dot.svg'
 import mlChevronDownWhite from '@/assets/figma/manage-lives/chevron-down-white.svg'
 import mlIconInstructions from '@/assets/figma/manage-lives/icon-instructions.svg'
@@ -129,6 +130,9 @@ import mlLogoOriental from '@/assets/figma/manage-lives/logo-oriental.png'
 import mlLogoIciciPru from '@/assets/figma/manage-lives/logo-icici-pru.png'
 import mlIllustrationLoopGroupHappy from '@/assets/figma/manage-lives/illustration-loop-group-happy.svg'
 import mlIconClipboardText from '@/assets/figma/manage-lives/icon-clipboard-text.svg'
+import mlIconSheetDoc from '@/assets/figma/manage-lives/icon-sheet-doc.svg'
+import mlIconTableOfContent from '@/assets/figma/manage-lives/icon-table-of-content.svg'
+import mlIconExcelFile from '@/assets/figma/manage-lives/icon-excel-file.svg'
 import mlPlanShieldBasic from '@/assets/figma/manage-lives/plan-shield-basic.png'
 import mlPlanShieldBronze from '@/assets/figma/manage-lives/plan-shield-bronze.png'
 import mlPlanShieldSilver from '@/assets/figma/manage-lives/plan-shield-silver.png'
@@ -173,6 +177,7 @@ export const assets = {
   bannerCal2,
   bannerCal3,
   bannerPersonDesk,
+  bannerManageLives,
   avatar,
   bulkUpload,
   chevronDown,
@@ -300,6 +305,9 @@ export const assets = {
   mlLogoIciciPru,
   mlIllustrationLoopGroupHappy,
   mlIconClipboardText,
+  mlIconSheetDoc,
+  mlIconTableOfContent,
+  mlIconExcelFile,
   mlPlanShieldBasic,
   mlPlanShieldBronze,
   mlPlanShieldSilver,

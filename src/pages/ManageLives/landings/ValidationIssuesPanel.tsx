@@ -138,18 +138,20 @@ export function ValidationIssuesPanel({
     <>
     <Panel>
       <Content>
-        <Summary aria-live="polite">
-          <SummaryTitle>
-            {acceptedRows.length} of {rows.length}{' '}
-            {rows.length === 1 ? 'member' : 'members'} ready to submit
-          </SummaryTitle>
-          <SummarySub>
-            which includes {readyEmployees}{' '}
-            {readyEmployees === 1 ? 'employee' : 'employees'} &{' '}
-            {readyDependants}{' '}
-            {readyDependants === 1 ? 'Dependant' : 'Dependants'}
-          </SummarySub>
-        </Summary>
+        {showAttention ? (
+          <Summary aria-live="polite">
+            <SummaryTitle>
+              {acceptedRows.length} of {rows.length}{' '}
+              {rows.length === 1 ? 'member' : 'members'} ready to submit
+            </SummaryTitle>
+            <SummarySub>
+              which includes {readyEmployees}{' '}
+              {readyEmployees === 1 ? 'employee' : 'employees'} &{' '}
+              {readyDependants}{' '}
+              {readyDependants === 1 ? 'Dependant' : 'Dependants'}
+            </SummarySub>
+          </Summary>
+        ) : null}
 
         {showAttention ? (
           <TabBar role="tablist" aria-label="Validation review">
@@ -176,43 +178,67 @@ export function ValidationIssuesPanel({
 
         {activeTab === 'ready' ? (
           <>
-            <ReadyBanner>
-              <div>
-                <ReadyTitle>
-                  {acceptedRows.length}{' '}
-                  {acceptedRows.length === 1 ? 'member' : 'members'} ready for{' '}
-                  {isDelete ? 'deletion' : 'addition'}
-                </ReadyTitle>
-              </div>
-              <DownloadOutline
-                type="button"
-                onClick={() =>
-                  isDelete
-                    ? downloadDeletionSheet(acceptedRows)
-                    : downloadAssignmentSheet(acceptedRows)
-                }
-              >
-                {isDelete
-                  ? 'Download deletion list'
-                  : 'Download list with Assignments'}
-              </DownloadOutline>
-            </ReadyBanner>
+            <ReadyStack>
+              <MetricsCard>
+                <PeopleIcon
+                  src={assets.mlIconLives}
+                  alt=""
+                  width={48}
+                  height={48}
+                />
+                <MetricsCopy>
+                  <MetricsTitle>
+                    {acceptedRows.length} of {rows.length} uploaded members are
+                    ready for {isDelete ? 'deletion' : 'addition'}
+                  </MetricsTitle>
+                  <MetricsSub>
+                    which includes {readyEmployees}{' '}
+                    {readyEmployees === 1 ? 'employee' : 'employees'} &{' '}
+                    {readyDependants}{' '}
+                    {readyDependants === 1 ? 'Dependant' : 'Dependants'}
+                  </MetricsSub>
+                </MetricsCopy>
+              </MetricsCard>
+              <SheetBar>
+                <SheetLead>
+                  <SheetIcon
+                    src={assets.mlIconSheetDoc}
+                    alt=""
+                    width={20}
+                    height={20}
+                  />
+                  <SheetCopy>
+                    {isDelete
+                      ? 'Here is the Updated Spreadsheet with all the Deletion Details'
+                      : 'Here is the Updated Spreadsheet with all the Assignment Details'}
+                  </SheetCopy>
+                </SheetLead>
+                <DownloadLink
+                  type="button"
+                  onClick={() =>
+                    isDelete
+                      ? downloadDeletionSheet(acceptedRows)
+                      : downloadAssignmentSheet(acceptedRows)
+                  }
+                >
+                  <img
+                    src={assets.mlIconDownload}
+                    alt=""
+                    width={20}
+                    height={20}
+                  />
+                  Download
+                </DownloadLink>
+              </SheetBar>
+            </ReadyStack>
 
             <AssignHeader>
               <AssignLabel>
                 {isDelete
-                  ? 'Here are the covers being removed'
-                  : 'Here are the assigned benefits'}
+                  ? 'Here is summary of removal'
+                  : 'Here is summary of assignment'}
               </AssignLabel>
               <AssignRule />
-              <KnowHow type="button">
-                {isDelete ? 'Know how it’s removed' : 'Know how it’s assigned'}
-                <KnowTip role="tooltip">
-                  {isDelete
-                    ? 'Loop matches each life to their current covers, then ends those covers on the leaving date. Download the deletion list to review every employee and dependant.'
-                    : 'Loop assigns each life to a plan from your sheet and the policy rules for this account. Download the assignment list to review every employee and dependant.'}
-                </KnowTip>
-              </KnowHow>
             </AssignHeader>
 
             <AssignmentBreakup rows={acceptedRows} isDelete={isDelete} />
@@ -518,7 +544,7 @@ export function ValidationIssuesPanel({
                 onClick={onContinue}
               >
                 Submit {acceptedRows.length}{' '}
-                {acceptedRows.length === 1 ? 'life' : 'lives'} for{' '}
+                {acceptedRows.length === 1 ? 'Life' : 'Lives'} for{' '}
                 {isDelete ? 'Deletion' : 'Addition'}
               </ContinueButton>
             </FooterButtons>
@@ -617,6 +643,118 @@ const Tab = styled.button<{ $active: boolean }>`
   cursor: pointer;
 `
 
+const ReadyStack = styled.div`
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+  width: 100%;
+`
+
+const MetricsCard = styled.div`
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: -16px;
+  padding: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  background: ${({ theme }) => theme.colors.surface1};
+  box-sizing: border-box;
+`
+
+const PeopleIcon = styled.img`
+  display: block;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+`
+
+const MetricsCopy = styled.div`
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+`
+
+const MetricsTitle = styled.p`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.emerald};
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 24px;
+`
+
+const MetricsSub = styled.p`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.textPrimary};
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+`
+
+const SheetBar = styled.div`
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 32px 24px 16px 16px;
+  border-radius: 0 0 12px 12px;
+  background: ${({ theme }) => theme.colors.hoverSurface1};
+  box-sizing: border-box;
+`
+
+const SheetLead = styled.div`
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+`
+
+const SheetIcon = styled.img`
+  display: block;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+`
+
+const SheetCopy = styled.p`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.textPrimary};
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+`
+
+const DownloadLink = styled.button`
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: ${({ theme }) => theme.colors.emerald};
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+
+  img {
+    display: block;
+    width: 20px;
+    height: 20px;
+  }
+`
+
 const ReadyBanner = styled.div<{ $tone?: 'error' }>`
   display: flex;
   align-items: center;
@@ -692,48 +830,6 @@ const AssignRule = styled.i`
   flex: 1;
   min-width: 8px;
   background: ${({ theme }) => theme.colors.defaultBorder};
-`
-
-const KnowHow = styled.button`
-  position: relative;
-  flex-shrink: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: ${({ theme }) => theme.colors.emerald};
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 20px;
-  letter-spacing: 0.2px;
-  text-decoration: underline;
-  cursor: help;
-
-  &:hover > span,
-  &:focus-visible > span {
-    opacity: 1;
-    visibility: visible;
-  }
-`
-
-const KnowTip = styled.span`
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 8px);
-  z-index: 2;
-  width: 280px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: ${({ theme }) => theme.colors.surface1};
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  color: ${({ theme }) => theme.colors.textPrimary};
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 18px;
-  letter-spacing: 0.2px;
-  text-decoration: none;
-  opacity: 0;
-  visibility: hidden;
 `
 
 const IssueSection = styled.section`
@@ -1085,7 +1181,7 @@ const FooterActions = styled.div`
 const FooterButtons = styled.div`
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   flex-wrap: wrap;
 `
 

@@ -23,12 +23,22 @@ export function EndorsementCostPanel({
   rows,
   policies: policiesProp,
   isDelete = false,
+  title = 'You’ve successfully submitted your data to Loop!',
+  caption,
+  summaryItems = [],
+  notice,
+  showAccess = !isDelete,
   onDone,
 }: {
   rows: BulkMemberRow[]
   /** When provided, these are the covers from earlier steps. */
   policies?: PolicyCostBreakdown[]
   isDelete?: boolean
+  title?: string
+  caption?: string
+  summaryItems?: Array<{ label: string; value: string }>
+  notice?: string
+  showAccess?: boolean
   onDone: () => void
 }) {
   const acceptedRows = useMemo(
@@ -66,15 +76,16 @@ export function EndorsementCostPanel({
   return (
     <Page>
       <Stage>
-        <Logo src={assets.loopLogoYellow} alt="loop" />
+        <Logo src={assets.loopLogo} alt="loop" />
         <RightLeaf src={assets.mlBulkSidebarLeaves} alt="" aria-hidden />
-        <Hero>You’ve successfully submitted your data to Loop!</Hero>
+        <Hero>{title}</Hero>
         <Layout>
           <CostCard>
             <Caption>
-              {isDelete
-                ? 'Here is the estimated refund for deletion'
-                : 'Here is the cost of addition'}
+              {caption ??
+                (isDelete
+                  ? 'Here is the estimated refund for deletion'
+                  : 'Here is the cost of addition')}
             </Caption>
 
             {groups.map((group) => (
@@ -125,20 +136,34 @@ export function EndorsementCostPanel({
               </InsurerCard>
             ))}
 
-            <Divider aria-hidden />
+            {summaryItems.length > 0 ? (
+              <SummaryCard>
+                {summaryItems.map((item) => (
+                  <SummaryItem key={item.label}>
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                  </SummaryItem>
+                ))}
+              </SummaryCard>
+            ) : null}
 
-            <TotalRow>
-              <span>
-                {isDelete ? 'Total Insurer Refund' : 'Total Endorsement Cost'}
-              </span>
-              <strong>
-                {formatINRExact(
-                  isDelete ? totalInsurerRefund : totals.cost,
-                )}
-              </strong>
-            </TotalRow>
+            {groups.length > 0 ? (
+              <>
+                <Divider aria-hidden />
+                <TotalRow>
+                  <span>
+                    {isDelete ? 'Total Insurer Refund' : 'Total Endorsement Cost'}
+                  </span>
+                  <strong>
+                    {formatINRExact(
+                      isDelete ? totalInsurerRefund : totals.cost,
+                    )}
+                  </strong>
+                </TotalRow>
+              </>
+            ) : null}
 
-            {isDelete ? (
+            {isDelete && groups.length > 0 ? (
               <RefundRow>
                 <span>Refund to employees</span>
                 <strong>{formatINRExact(totalEmployeeRefund)}</strong>
@@ -148,9 +173,10 @@ export function EndorsementCostPanel({
             <Warning>
               <img src={assets.mlIconInfoWarning} alt="" width={20} height={20} />
               <p>
-                {isDelete
-                  ? 'Refunds are estimates and may change after the insurer processes the deletion endorsement.'
-                  : 'Final amount includes GST, but it could change after the endorsement is processed.'}
+                {notice ??
+                  (isDelete
+                    ? 'Refunds are estimates and may change after the insurer processes the deletion endorsement.'
+                    : 'Final amount includes GST, but it could change after the endorsement is processed.')}
               </p>
             </Warning>
 
@@ -160,7 +186,7 @@ export function EndorsementCostPanel({
           </CostCard>
 
           <Aside>
-            {isDelete ? null : (
+            {showAccess ? (
               <AccessCard>
                 <AccessCopy>
                   <h2>Loop App Access Enabled!</h2>
@@ -178,17 +204,9 @@ export function EndorsementCostPanel({
                   />
                 </AccessArt>
               </AccessCard>
-            )}
+            ) : null}
             <NextCard>
-              <NextTitle>
-                <img
-                  src={assets.mlIconClipboardText}
-                  alt=""
-                  width={24}
-                  height={24}
-                />
-                What’s Next?
-              </NextTitle>
+              <NextTitle>What’s Next?</NextTitle>
               <NextList>
                 {NEXT_STEPS.map((step) => (
                   <NextItem key={step}>
@@ -235,11 +253,11 @@ const Stage = styled.div`
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  padding: 24px 114px 40px;
+  min-height: calc(100vh - 12px);
+  padding: 24px 36px 40px;
   overflow: auto;
   border-radius: 16px;
-  background-color: ${({ theme }) => theme.colors.emerald};
-  background-image: linear-gradient(180deg, #025f4c 0%, #00281f 100%);
+  background-color: ${({ theme }) => theme.colors.hoverSurface1};
   box-sizing: border-box;
 
   &::before {
@@ -257,11 +275,11 @@ const Stage = styled.div`
   &::after {
     content: '';
     position: absolute;
-    left: -312px;
-    bottom: -194px;
+    left: -217px;
+    bottom: -165px;
     z-index: 0;
-    width: 442px;
-    height: 442px;
+    width: 293px;
+    height: 293px;
     background: url(${assets.mlBulkSidebarLeaves}) no-repeat center / contain;
     transform: rotate(0.45deg);
     pointer-events: none;
@@ -287,11 +305,11 @@ const Logo = styled.img`
 
 const RightLeaf = styled.img`
   position: absolute;
-  right: -238px;
-  bottom: -84px;
+  right: -128px;
+  bottom: -78px;
   z-index: 0;
-  width: 442px;
-  height: 442px;
+  width: 238px;
+  height: 238px;
   object-fit: contain;
   transform: rotate(0.45deg);
   pointer-events: none;
@@ -300,12 +318,14 @@ const RightLeaf = styled.img`
 const Hero = styled.h1`
   position: relative;
   z-index: 1;
-  margin: 43px 0 0;
-  color: ${({ theme }) => theme.colors.textTertiary};
+  width: 100%;
+  max-width: 1342px;
+  margin: 43px auto 0;
+  color: ${({ theme }) => theme.colors.textPrimary};
   font-size: 32px;
   font-weight: 500;
   line-height: 40px;
-  text-align: center;
+  text-align: left;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
     margin-top: 24px;
@@ -322,8 +342,8 @@ const Layout = styled.div`
   align-items: flex-start;
   gap: 28px;
   width: 100%;
-  max-width: 1200px;
-  margin: 28px auto 0;
+  max-width: 1342px;
+  margin: 8px auto 0;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.xl}) {
     flex-direction: column;
@@ -498,6 +518,36 @@ const Divider = styled.div`
   background: ${({ theme }) => theme.colors.defaultBorder};
 `
 
+const SummaryCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #f4f8fa;
+`
+
+const SummaryItem = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 52px;
+  padding: 12px 16px;
+  color: ${({ theme }) => theme.colors.textPrimary};
+  font-size: 14px;
+  line-height: 20px;
+  box-sizing: border-box;
+
+  &:not(:last-child) {
+    border-bottom: 1px solid ${({ theme }) => theme.colors.planeGreenLight};
+  }
+
+  strong {
+    font-weight: 600;
+    text-align: right;
+  }
+`
+
 const TotalRow = styled.div`
   display: flex;
   align-items: center;
@@ -592,8 +642,9 @@ const AccessCard = styled.section`
   position: relative;
   height: 316px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
   border-radius: 16px;
+  background: rgba(255, 255, 255, 0.2);
   box-sizing: border-box;
 `
 
@@ -605,7 +656,7 @@ const AccessCopy = styled.div`
 
   h2 {
     margin: 0;
-    color: ${({ theme }) => theme.colors.textTertiary};
+    color: ${({ theme }) => theme.colors.textPrimary};
     font-size: 18px;
     font-weight: 500;
     line-height: 24px;
@@ -613,7 +664,7 @@ const AccessCopy = styled.div`
 
   p {
     margin: 0;
-    color: ${({ theme }) => theme.colors.textTertiary};
+    color: ${({ theme }) => theme.colors.textPrimary};
     font-size: 12px;
     font-weight: 400;
     line-height: 18px;
@@ -644,8 +695,9 @@ const NextCard = styled.section`
   gap: 16px;
   padding: 24px 16px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: 1px solid ${({ theme }) => theme.colors.defaultBorder};
   border-radius: 16px;
+  background: rgba(255, 255, 255, 0.2);
   box-sizing: border-box;
 `
 
@@ -654,18 +706,12 @@ const NextTitle = styled.h2`
   align-items: flex-start;
   gap: 8px;
   margin: 0;
-  color: ${({ theme }) => theme.colors.textTertiary};
+  color: ${({ theme }) => theme.colors.textPrimary};
   font-size: 16px;
   font-weight: 500;
   line-height: 24px;
   letter-spacing: 0.2px;
 
-  img {
-    display: block;
-    width: 24px;
-    height: 24px;
-    flex-shrink: 0;
-  }
 `
 
 const NextList = styled.div`
@@ -688,7 +734,7 @@ const NextItem = styled.div`
 
   p {
     margin: 0;
-    color: ${({ theme }) => theme.colors.textTertiary};
+    color: ${({ theme }) => theme.colors.textPrimary};
     font-size: 12px;
     font-weight: 400;
     line-height: 18px;
